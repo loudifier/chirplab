@@ -2,7 +2,9 @@ import CLProject as clp
 from CLGui import CLTab, CLParameter
 from qtpy.QtWidgets import QLineEdit
 from scipy.fftpack import fft, ifft, fftfreq
+from scipy.signal.windows import hann
 import numpy as np
+import matplotlib.pyplot as plt
 
 # Harmonic Distortion analysis based on Farina papers. https://www.researchgate.net/publication/2456363_Simultaneous_Measurement_of_Impulse_Response_and_Distortion_With_a_Swept-Sine_Technique
 
@@ -13,10 +15,10 @@ class HarmonicDistortion:
         if not params: # default measurement parameters
             self.params['start_harmonic'] = 2 # default to low order THD (H2:H7)
             self.params['stop_harmonic'] = 7
-            self.params['window_start'] = 10, # windowing parameters similar to frequency response windowing, but windows are centered on harmonic impulses, numbers are expressed in proportion of time to previous/next harmonic impulse
-            self.params['fade_in'] = 10, # e.g. for H2 impulse arriving 10ms after H3 impulse, fade_in=0.1 results in harmonic window starting 1ms before H2 harmonic impulse
-            self.params['window_end'] = 50, # fade_in/out must be <= window_start/end, respectively
-            self.params['fade_out'] = 25,
+            self.params['window_start'] = 0.1 # windowing parameters similar to frequency response windowing, but windows are centered on harmonic impulses, numbers are expressed in proportion of time to previous/next harmonic impulse
+            self.params['fade_in'] = 0.1      # e.g. for H2 impulse arriving 10ms after H3 impulse, fade_in=0.1 results in harmonic window starting 1ms before H2 harmonic impulse
+            self.params['window_end'] = 0.9   # fade_in/out must be <= window_start/end, respectively
+            self.params['fade_out'] = 0.5     # window_start + window_end should be <1 to avoid overlap between harmonic impulse windows
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
                 'unit': 'dB', # options are 'dB' or '%' relative to fundamental
                 'num_points': 100,
@@ -31,29 +33,49 @@ class HarmonicDistortion:
         # calculate raw complex frequency response and IR
         fr = fft(clp.signals['response']) / fft(clp.signals['stimulus'])
         ir = ifft(fr)
-        
+        plt.plot(ir)
         # generate array of center frequencies of fft bins
         fr_freqs = fftfreq(len(clp.signals['stimulus']), 1/clp.project['sample_rate'])
+        fr_freqs = fr_freqs[1:int(len(fr_freqs)/2)-1] # trim to positive frequencies
         
         # initialize blank total harmonic power spectrum
-        total_harmonic_power = np.zeros(len(fr))
+        total_harmonic_power = np.zeros(len(fr_freqs))
         
         # loop through harmonics
         for harmonic in range(self.params['start_harmonic'], self.params['stop_harmonic']+1):
             # generate harmonic window
             harmonic_time = harmonic_impulse_time(clp.project['chirp_length'], clp.project['start_freq'], clp.project['stop_freq'], harmonic)
-            prev_harmonic_time = harmonic_impulse_time(clp.project['chirp_length'], clp.project['start_freq'], clp.project['stop_freq'], harmonic-1)
-            next_harmonic_time = harmonic_impulse_time(clp.project['chirp_length'], clp.project['start_freq'], clp.project['stop_freq'], harmonic+1)
+            prev_harmonic_time = harmonic_impulse_time(clp.project['chirp_length'], clp.project['start_freq'], clp.project['stop_freq'], harmonic+1) # next harmonic *number*, previous in terms of *arrival time*. Used to calculate window_start
+            next_harmonic_time = harmonic_impulse_time(clp.project['chirp_length'], clp.project['start_freq'], clp.project['stop_freq'], harmonic-1)
         
+            fade_in = round(self.params['fade_in']*(harmonic_time-prev_harmonic_time)*clp.project['sample_rate'])
+            window_start = round(self.params['window_start']*(harmonic_time-prev_harmonic_time)*clp.project['sample_rate'])
+            fade_out = round(self.params['fade_out']*(next_harmonic_time-harmonic_time)*clp.project['sample_rate'])
+            window_end = round(self.params['window_end']*(next_harmonic_time-harmonic_time)*clp.project['sample_rate'])
             
-        #   apply harmonic window to IR
-        #   get harmonic power spectrum (fft(ir))
-        #   apply frequncy scaling/interpolation
-        #   add single harmonic power to total harmonic power
+            harmonic_window = np.zeros(len(ir))
+            harmonic_window[:fade_in] = hann(fade_in*2)[:fade_in]
+            harmonic_window[fade_in:window_start+window_end-fade_out] = np.ones(window_start-fade_in+window_end-fade_out)
+            harmonic_window[window_start+window_end-fade_out:window_start+window_end] = hann(fade_out*2)[fade_out:]
+            harmonic_window = np.roll(harmonic_window, round(harmonic_time*clp.project['sample_rate'])-window_start)
+            
+            # apply harmonic window to IR
+            harmonic_ir = ir * harmonic_window
+            
+            # get harmonic spectrum
+            harmonic_spectrum = fft(harmonic_ir)
+            harmonic_spectrum = harmonic_spectrum[1:int(len(harmonic_spectrum)/2)-1]
+            #plt.plot(harmonic_spectrum)
+            # apply frequncy scaling/interpolation
+            harmonic_spectrum = np.interp(fr_freqs, fr_freqs/harmonic, harmonic_spectrum)
+            plt.plot(harmonic_spectrum)
+            # add single harmonic power to total harmonic power
+            total_harmonic_power = total_harmonic_power + np.square(harmonic_spectrum)
         
         
-        
-        
+        # take square root of harmonic power to complete power sum
+        total_harmonic_power = np.sqrt(total_harmonic_power)
+        plt.show()
 
         # generate array of output frequency points
         if self.params['output']['scaling'] == 'log':
@@ -63,7 +85,7 @@ class HarmonicDistortion:
         
         
         # interpolate output points
-        #self.out_points = np.interp(self.out_freqs, fr_freqs, total_harmonic_power)
+        self.out_points = np.interp(self.out_freqs, fr_freqs, total_harmonic_power)
         
         # convert output to desired units
         if self.params['output']['unit'] == 'dB':
@@ -92,8 +114,8 @@ class HarmonicDistortion:
         
         # run initial measurement and plot results
         self.measure()
-        #self.tab.graph.axes.plot(self.out_freqs, self.out_points)
-        #self.tab.graph.draw()
+        self.tab.graph.axes.plot(self.out_freqs, self.out_points)
+        self.tab.graph.draw()
         
         
 def harmonic_impulse_time(chirp_length, start_freq, stop_freq, harmonic):
