@@ -1,18 +1,12 @@
 import CLProject as clp
-
-from qtpy.QtWidgets import QApplication, QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QSplitter, QTextEdit, QComboBox
-from qt_collapsible_section.Section import Section as QSection # accordion-type widget from https://github.com/RubendeBruin/qt-collapsible-section
-import numpy as np
-from scipy.io import wavfile
-import matplotlib.pyplot as plt
+from qtpy.QtWidgets import QApplication
 import sys
 import os
 import requests
 import tempfile
 from zipfile import ZipFile
-import subprocess
 import CLMeasurements
-from CLGui import CLTab, ChirpTab, CLParameter
+from CLGui import MainWindow
 from CLAnalysis import generate_stimulus, read_response, save_csv
 import argparse
 
@@ -86,28 +80,6 @@ def main():
     
     # start main application loop
     app.exec()
-    
-    
-    
-
-class MainWindow(QMainWindow):
-    def __init__(self, measurements):
-        super().__init__()
-        self.measurements = measurements
-        self.setWindowTitle('Chirplab')
-        
-        # main GUI structure for navigating between chirp parameters/IO and measurements
-        self.tabs = QTabWidget()
-        
-        # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
-        chirp_tab = ChirpTab()
-        self.tabs.addTab(chirp_tab,'Chirp Stimulus/Response')
-        
-        layout = QGridLayout() # base layout. Only 0,0 used
-        layout.addWidget(self.tabs, 0,0)
-        widget = QWidget() # Layout can't be applied directly to QMainWindow, need a base QWidget
-        widget.setLayout(layout)
-        self.setCentralWidget(widget)
  
         
     
