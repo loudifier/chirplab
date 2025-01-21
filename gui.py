@@ -1,7 +1,8 @@
-from qtpy.QtWidgets import QApplication, QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QSplitter, QTextEdit
+from qtpy.QtWidgets import QApplication, QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QSplitter, QTextEdit, QComboBox
 from qtpy import QtCore
 from qt_collapsible_section.Section import Section as QSection # accordion-type widget from https://github.com/RubendeBruin/qt-collapsible-section
-import matplotlib.pyplot as plt
+from scipy.io import wavfile
+
 
 # main gui element of chirplab. A configuration panel on the left, with a graph area on the right
 class CLTab(QSplitter): # base widget is a splitter
@@ -15,11 +16,16 @@ class CLTab(QSplitter): # base widget is a splitter
         self.panel.setAlignment(QtCore.Qt.AlignTop)
         
         
-        self.graph = QLabel('graph area') # matplotlib axes
-        
+        self.graph = MplCanvas(self)
+        self.graph_toolbar = NavigationToolbar(self.graph)
+        graph_layout = QVBoxLayout()
+        graph_layout.addWidget(self.graph_toolbar)
+        graph_layout.addWidget(self.graph)
+        graph_area = QWidget()
+        graph_area.setLayout(graph_layout)
         
         self.addWidget(self.panel_widget)
-        self.addWidget(self.graph)
+        self.addWidget(graph_area)
         
     # add an accordion section to the configuration panel    
     def addPanelSection(self, section_name):
@@ -29,7 +35,40 @@ class CLTab(QSplitter): # base widget is a splitter
         section.toggleButton.click()
         return vbox # return the section layout so the caller can add elements to the section
 
-# sub class of the VBoxLayout for use in collaptible sections
+# First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
+class ChirpTab(CLTab):
+    def __init__(self, project):
+        super().__init__(project)
+        self.project = project
+        
+        self.chirp_params = self.addPanelSection('Chirp Parameters')
+        self.start_freq = CLParameter('Start Freq', self.project['start_freq'], 'Hz') ; self.chirp_params.addWidget(self.start_freq)
+        self.stop_freq = CLParameter('Stop Freq', self.project['stop_freq'], 'Hz') ; self.chirp_params.addWidget(self.stop_freq)
+        self.chirp_length = CLParameter('Chirp Length', self.project['chirp_length'], 'Sec') ; self.chirp_params.addWidget(self.chirp_length)
+        
+        self.output_params = self.addPanelSection('Output')
+        
+        self.input_params = self.addPanelSection('Input')
+        self.input_mode_dropdown = QComboBox() ; self.input_params.addWidget(self.input_mode_dropdown)
+        self.input_mode_dropdown.addItem('File')
+        self.input_file_box = CLParameter('Input File', self.project['input']['file'], '') ; self.input_params.addWidget(self.input_file_box)
+        self.input_channel = CLParameter('Channel', 1, '') ; self.input_params.addWidget(self.input_channel)
+        self.analyze_button = QPushButton('Analyze') ; self.input_params.addWidget(self.analyze_button)
+        self.analyze_button.clicked.connect(self.analyze)
+        
+        
+    
+    def analyze(self):
+        # read in input file
+        rate, samples = wavfile.read(self.project['input']['file'])
+        print('analyze')
+        self.graph.axes.cla()
+        self.graph.axes.plot(samples)
+        self.graph.draw()
+        # align and trim response signal
+        # update measurements with new response
+
+# sub class of the VBoxLayout for use in collapsible sections
 # sections only update their expanded height when section.setContentLayout() is called
 # QSectionVBoxLayout stores a reference to the parent section and updates the section height whenever a new element is added
 class QSectionVBoxLayout(QVBoxLayout):
@@ -58,3 +97,21 @@ class CLParameter(QWidget):
         
         self.unit = QLabel(unit)
         self.layout.addWidget(self.unit)
+        
+        
+        
+        
+        
+        
+        
+import matplotlib
+matplotlib.use('Qt5Agg')
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+from matplotlib.figure import Figure
+
+class MplCanvas(FigureCanvasQTAgg):
+
+    def __init__(self, parent=None, width=5, height=4, dpi=100):
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes = fig.add_subplot(111)
+        super(MplCanvas, self).__init__(fig)

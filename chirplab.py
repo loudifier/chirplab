@@ -1,9 +1,11 @@
-from qtpy.QtWidgets import QApplication, QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QSplitter, QTextEdit
+from qtpy.QtWidgets import QApplication, QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QSplitter, QTextEdit, QComboBox
 from qt_collapsible_section.Section import Section as QSection # accordion-type widget from https://github.com/RubendeBruin/qt-collapsible-section
+import numpy as np
+from scipy.io import wavfile
 import matplotlib.pyplot as plt
 import sys
 from measurements import FrequencyResponse
-from gui import CLTab, CLParameter
+from gui import CLTab, ChirpTab, CLParameter
 
 CHIRPLAB_VERSION = 0
 
@@ -41,7 +43,7 @@ def main():
             'input': {
                 'mode': 'file',
                 'channel': 1, # which channel to use from input file or capture device
-                'file': '', # input file path
+                'file': 'response.wav', # input file path
                 },
             
             }
@@ -76,23 +78,11 @@ class MainWindow(QMainWindow):
         # main GUI structure for navigating between chirp parameters/IO and measurements
         tabs = QTabWidget()
         
-        # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
-        chirp_tab = CLTab(self.project)
+        # # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
+        # chirp_tab = CLTab(self.project)
+        chirp_tab = ChirpTab(self.project)
         tabs.addTab(chirp_tab,'Chirp Stimulus/Response')
-        
-        chirp_params = chirp_tab.addPanelSection('Chirp Parameters')
-        start_freq = CLParameter('Start Freq', self.project['start_freq'], 'Hz')
-        chirp_params.addWidget(start_freq)
-        stop_freq = CLParameter('Stop Freq', self.project['stop_freq'], 'Hz')
-        chirp_params.addWidget(stop_freq)
-        chirp_length = CLParameter('Chirp Length', self.project['chirp_length'], 'Sec')
-        chirp_params.addWidget(chirp_length)
-        
-        
-        output_params = chirp_tab.addPanelSection('Output')
-        input_params = chirp_tab.addPanelSection('Input')
-        
-        
+
         
         
         
@@ -103,7 +93,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(widget)
  
         
- 
+    
+        
 
  
     
