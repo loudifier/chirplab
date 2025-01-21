@@ -1,10 +1,9 @@
 import CLProject as clp
-from qtpy.QtWidgets import QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QSplitter, QLineEdit, QComboBox, QScrollArea, QFrame
+from qtpy.QtWidgets import QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QSplitter, QLineEdit, QComboBox, QScrollArea, QFrame, QSpinBox, QDoubleSpinBox, QAbstractSpinBox
 from qtpy import QtCore
 from qt_collapsible_section.Section import Section as QSection # accordion-type widget from https://github.com/RubendeBruin/qt-collapsible-section
 import numpy as np
 from CLAnalysis import generate_stimulus, read_response
-
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -71,25 +70,47 @@ class ChirpTab(CLTab):
         # Chirp parameters section
         self.chirp_params = self.addPanelSection('Chirp Parameters')
         
-        self.start_freq = CLParameter('Start Freq', clp.project['start_freq'], 'Hz')
+        self.start_freq = CLParamNum('Start Freq', clp.project['start_freq'], 'Hz', 0.01, clp.project['sample_rate']/2)
         self.chirp_params.addWidget(self.start_freq)
-        def updateStartFreq():
-            new_value = self.start_freq.text_box.text() # get text entered to text box
-            if new_value.isnumeric() and float(new_value)>0 and float(new_value)<=(clp.project['sample_rate']/2): # make sure new value is a number greater than 0 and less than or equal to Nyquist
-                self.start_freq.last_value = new_value # if new value is valid, use the new value
+        def updateStartFreq(new_value):
+            if new_value == self.stop_freq.value: # catch any other invalid values (min/max are caught automatically)
+                # don't catch start_freq being higher than stop_freq. Down-swept chirps technically still work with most measurements
+                self.start_freq.revert() # revert and do nothing
+            else:
                 clp.project['start_freq'] = float(new_value) # apply the new value to the project
                 self.updateStimulus() # update the stimulus (which updates the measurements)
-            else:
-                self.start_freq.text_box.setText(self.start_freq.last_value) # if new value is not valid, revert to the previous value and do nothing
-        self.start_freq.text_box.editingFinished.connect(updateStartFreq)
+        self.start_freq.update_callback = updateStartFreq
         
-        self.stop_freq = CLParameter('Stop Freq', clp.project['stop_freq'], 'Hz')
+        self.stop_freq = CLParamNum('Stop Freq', clp.project['stop_freq'], 'Hz', 0.01, clp.project['sample_rate']/2)
         self.chirp_params.addWidget(self.stop_freq)
+        def updateStopFreq(new_value):
+            if new_value == self.start_freq.value:
+                self.stop_freq.revert()
+            else:
+                clp.project['stop_freq'] = float(new_value)
+                self.updateStimulus()
+        self.stop_freq.update_callback = updateStopFreq
         
-        self.chirp_length = CLParameter('Chirp Length', clp.project['chirp_length'], 'Sec')
+        self.chirp_length = CLParamNum('Chirp Length', clp.project['chirp_length'], ['Sec','Samples'], 0.1, 60, 'float')
         self.chirp_params.addWidget(self.chirp_length)
-        
-        
+        def updateChirpLength(new_value):
+            if self.chirp_length.units.currentIndex() == 0: # update seconds directly
+                clp.project['chirp_length'] = self.chirp_length.value
+            else: # convert samples to seconds
+                clp.project['chirp_length'] = self.chirp_length.value / clp.project['sample_rate']
+            self.updateStimulus()
+        self.chirp_length.update_callback = updateChirpLength
+        def updateChirpLengthUnits(index):
+            print(clp.project['chirp_length'])
+            if index==0: # seconds
+                self.chirp_length.setMinimum(0.1)
+                self.chirp_length.setMaximum(60)
+                self.chirp_length.setValue(clp.project['chirp_length'])
+            else:
+                self.chirp_length.setMinimum(0.1*clp.project['sample_rate'])
+                self.chirp_length.setMaximum(60*clp.project['sample_rate'])
+                self.chirp_length.setValue(clp.project['chirp_length']*clp.project['sample_rate'])
+        self.chirp_length.units_update_callback = updateChirpLengthUnits
         
         self.output_params = self.addPanelSection('Output')
         
@@ -151,7 +172,10 @@ class ChirpTab(CLTab):
         
     def plot(self):
         self.graph.axes.cla()
-        times = np.arange(len(clp.signals['stimulus']))/clp.project['sample_rate']
+        if self.chirp_length.units.currentIndex() == 0: #times in seconds
+            times = np.arange(len(clp.signals['stimulus']))/clp.project['sample_rate']
+        else: #times in samples
+            times = np.arange(len(clp.signals['stimulus']))
         self.graph.axes.plot(times, clp.signals['stimulus'])
         self.graph.axes.plot(times, clp.signals['response'])
         if any(clp.signals['noise']):
@@ -171,10 +195,11 @@ class QSectionVBoxLayout(QVBoxLayout):
         self.section.setContentLayout(self) # force containing section to update its expanded height when adding new elements
 
 
-# combination class for displaying and entering configuration parameters
-# label on the left, text box in the middle, and a unit label on the right (right label to be expanded later to use a drop down for units, checkbox, etc.)
+# collection of combination classes for displaying and entering configuration parameters
+# typically a label on the left, text box or similar element in the middle, and sometimes a unit label or dropdown on the right
 class CLParameter(QWidget):
-    def __init__(self, label_text, parameter_value, unit):
+    # generic text box parameter value
+    def __init__(self, label_text, parameter_value, unit=None):
         super().__init__()
         self.layout = QHBoxLayout()
         self.setLayout(self.layout)
@@ -183,11 +208,96 @@ class CLParameter(QWidget):
         self.layout.addWidget(self.label)
         
         self.text_box = QLineEdit(str(parameter_value))
-        self.last_value = str(parameter_value) # keep track of last value, to revert back to in case new entry fails data validation
+        self.value = str(parameter_value)
+        self.last_value = self.value # keep track of last value, to revert back to in case new entry fails data validation
         self.layout.addWidget(self.text_box)
+        def editingFinished():
+            self.value = self.text_box.text()
+            if not self.update_callback is None:
+                self.update_callback(self.value)
+            self.last_value = self.value # if callback is not defined or update completes, just update last_value. If there is an issue during callback, assume revert sets current value to last_value
+        self.text_box.editingFinished.connect(editingFinished)
         
-        self.unit = QLabel(unit)
-        self.layout.addWidget(self.unit)
+        # Only add a unit label if the unit is specified
+        if not unit is None:
+            # if single unit is provided add a label, if a list of units is specified add a dropdown for unit selection
+            if isinstance(unit, str):
+                self.unit = QLabel(unit)
+                self.layout.addWidget(self.unit)
+            else:
+                self.units = QComboBox()
+                self.units.addItems(unit)
+                self.layout.addWidget(self.units)
+                def indexChanged(index):
+                    if not self.units_update_callback is None:
+                        self.units_update_callback(index)
+                self.units.currentIndexChanged.connect(indexChanged)
+        
+        # define external callback functions to handle parameter updates
+        self.update_callback = None
+        self.units_update_callback = None
+    
+    def set_value(self, new_value):
+        self.text_box.setText(new_value)
+    
+    def revert(self):
+        self.set_value(self.last_value)
+        self.value = self.last_value
+      
+        
+class CLParamNum(CLParameter):
+    # numeric parameter using a spinbox for input and automatic checking of min/max values
+    def __init__(self, label_text, parameter_value, unit=None, min_val=float('-inf'), max_val=float('inf'), numtype='float'):
+        super().__init__(label_text, parameter_value, unit)
+        self.min = min_val
+        self.max = max_val
+        
+        # replace generic text box with spinbox
+        self.text_box.setParent(None)
+        
+        # any single one of these lines (plus the layout.update() call below) removes the text box
+        self.layout.removeWidget(self.text_box)
+        #self.text_box.deleteLater() # this leads to an error being thrown when entering text into the spinbox
+        #self.text_box.close()
+        
+        # don't actually use Qt's validation. Basic min/max/int checking is easy and changing values/limits of Qt classes fires callbacks and leads to confusing state machine problems
+        self.spin_box = QDoubleSpinBox()
+        self.spin_box.setMinimum(float('-inf'))
+        self.spin_box.setMaximum(float('inf'))
+        self.setNumtype(numtype)
+        self.layout.insertWidget(1, self.spin_box) # works, but the spinbox doesn't fill the middle the way it would if the spinbox is added directly instead of inserted
+        self.layout.update()
+        self.spin_box.setValue(float(parameter_value)) # value can only be changed after adding to layout
+        def valueChanged(new_val): # can also catch textChanged. textChanged and valueChanged are both called everytime a character is typed, not just editing finished. Might be worth catching textChanged and only validate on editing finished
+            if self.numtype == 'int':
+                new_val= round(new_val)
+            self.value = min(max(new_val, self.min), self.max)
+            if not self.update_callback is None:
+                self.update_callback(self.value)
+            self.last_value = self.value
+        self.spin_box.valueChanged.connect(valueChanged)
+        
+    def set_min(self, new_min):
+        self.min = new_min
+        
+        
+    def set_max(self, new_max):
+        self.max = new_max
+        
+    def set_value(self, new_value):
+        self.spin_box.setValue(new_value)
+        
+    def setNumtype(self, new_type):
+        # check for valid values, either 'float' or 'int'
+        self.numtype = new_type
+        if self.numtype == 'float':
+            self.spin_box.setStepType(QAbstractSpinBox.StepType.AdaptiveDecimalStepType)
+        else: # int
+            self.spin_box.setStepType(QAbstractSpinBox.StepType.DefaultStepType)
+            # default step value should still be 1
+        
+        
+        
         
         
         
