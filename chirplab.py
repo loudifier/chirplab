@@ -7,9 +7,16 @@ import matplotlib.pyplot as plt
 import sys
 import CLMeasurements
 from CLGui import CLTab, ChirpTab, CLParameter
+from CLAnalysis import generate_stimulus, read_response
 
 
 def main():
+    # first, check that sox is available on the system. Prompt the user to install it or add some sort of fetch/installation routine
+    print('todo: check for sox')
+    # if not clp.sox_available():
+    #     # on linux/OSX print message about `at-get install sox`, etc.
+    #     # on Windows fetch binaries from https://sourceforge.net/projects/sox/files/sox/14.4.2/sox-14.4.2-win32.zip/download and unzip to /bin/
+    
     if len(sys.argv) < 2:
         # chirplab started without any arguments. Generate a default New Project and launch gui
         clp.new_project()
@@ -26,6 +33,10 @@ def main():
     for measurement in clp.project['measurements']:
         Measurement = getattr(CLMeasurements, measurement['type']) # dynamically invoke measurement class from measurement type string
         measurements.append(Measurement(measurement['name'], measurement['params']))
+    
+    # get stimulus and response signals
+    generate_stimulus()
+    read_response()
     
     
     app = QApplication([])
@@ -55,7 +66,9 @@ class MainWindow(QMainWindow):
 
         # Additional tab for each measurement
         for measurement in measurements:
+            measurement.init_tab()
             tabs.addTab(measurement.tab, measurement.name)
+        
         
         
         layout = QGridLayout() # base layout. Only 0,0 used

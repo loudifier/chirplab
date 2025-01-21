@@ -4,7 +4,7 @@ from qtpy import QtCore
 from qt_collapsible_section.Section import Section as QSection # accordion-type widget from https://github.com/RubendeBruin/qt-collapsible-section
 from scipy.io import wavfile
 import numpy as np
-from CLAnalysis import logchirp
+from CLAnalysis import generate_stimulus, read_response
 
 # main gui element of chirplab. A configuration panel on the left, with a graph area on the right
 class CLTab(QSplitter): # base widget is a splitter
@@ -97,27 +97,39 @@ class ChirpTab(CLTab):
         self.post_sweep = CLParameter('Post Sweep', clp.project['post_sweep'], 'Sec')
         self.analysis_params.addWidget(self.post_sweep)
         
+        # plot stimulus/response signals
+        self.plot()
+        
 
     def updateStimulus(self):
         # generate new stimulus from chirp and analysis parameters
-        clp.signals['stimulus'] = np.concatenate((
-            np.zeros(round(clp.project['pre_sweep']*clp.project['sample_rate'])),
-            logchirp(clp.project['start_freq'], clp.project['stop_freq'], clp.project['chirp_length'], clp.project['sample_rate']),
-            np.zeros(round(clp.project['post_sweep']*clp.project['sample_rate']))))
+        generate_stimulus()
+        
         # update chirp tab graph
-        self.graph.axes.cla()
-        self.graph.axes.plot(np.arange(len(clp.signals['stimulus']))/clp.project['sample_rate'],clp.signals['stimulus'])
-        self.graph.draw()
+        self.plot()
+        
         # update measurements
+        print('todo: update all measurements')
+        
         
     def analyze(self):
         # read in input file
-        rate, samples = wavfile.read(clp.project['input']['file'])
+        read_response() # reads in raw response, gets desired channel, and puts segment containing chirp in clp.signals['stimulus']
+
+        # update chirp tab graph
+        self.plot()
+
+        # update measurements
+        print('todo: update all measurements')
+        
+    def plot(self):
         self.graph.axes.cla()
-        self.graph.axes.plot(samples)
+        times = np.arange(len(clp.signals['stimulus']))/clp.project['sample_rate']
+        self.graph.axes.plot(times, clp.signals['stimulus'])
+        self.graph.axes.plot(times, clp.signals['response'])
+        if any(clp.signals['noise']):
+            self.graph.axes.plot(times, clp.signals['noise'])
         self.graph.draw()
-        # align and trim response signal
-        # update measurements with new response
 
 # sub class of the VBoxLayout for use in collapsible sections
 # sections only update their expanded height when section.setContentLayout() is called

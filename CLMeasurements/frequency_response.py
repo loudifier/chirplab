@@ -16,4 +16,7 @@ class FrequencyResponse:
                     }
                 }
         
+    def init_tab(self):
         self.tab = CLTab()
+        # add measurement parameters
+        # run initial measurement and plot results
