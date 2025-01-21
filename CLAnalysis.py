@@ -139,6 +139,32 @@ def write_audio_file(samples, out_path, sample_rate=48000, depth='24 int'):
                 soxerr = e.read()
                 raise PermissionError(soxerr)
 
+def audio_file_info(file_path):
+    # read audio file header using sox
+    # subprocess.run() with shell=True is unsafe. Find or write a better audio file IO library at some point. #todo #security
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+        result = subprocess.run([clp.sox_path, '--i', str(file_path), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
+        sox_out = (Path(temp_dir) / 'soxerr.txt').read_text()
+        
+        if result.returncode:
+            if 'No such file' in sox_out:
+                raise FileNotFoundError(sox_out)
+            if 'no handler' in sox_out:
+                raise FormatNotSupportedError(sox_out)
+            raise Exception(sox_out)
+
+        channels = int(sox_out.splitlines()[2].split(':')[1])
+        sample_rate = int(sox_out.splitlines()[3].split(':')[1])
+        length_samples = int(sox_out.splitlines()[5].split('=')[1].split(' ')[1])
+        numtype = sox_out.splitlines()[8].split(': ')[1]
+        return {'channels': channels,
+                'sample_rate': sample_rate,
+                'length_samples': length_samples,
+                'numtype': numtype}
+
+class FormatNotSupportedError(Exception):
+    pass
+
 def find_offset(input_sig, find_sig):
     # for two 1D input arrays where a signal similar to find_sig is expected to be somewhere in input_sig, find the position of find_sig in input_sig and return the index of the start of find_sig
     # implemented using cross correlation through fft convolution
