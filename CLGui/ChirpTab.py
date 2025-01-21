@@ -1,5 +1,5 @@
 import CLProject as clp
-from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown
+from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile
 from CLAnalysis import generate_stimulus, read_response, generate_stimulus_file
 import numpy as np
 from qtpy.QtWidgets import QComboBox, QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog
@@ -233,7 +233,7 @@ class ChirpTab(CLTab):
             save_dialog.setWindowTitle('Save File')
             save_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
             save_dialog.setViewMode(QFileDialog.ViewMode.Detail)
-            save_dialog.setNameFilters(['WAV files (*.wav)', 'All files (*)'])
+            save_dialog.setMimeTypeFilters(['audio/wav', 'application/octet-stream']) # wav files and 'all files'
             save_dialog.setDefaultSuffix('wav')
             
             if save_dialog.exec():
@@ -250,8 +250,9 @@ class ChirpTab(CLTab):
         #self.input_params.addWidget(self.input_mode_dropdown)
         #self.input_mode_dropdown.addItem('File')
         
-        self.input_file_box = CLParameter('Input File', clp.project['input']['file'], '')
-        self.input_params.addWidget(self.input_file_box)
+        self.input_file = CLParamFile('Input File', clp.project['input']['file'])
+        self.input_file.mime_types = ['audio/wav', 'application/octet-stream']
+        self.input_params.addWidget(self.input_file)
         
         self.input_channel = CLParameter('Channel', clp.project['input']['channel'], '')
         self.input_params.addWidget(self.input_channel)

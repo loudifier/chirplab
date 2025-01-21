@@ -23,5 +23,5 @@ class EngAxisItem(pg.AxisItem):
 
 
 from CLGui.CLTab import CLTab
-from CLGui.CLParameter import CLParameter, CLParamNum, CLParamDropdown
+from CLGui.CLParameter import CLParameter, CLParamNum, CLParamDropdown, CLParamFile
 from CLGui.MainWindow import MainWindow

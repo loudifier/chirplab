@@ -1,4 +1,5 @@
-from qtpy.QtWidgets import QWidget, QHBoxLayout, QLabel, QLineEdit, QComboBox, QDoubleSpinBox, QAbstractSpinBox
+from qtpy.QtWidgets import QWidget, QHBoxLayout, QLabel, QLineEdit, QComboBox, QDoubleSpinBox, QAbstractSpinBox, QPushButton, QFileDialog
+from pathlib import Path
 
 # collection of combination classes for displaying and entering configuration parameters
 # typically a label on the left, text box or similar element in the middle, and sometimes a unit label or dropdown on the right
@@ -177,6 +178,84 @@ class CLParamDropdown(QWidget):
         # define external callback functions to handle parameter updates
         self.update_callback = None
         self.units_update_callback = None
+
+
+class CLParamFile(QWidget):
+    # text box with button, with default behavior as a browse button to store a file path in the text box
+    def __init__(self, label_text, parameter_value):
+        super().__init__()
+        self.layout = QHBoxLayout()
+        self.setLayout(self.layout)
+        
+        self.label = QLabel(label_text)
+        self.layout.addWidget(self.label)
+        
+        self.text_box = QLineEdit(str(parameter_value))
+        self.value = str(parameter_value)
+        self.last_value = self.value # keep track of last value, to revert back to in case new entry fails data validation
+        self.layout.addWidget(self.text_box)
+        def editingFinished():
+            self.value = self.text_box.text()
+            if not self.update_callback is None:
+                self.update_callback(self.value)
+            self.last_value = self.value # if callback is not defined or update completes, just update last_value. If there is an issue during callback, assume revert sets current value to last_value
+        self.text_box.editingFinished.connect(editingFinished)
+        
+        self.button = QPushButton('Browse...')
+        self.layout.addWidget(self.button)
+        self.starting_dir = '.'
+        self.mime_types = None # set to a list of MIME types to add dropdowns for file type selection to browse dialog (e.g. ['audio/wav', 'application/octet-stream'])
+        self.file_types = None # list of file type descriptions (e.g. ['WAV files (*.wav)', 'All files (*)']) Overrides MIME types
+        self.browse_mode = 'open'
+        def buttonClicked():
+            if self.button_callback is None:
+                self.browse() # browse by default, unless manually overridden
+        self.button.clicked.connect(buttonClicked)
+        
+        # define external callback functions to handle parameter updates
+        self.update_callback = None
+        self.button_callback = None
+        
+    
+    def set_value(self, new_value):
+        self.text_box.setText(str(new_value))
+    
+    def revert(self):
+        self.set_value(self.last_value)
+        self.value = self.last_value
+    
+    def browse(self, starting_dir=None, file_types=None, browse_mode=None):
+        if starting_dir is None:
+            starting_dir = self.starting_dir
+        if file_types is None:
+            file_types = self.file_types
+        if browse_mode is None:
+            browse_mode = self.browse_mode
+        
+        file_dialog = QFileDialog()
+        if browse_mode == 'save':
+            file_dialog.setWindowTitle('Save File')
+            file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        else:
+            file_dialog.setWindowTitle('Open File')
+            file_dialog.setFileMode(QFileDialog.ExistingFile)
+        file_dialog.setViewMode(QFileDialog.ViewMode.Detail)
+        
+        if self.mime_types is not None:
+            file_dialog.setMimeTypeFilters(self.mime_types)
+        if self.file_types is not None:
+            file_dialog.setNameFilters(self.file_types)
+        def filterSelected(filter_string):
+            default_suffix = filter_string.split('(*')[1].split(')')[0].split(' ')[0].split(',')[0].split(';')[0] # try to get the first actual file type suffix from the type string
+            file_dialog.setDefaultSuffix(default_suffix)
+        file_dialog.filterSelected.connect(filterSelected)
+        
+        if file_dialog.exec():
+            file_path = file_dialog.selectedFiles()[0]
+            self.set_value(file_path)
+            
+        
+        
 
 # not enough additional functionality to justify a CL combo class            
 #class CLParamCheckbox(QWidget):
