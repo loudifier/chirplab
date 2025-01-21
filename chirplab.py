@@ -64,7 +64,7 @@ def main():
     # set up main application window
     app = QApplication([])
     screen_size = app.screens()[0].size()
-    window = MainWindow(measurements)
+    window = MainWindow()
     window.resize(int(screen_size.width()*0.75), int(screen_size.height()*0.75))
     window.show()
     

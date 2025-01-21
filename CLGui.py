@@ -7,9 +7,8 @@ from CLAnalysis import generate_stimulus, read_response
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, measurements):
+    def __init__(self):
         super().__init__()
-        self.measurements = measurements
         self.setWindowTitle('Chirplab')
         
         # main GUI structure for navigating between chirp parameters/IO and measurements
