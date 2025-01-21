@@ -54,6 +54,11 @@ class CLParamNum(CLParameter):
     # numeric parameter using a spinbox for input and automatic checking of min/max values
     def __init__(self, label_text, parameter_value, unit=None, min_val=float('-inf'), max_val=float('inf'), numtype='float'):
         super().__init__(label_text, parameter_value, unit)
+        if numtype=='float':
+            self.value = float(parameter_value)
+        else:
+            self.value = int(parameter_value)
+        self.last_value = self.value
         self.min = min_val
         self.max = max_val
         
@@ -72,12 +77,12 @@ class CLParamNum(CLParameter):
         self.set_numtype(numtype)
         self.layout.insertWidget(1, self.spin_box) # works, but the spinbox doesn't fill the middle the way it would if the spinbox is added directly instead of inserted
         self.layout.update()
-        self.spin_box.setValue(float(parameter_value)) # value can only be changed after adding to layout
+        self.spin_box.setValue(self.value) # value can only be changed after adding to layout
         def valueChanged(new_val): # can also catch textChanged. textChanged and valueChanged are both called everytime a character is typed, not just editing finished. Might be worth catching textChanged and only validate on editing finished
             if self.numtype == 'int':
-                new_val = round(new_val)
+                new_val = int(round(new_val))
             self.value = min(max(new_val, self.min), self.max)
-            self.spin_box.setValue(new_val) # update if rounded or changed to min/max. Does this fire extra callbacks?
+            self.spin_box.setValue(self.value) # update if rounded or changed to min/max. Does this fire extra callbacks?
             if not self.update_callback is None:
                 self.update_callback(self.value)
             self.last_value = self.value

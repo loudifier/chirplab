@@ -1,5 +1,5 @@
 import CLProject as clp
-from CLGui import CLParameter
+from CLGui import CLParameter, CLParamNum
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
@@ -32,10 +32,11 @@ class HarmonicDistortion(CLMeasurement):
         fr_freqs, thd = self.calc_thd(clp.signals['response'])
 
         # generate array of output frequency points
+        print('todo: verify effective max thd frequency')
         if self.params['output']['scaling'] == 'log':
-            self.out_freqs = np.geomspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
+            self.out_freqs = np.geomspace(clp.project['start_freq'], clp.project['stop_freq']/self.params['start_harmonic'], self.params['output']['num_points'])
         else:
-            self.out_freqs = np.linspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
+            self.out_freqs = np.linspace(clp.project['start_freq'], clp.project['stop_freq']/self.params['start_harmonic'], self.params['output']['num_points'])
         
         
         # interpolate output points
@@ -116,11 +117,24 @@ class HarmonicDistortion(CLMeasurement):
     def init_tab(self):
         super().init_tab()
 
-        self.start_harmonic = CLParameter('Lowest harmonic', self.params['start_harmonic'], '')
+        self.start_harmonic = CLParamNum('Lowest harmonic', self.params['start_harmonic'], '', 2, 40, 'int')
         self.param_section.addWidget(self.start_harmonic)
         
-        self.stop_harmonic = CLParameter('Highest harmonic', self.params['stop_harmonic'], '')
+        self.stop_harmonic = CLParamNum('Highest harmonic', self.params['stop_harmonic'], '', 2, 40, 'int')
         self.param_section.addWidget(self.stop_harmonic)
+        
+        def update_harmonics(val):
+            if self.start_harmonic.value > self.stop_harmonic.value:
+                self.start_harmonic.revert()
+                self.stop_harmonic.revert()
+            else:
+                self.params['start_harmonic'] = self.start_harmonic.value
+                self.params['stop_harmonic'] = self.stop_harmonic.value
+                self.measure()
+                self.plot()
+        self.start_harmonic.update_callback = update_harmonics
+        self.stop_harmonic.update_callback = update_harmonics
+        
         
         
         self.output_unit = CLParameter('Units', self.params['output']['unit'], '')
