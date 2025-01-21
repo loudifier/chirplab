@@ -14,7 +14,7 @@ def main():
     # first, check that sox is available on the system. Prompt the user to install it or add some sort of fetch/installation routine
     print('todo: check for sox')
     # if not clp.sox_available():
-    #     # on linux/OSX print message about `at-get install sox`, etc.
+    #     # on linux/OSX print message about `apt-get install sox`, etc.
     #     # on Windows fetch binaries from https://sourceforge.net/projects/sox/files/sox/14.4.2/sox-14.4.2-win32.zip/download and unzip to /bin/
     
     if len(sys.argv) < 2:
