@@ -1,16 +1,17 @@
 import CLProject as clp
-from CLGui import CLTab, CLParameter
-from qtpy.QtWidgets import QLineEdit
+from CLGui import CLParameter
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
-from matplotlib.ticker import LogLocator, EngFormatter
+from CLMeasurements import CLMeasurement
 
 
-class FrequencyResponse:
+class FrequencyResponse(CLMeasurement):
+    measurement_type_name = 'Frequency Response'
+    
     def __init__(self, name, params):
-        self.name = name
-        self.params = params
+        super().__init__(name, params)
+
         if not params: # populate default measurement parameters if none are provided
             # add new keys to existing dict instead of defining new one, so updates will propogate to full project dict and can be easily saved to a project file
             self.params['window_mode'] = 'windowed' # options are 'raw' for no windowing, 'windowed' for fixed (time-gated) windowing, or 'adaptive' to use an automatically-derived window for each output frequency point
@@ -18,22 +19,15 @@ class FrequencyResponse:
             self.params['fade_in'] = 10 # beginning of fixed window ramps up with a half Hann window of width fade_in (must be <= window_start)
             self.params['window_end'] = 50
             self.params['fade_out'] = 25
+            
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
                 'unit': 'dBFS',
                 'num_points': 100,
                 'scaling': 'log'
                 }
             
-        self.out_freqs = np.zeros(0) # frequency points of most recently calculated measurement
-        self.out_points = np.zeros(0) # data points of most recently calculated measurement
-        self.out_noise = np.zeros(0) # data points of most recently calculated measurement noise floor estimate
             
     def measure(self):
-        # run measurement using current signals, project settings, and measurement parameters, and update measurement data
-        # output frequencies stored in self.out_freq, measurement value for that frequency converted to desired output unit
-        # and stored in the self.out_data. If a noise sample is present and the measurement is able to estimate measurement
-        # noise floor the noise floor estimate will be stored in self.out_noise
-        
         # calculate raw complex frequency response
         fr = fft(clp.signals['response']) / fft(clp.signals['stimulus'])
         
@@ -97,30 +91,12 @@ class FrequencyResponse:
         
         
     def init_tab(self):
-        self.tab = CLTab()
-        
-        self.name_box = QLineEdit(self.name)
-        self.tab.panel.addWidget(self.name_box)
-        
-        self.param_section = self.tab.addPanelSection('Frequency Response Measurement Parameters')
-        
+        super().init_tab()
+
         self.window_mode = CLParameter('Windowing mode', self.params['window_mode'], '')
         self.param_section.addWidget(self.window_mode)
         
-        self.output_section = self.tab.addPanelSection('Output Settings')
-        
+
         self.output_unit = CLParameter('Units', self.params['output']['unit'], '')
         self.output_section.addWidget(self.output_unit)
     
-    # default graph formatting with title, legend, axis titles, log x scale
-    def format_graph(self):
-        self.tab.graph.axes.set_title(self.name)
-        self.tab.graph.axes.set_xscale('log')
-        self.tab.graph.axes.xaxis.set_major_locator(LogLocator(subs=[1.0, 2.0, 5.0])) # 1-2-5 ticks along x axis
-        self.tab.graph.axes.xaxis.set_major_formatter(EngFormatter()) # 100>"100", 2000>"2k", etc.
-    
-    def plot(self):
-        # basic plot, could be much more complex for different measurement types (like waterfalls)
-        self.tab.graph.axes.plot(self.out_freqs, self.out_points)
-        self.tab.graph.draw()
-        

@@ -1,19 +1,19 @@
 import CLProject as clp
-from CLGui import CLTab, CLParameter
-from qtpy.QtWidgets import QLineEdit
+from CLGui import CLParameter
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
+from CLMeasurements import CLMeasurement
 from CLMeasurements.frequency_response import FrequencyResponse
-import matplotlib.pyplot as plt
-from matplotlib.ticker import LogLocator, EngFormatter
 
 # Harmonic Distortion analysis based on Farina papers. https://www.researchgate.net/publication/2456363_Simultaneous_Measurement_of_Impulse_Response_and_Distortion_With_a_Swept-Sine_Technique
 
-class HarmonicDistortion:
+class HarmonicDistortion(CLMeasurement):
+    measurement_type_name = 'Harmonic Distortion'
+    
     def __init__(self, name, params):
-        self.name = name
-        self.params = params
+        super().__init__(name, params)
+
         if not params: # default measurement parameters
             self.params['start_harmonic'] = 2 # default to low order THD (H2:H7)
             self.params['stop_harmonic'] = 7
@@ -21,16 +21,12 @@ class HarmonicDistortion:
             self.params['fade_in'] = 0.1      # e.g. for H2 impulse arriving 10ms after H3 impulse, fade_in=0.1 results in harmonic window starting 1ms before H2 harmonic impulse
             self.params['window_end'] = 0.9   # fade_in/out must be <= window_start/end, respectively
             self.params['fade_out'] = 0.5     # window_start + window_end should be <1 to avoid overlap between harmonic impulse windows
+            
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
                 'unit': 'dB', # options are 'dB' or '%' relative to fundamental
                 'num_points': 100,
                 'scaling': 'log'
-                # default output frequency range from chirp start freq to chirp stop freq/lowest harmonic
                 }
-            
-        self.out_freqs = np.zeros(0) # frequency points of most recently calculated measurement
-        self.out_points = np.zeros(0) # data points of most recently calculated measurement
-        self.out_noise = np.zeros(0) # data points of most recently calculated measurement noise floor estimate
             
     def measure(self):
         # calculate raw complex frequency response and IR
@@ -105,32 +101,18 @@ class HarmonicDistortion:
         
         
     def init_tab(self):
-        self.tab = CLTab()
+        super().init_tab()
+
+        self.start_harmonic = CLParameter('Lowest harmonic', self.params['start_harmonic'], '')
+        self.param_section.addWidget(self.start_harmonic)
         
-        self.name_box = QLineEdit(self.name)
-        self.tab.panel.addWidget(self.name_box)
+        self.stop_harmonic = CLParameter('Highest harmonic', self.params['stop_harmonic'], '')
+        self.param_section.addWidget(self.stop_harmonic)
         
-        self.param_section = self.tab.addPanelSection('Harmmonic Distortion Measurement Parameters')
         
-        #self.window_mode = CLParameter('Windowing mode', self.params['window_mode'], '')
-        #self.param_section.addWidget(self.window_mode)
+        self.output_unit = CLParameter('Units', self.params['output']['unit'], '')
+        self.output_section.addWidget(self.output_unit)
         
-        #self.output_section = self.tab.addPanelSection('Output Settings')
-        
-        #self.output_unit = CLParameter('Units', self.params['output']['unit'], '')
-        #self.output_section.addWidget(self.output_unit)
-        
-    # default graph formatting with title, legend, axis titles, log x scale
-    def format_graph(self):
-        self.tab.graph.axes.set_title(self.name)
-        self.tab.graph.axes.set_xscale('log')
-        self.tab.graph.axes.xaxis.set_major_locator(LogLocator(subs=[1.0, 2.0, 5.0])) # 1-2-5 ticks along x axis
-        self.tab.graph.axes.xaxis.set_major_formatter(EngFormatter()) # 100>"100", 2000>"2k", etc.
-        
-    def plot(self):
-        # basic plot, could be much more complex for different measurement types (like waterfalls)
-        self.tab.graph.axes.plot(self.out_freqs, self.out_points)
-        self.tab.graph.draw()
         
         
 def harmonic_impulse_time(chirp_length, start_freq, stop_freq, harmonic):
