@@ -29,8 +29,39 @@ class HarmonicDistortion(CLMeasurement):
                 }
             
     def measure(self):
+        fr_freqs, thd = self.calc_thd(clp.signals['response'])
+
+        # generate array of output frequency points
+        if self.params['output']['scaling'] == 'log':
+            self.out_freqs = np.geomspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
+        else:
+            self.out_freqs = np.linspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
+        
+        
+        # interpolate output points
+        self.out_points = np.interp(self.out_freqs, fr_freqs, thd)
+        
+        # convert output to desired units
+        if self.params['output']['unit'] == 'dB':
+            ref_fr = FrequencyResponse('fr',{})
+            ref_fr.params['output']['unit'] = 'fs'
+            ref_fr.measure()
+            self.out_points = 20*np.log10(self.out_points / ref_fr.out_points)
+        
+        
+        # check for noise sample and calculate noise floor
+        if any(clp.signals['noise']):
+            fr_freqs, noise_floor = self.calc_thd(clp.signals['noise'])
+            self.out_noise = np.interp(self.out_freqs, fr_freqs, noise_floor)
+            if self.params['output']['unit'] == 'dB':
+                self.out_noise = 20*np.log10(self.out_noise / ref_fr.out_points)
+        else:
+            self.out_noise = np.zeros(0)
+        
+        
+    def calc_thd(self, input_signal):
         # calculate raw complex frequency response and IR
-        fr = fft(clp.signals['response']) / fft(clp.signals['stimulus'])
+        fr = fft(input_signal) / fft(clp.signals['stimulus'])
         ir = ifft(fr)
         
         # generate array of center frequencies of fft bins
@@ -77,28 +108,10 @@ class HarmonicDistortion(CLMeasurement):
         
         # take square root of harmonic power to complete power sum
         total_harmonic_power = np.sqrt(total_harmonic_power)
-
-        # generate array of output frequency points
-        if self.params['output']['scaling'] == 'log':
-            self.out_freqs = np.geomspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
-        else:
-            self.out_freqs = np.linspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
         
-        
-        # interpolate output points
-        self.out_points = np.interp(self.out_freqs, fr_freqs, total_harmonic_power)
-        
-        # convert output to desired units
-        if self.params['output']['unit'] == 'dB':
-            ref_fr = FrequencyResponse('fr',{})
-            ref_fr.params['output']['unit'] = 'fs'
-            ref_fr.measure()
-            self.out_points = 20*np.log10(self.out_points / ref_fr.out_points)
-        
-        
-        # check for noise sample and calculate noise floor
-        
-        
+        return fr_freqs, total_harmonic_power
+    
+    
         
     def init_tab(self):
         super().init_tab()
