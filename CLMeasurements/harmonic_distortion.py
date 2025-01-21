@@ -29,6 +29,7 @@ class HarmonicDistortion:
             
             self.out_freqs = 0 # frequency points of most recently calculated measurement
             self.out_points = 0 # data points of most recently calculated measurement
+            self.out_noise = 0 # data points of most recently calculated measurement noise floor estimate
             
     def measure(self):
         # calculate raw complex frequency response and IR
@@ -66,6 +67,9 @@ class HarmonicDistortion:
             # get harmonic spectrum
             harmonic_spectrum = fft(harmonic_ir)
             harmonic_spectrum = harmonic_spectrum[1:int(len(harmonic_spectrum)/2)-1]
+
+            # take magnitude of complex spectrum
+            harmonic_spectrum = np.abs(harmonic_spectrum)
 
             # apply frequncy scaling/interpolation
             harmonic_spectrum = np.interp(fr_freqs, fr_freqs/harmonic, harmonic_spectrum)

@@ -23,12 +23,13 @@ class FrequencyResponse:
             
             self.out_freqs = 0 # frequency points of most recently calculated measurement
             self.out_points = 0 # data points of most recently calculated measurement
+            self.out_noise = 0 # data points of most recently calculated measurement noise floor estimate
             
     def measure(self):
-        # run measurement using current signals, project settings, and measurement parameters, and return measurement data
-        # output data is a 2D numpy array with frequencies in the first column, measurement value for that frequency in the
-        # second column. If a noise sample is present and the measurement is able to estimate measurement noise floor the
-        # noise floor estimate will be output in a third column
+        # run measurement using current signals, project settings, and measurement parameters, and update measurement data
+        # output frequencies stored in self.out_freq, measurement value for that frequency converted to desired output unit
+        # and stored in the self.out_data. If a noise sample is present and the measurement is able to estimate measurement
+        # noise floor the noise floor estimate will be stored in self.out_noise
         
         # calculate raw complex frequency response
         fr = fft(clp.signals['response']) / fft(clp.signals['stimulus'])
@@ -52,6 +53,9 @@ class FrequencyResponse:
         # trim fft fr and freqs to positive half of spectrum. Easier to interpolate output points
         fr = fr[1:int(len(fr)/2)-1] # technically, removes highest point for odd-length inputs, but shouldn't be a problem
         fr_freqs = fr_freqs[1:int(len(fr_freqs)/2)-1]
+        
+        # take magnitude of complex frequency response
+        fr = np.abs(fr)
         
         # interpolate output points
         print('todo: work out lin/log interpolation')
