@@ -1,8 +1,8 @@
 import CLProject as clp
 from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile
-from CLAnalysis import generate_stimulus, read_response, generate_stimulus_file
+from CLAnalysis import generate_stimulus, read_response, generate_stimulus_file, audio_file_info
 import numpy as np
-from qtpy.QtWidgets import QComboBox, QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog
+from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog
 import pyqtgraph as pg
 from engineering_notation import EngNumber
 from CLGui.CLTab import toggle_section
@@ -155,12 +155,12 @@ class ChirpTab(CLTab):
                 return sig_length / clp.project['output']['sample_rate']
             else:
                 return sig_length
-        self.output_length = CLParameter('Total stimulus length', calc_output_length('seconds'), ['Sec','Samples'])
+        self.output_length = CLParameter('Total stimulus length', round(calc_output_length('seconds'),2), ['Sec','Samples'])
         self.output_length.text_box.setEnabled(False)
         self.output_params.addWidget(self.output_length)
         def update_output_length():
             if self.output_length.units.currentIndex()==0:
-                self.output_length.set_value(calc_output_length('seconds'))
+                self.output_length.set_value(round(calc_output_length('seconds'),2))
             else:
                 self.output_length.set_value(calc_output_length('samples'))
         def update_output_length_units(index):
@@ -253,9 +253,92 @@ class ChirpTab(CLTab):
         self.input_file = CLParamFile('Input File', clp.project['input']['file'])
         self.input_file.mime_types = ['audio/wav', 'application/octet-stream']
         self.input_params.addWidget(self.input_file)
+        def update_input_file(file_path):
+            try:
+                input_file_info = audio_file_info(file_path)
+                
+                clp.project['input']['file'] = file_path
+                
+                clp.IO['input']['length_samples'] = input_file_info['length_samples']
+                clp.IO['input']['sample_rate'] = input_file_info['sample_rate']
+                clp.IO['input']['channels'] = input_file_info['channels']
+                clp.IO['input']['numtype'] = input_file_info['numtype']
+                
+                update_input_file_length_units(self.input_length.units.currentIndex())
+                self.input_rate.set_value(str(EngNumber(input_file_info['sample_rate'])))
+                self.num_input_channels.set_value(input_file_info['channels'])
+                update_num_input_channels(input_file_info['channels'])
+                self.input_channel.setEnabled(True)
+                self.input_depth.set_value(input_file_info['numtype'])
+                
+                self.input_file.text_box.setStyleSheet('')
+                
+            except FileNotFoundError:
+                clp.IO['input']['length_samples'] = 0
+                clp.IO['input']['sample_rate'] = 0
+                clp.IO['input']['channels'] = 0
+                clp.IO['input']['numtype'] = ''
+                
+                self.input_length.set_value('file not found')
+                self.input_rate.set_value('')
+                self.num_input_channels.set_value('')
+                self.input_channel.setEnabled(False)
+                self.input_depth.set_value('')
+                
+                self.input_file.text_box.setStyleSheet('QLineEdit { background-color: orange; }')
+        self.input_file.update_callback = update_input_file
         
-        self.input_channel = CLParameter('Channel', clp.project['input']['channel'], '')
+        # input length
+        self.input_length = CLParameter('Input file length', 0, ['Sec','Samples'])
+        self.input_length.text_box.setEnabled(False)
+        self.input_params.addWidget(self.input_length)
+        def update_input_file_length_units(index):
+            if clp.IO['input']['length_samples']:
+                if index: # samples
+                    self.input_length.set_value(clp.IO['input']['length_samples'])
+                else: # seconds
+                    self.input_length.set_value(round(clp.IO['input']['length_samples'] / clp.IO['input']['sample_rate'],2))
+        self.input_length.units_update_callback = update_input_file_length_units
+        
+        # input sample rate
+        self.input_rate = CLParameter('Sample rate', 0, 'Hz')
+        self.input_rate.text_box.setEnabled(False)
+        self.input_params.addWidget(self.input_rate)
+        
+        # input bit depth
+        self.input_depth = CLParameter('Number format', '')
+        self.input_depth.text_box.setEnabled(False)
+        self.input_params.addWidget(self.input_depth)
+        
+        # number of input channels
+        self.num_input_channels = CLParameter('Number of channels', 0)
+        self.num_input_channels.text_box.setEnabled(False)
+        self.input_params.addWidget(self.num_input_channels)
+        def update_num_input_channels(new_value):
+            # determine input channel before rebuilding channel dropdown list
+            if clp.project['input']['channel']>clp.IO['input']['channels']:
+                channel_index = 0
+                clp.project['input']['channel'] = 1
+            else:
+                channel_index = clp.project['input']['channel'] - 1
+            
+            # rebuild channel dropdown list (updates trigger callback, which resets output channel to 0/'all')
+            self.input_channel.dropdown.clear()
+            self.input_channel.dropdown.addItems([str(chan) for chan in range(1, clp.IO['input']['channels']+1)])
+            
+            # set correct output channel
+            self.input_channel.dropdown.setCurrentIndex(channel_index)            
+        self.num_input_channels.update_callback = update_num_input_channels
+        
+        # input channel dropdown        
+        self.input_channel = CLParamDropdown('Channel', ['1'])
         self.input_params.addWidget(self.input_channel)
+        def update_input_channel(index):
+            clp.project['input']['channel'] = index + 1
+        self.input_channel.update_callback = update_input_channel
+        
+        # prepopulate input file info
+        update_input_file(clp.project['input']['file'])
         
         self.analyze_button = QPushButton('Analyze')
         self.input_params.addWidget(self.analyze_button)

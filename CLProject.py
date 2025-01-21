@@ -6,6 +6,13 @@ project = {}
 # signals updated from chirp tab and used for analysis in measurements. Stimulus, response, impulse response, etc.
 signals = {}
 
+# information to keep track of input and output file or device - will change a lot when implementing device IO
+IO = {'input':{'length_samples':0,
+               'sample_rate':0,
+               'channels':0,
+               'numtype':''},
+      'output':{}}
+
 # list of measurement objects (to be defined and instantiated based on measurement parameters in project dict)
 measurements = []
 

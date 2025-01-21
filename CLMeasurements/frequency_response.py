@@ -55,7 +55,7 @@ class FrequencyResponse(CLMeasurement):
             if self.params['output']['unit'] == 'dBFS':
                 self.out_noise = 20*np.log10(self.out_noise)
         else:
-            self.noise_points = np.zeros(0)
+            self.out_noise = np.zeros(0)
     
 
     # calculate the frquency response of a given signal, relative to the project stimulus signal, using measurement analysis parameters

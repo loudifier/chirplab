@@ -19,7 +19,7 @@ class CLParameter(QWidget):
         self.layout.addWidget(self.text_box)
         def editingFinished():
             self.value = self.text_box.text()
-            if not self.update_callback is None:
+            if self.update_callback is not None:
                 self.update_callback(self.value)
             self.last_value = self.value # if callback is not defined or update completes, just update last_value. If there is an issue during callback, assume revert sets current value to last_value
         self.text_box.editingFinished.connect(editingFinished)
@@ -35,7 +35,7 @@ class CLParameter(QWidget):
                 self.units.addItems(unit)
                 self.layout.addWidget(self.units)
                 def indexChanged(index):
-                    if not self.units_update_callback is None:
+                    if self.units_update_callback is not None:
                         self.units_update_callback(index)
                 self.units.currentIndexChanged.connect(indexChanged)
         
@@ -196,7 +196,7 @@ class CLParamFile(QWidget):
         self.layout.addWidget(self.text_box)
         def editingFinished():
             self.value = self.text_box.text()
-            if not self.update_callback is None:
+            if self.update_callback is not None:
                 self.update_callback(self.value)
             self.last_value = self.value # if callback is not defined or update completes, just update last_value. If there is an issue during callback, assume revert sets current value to last_value
         self.text_box.editingFinished.connect(editingFinished)
@@ -253,6 +253,7 @@ class CLParamFile(QWidget):
         if file_dialog.exec():
             file_path = file_dialog.selectedFiles()[0]
             self.set_value(file_path)
+            self.text_box.editingFinished.emit()
             
         
         

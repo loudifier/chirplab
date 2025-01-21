@@ -7,8 +7,9 @@ import tempfile
 from zipfile import ZipFile
 import CLMeasurements
 from CLGui import MainWindow
-from CLAnalysis import generate_stimulus, read_response, save_csv
+from CLAnalysis import generate_stimulus, read_response, save_csv, FormatNotSupportedError
 import argparse
+import numpy as np
 
 
 def main():
@@ -48,11 +49,19 @@ def main():
     
     # get stimulus and response signals
     generate_stimulus()
-    read_response()
+    try:
+        read_response()
+    except (FileNotFoundError, FormatNotSupportedError) as e:
+        print(e)
+        if not clp.gui_mode:
+            sys.exit(1)
+        else:
+            clp.signals['response'] = np.zeros(len(clp.signals['stimulus']))
+            clp.signals['noise'] = []
     
     
     # if running in command-line mode, process measurements and output measurement data
-    if args.c:
+    if not clp.gui_mode:
         for measurement in clp.measurements:
             measurement.measure()
             save_csv(measurement)
