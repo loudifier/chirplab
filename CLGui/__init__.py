@@ -10,6 +10,9 @@ def clear_plot(axes):
     # reset color for new plots
     axes.set_prop_cycle(None)
     
+    # autoscale axis ranges (doesn't seem to work here or after draw() call in plot()...)
+    #axes.autoscale(True, tight=True)
+    
     
 
 from qtpy.QtWidgets import QMainWindow, QTabWidget, QGridLayout, QWidget

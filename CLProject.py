@@ -6,6 +6,9 @@ project = {}
 # signals updated from chirp tab and used for analysis in measurements. Stimulus, response, impulse response, etc.
 signals = {}
 
+# list of measurement objects (to be defined and instantiated based on measurement parameters in project dict)
+measurements = []
+
 # external references
 # should probably be loaded from global config file, handled differently in compiled exe
 bin_dir = 'bin\\' # external binaries called at runtime

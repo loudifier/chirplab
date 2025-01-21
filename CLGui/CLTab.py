@@ -67,10 +67,10 @@ matplotlib.use('QtAgg') # 'Qt5Agg' is only use for backwards compatibility to fo
 # path.simplify = True
 # path.simplify_threshold = 1/9
 
-matplotlib.style.use('fast') # fast, but sometimes leaves holes in stimulus/response plots. Equivalent to:
-# agg.path.chunksize = 10000
-# path.simplify = True
-# path.simplify_threshold = 1.0
+#matplotlib.style.use('fast') # fast, but sometimes leaves holes in stimulus/response plots. Equivalent to:
+matplotlib.rcParams['agg.path.chunksize'] = 10000
+matplotlib.rcParams['path.simplify'] = True
+matplotlib.rcParams['path.simplify_threshold'] = 1.0
 
 # chunksize and simplify_threshold have some interdependency. Increasing one or the other is fine, marginally improves performance. Increasing both improves performance more but introduces artefacts.
 #matplotlib.rcParams['agg.path.chunksize'] = 100

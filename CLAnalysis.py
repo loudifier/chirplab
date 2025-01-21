@@ -54,6 +54,14 @@ def read_response():
     # determine the position of the captured chirp in the response signal
     response_delay = find_offset(response, clp.signals['stimulus'])
     
+    # pad the response if the beginning or end of the chirp is cut off or there isn't enough silence for pre/post sweep (or there is a severe mismatch between stimulus and response). Throw a warning?
+    start_padding = max(0, -response_delay) # response_delay should be negative if beginning is cut off
+    response_delay = response_delay + start_padding
+    end_padding = max(0, len(clp.signals['stimulus']) - (len(response) - response_delay))
+    response = np.concatenate([np.zeros(start_padding),
+                               response,
+                               np.zeros(end_padding)])
+    
     # trim the raw response to just the segment aligned with the stimulus
     clp.signals['response'] = response[response_delay:response_delay + len(clp.signals['stimulus'])] # get only the part of the raw response signal where the chirp was detected
     
@@ -74,7 +82,6 @@ def read_audio_file(audio_file):
 def find_offset(input_sig, find_sig):
     # for two 1D input arrays where a signal similar to find_sig is expected to be somewhere in input_sig, find the position of find_sig in input_sig and return the index of the start of find_sig
     # implemented using cross correlation through fft convolution
-    print('todo: handle chirp cut off in response') # need to pad response when chirp (+pre/post_sweep) in response is cut off. Offset negative when beginning is cut off. read_response() should throw index out of bounds when end is cut off. Might also have alignment issues in case of severe mismatch between recorded chirp and stimulus.
     correlation = fftconvolve(input_sig, find_sig[::-1]) # reverse 1 signal for *cross* correlation
     return np.argmax(np.abs(correlation)) - len(find_sig) # cross correlation peaks at point where signals align, offset by reversed signal
 

@@ -39,10 +39,10 @@ def main():
     check_sox()    
     
     # initialize measurements from project
-    measurements = []
+    clp.measurements = []
     for measurement in clp.project['measurements']:
         Measurement = getattr(CLMeasurements, measurement['type']) # dynamically invoke measurement class from measurement type string
-        measurements.append(Measurement(measurement['name'], measurement['params']))
+        clp.measurements.append(Measurement(measurement['name'], measurement['params']))
     
     # get stimulus and response signals
     generate_stimulus()
@@ -51,7 +51,7 @@ def main():
     
     # if running in command-line mode, process measurements and output measurement data
     if args.c:
-        for measurement in measurements:
+        for measurement in clp.measurements:
             measurement.measure()
             save_csv(measurement)
         
@@ -69,13 +69,13 @@ def main():
     window.show()
     
     # add measurement tabs to main window
-    for measurement in measurements:
+    for measurement in clp.measurements:
         measurement.init_tab()
         measurement.format_graph()
         window.tabs.addTab(measurement.tab, measurement.name)
     
     # run initial measurements and plot results
-    for measurement in measurements:
+    for measurement in clp.measurements:
         measurement.measure()
         measurement.plot()
     

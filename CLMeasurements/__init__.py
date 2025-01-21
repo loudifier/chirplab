@@ -62,7 +62,7 @@ class CLMeasurement():
     def plot(self):
         # basic plot, could be much more complex for different measurement types (like waterfalls)
         
-        clear_plot(self.tab.graph.axes)
+        clear_plot(self.tab.graph.axes) # draw new plot without having to add labels, legend, etc.
         
         self.tab.graph.axes.plot(self.out_freqs, self.out_points, label=self.measurement_type_name)
         if any(self.out_noise):
@@ -71,6 +71,7 @@ class CLMeasurement():
         self.tab.graph.axes.set_ylabel(self.params['output']['unit'])
         self.tab.graph.axes.set_xlabel('Frequency (Hz)') # majority of measurements assume output data vs frequency
         self.tab.graph.draw()
+        
 
 # imports in __init__.py make measurements available in other code via `import CLMeasurements`, etc.
 from CLMeasurements.frequency_response import FrequencyResponse

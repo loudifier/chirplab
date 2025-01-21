@@ -110,9 +110,12 @@ class ChirpTab(CLTab):
         self.plot()
 
         # update measurements
-        print('todo: update all measurements')
+        for measurement in clp.measurements:
+            measurement.measure()
+            measurement.plot()
+            measurement.format_graph()
     
-    # override CLTab plot() method
+    # plot stimulus, response, and noise
     def plot(self):
         # self.graph.axes.cla() # much faster to update plots in place and requires setting title/label/etc every time, but updating in place only works for same size data and does not automatically update ranges
         clear_plot(self.graph.axes)
