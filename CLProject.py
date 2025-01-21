@@ -59,7 +59,12 @@ def new_project():
                 'name': 'Frequency Response', # user-defined measurement name
                 'type': 'FrequencyResponse', # measurement type matching a class name from the measurements module
                 'params': {} # if empty params will be generated from default in measurement class
-                } 
+                },
+            {
+                'name': 'Total Harmonic Distortion',
+                'type': 'HarmonicDistortion',
+                'params': {}
+                }
             ]
         }
 

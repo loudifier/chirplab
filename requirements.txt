@@ -3,3 +3,4 @@ scipy
 matplotlib
 pyqt5
 qtpy
+requests

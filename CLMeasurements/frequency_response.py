@@ -86,6 +86,10 @@ class FrequencyResponse:
         
         # run initial measurement and plot results
         self.measure()
+        self.plot()
+    
+    def plot(self):
+        # basic plot, could be much more complex for different measurement types (like waterfalls)
         self.tab.graph.axes.plot(self.out_freqs, self.out_points)
         self.tab.graph.draw()
         
