@@ -9,6 +9,9 @@ signals = {}
 # list of measurement objects (to be defined and instantiated based on measurement parameters in project dict)
 measurements = []
 
+# global variable to check if Chirplab is running in CLI mode or GUI mode
+gui_mode = False
+
 # external references
 # should probably be loaded from global config file, handled differently in compiled exe
 bin_dir = 'bin\\' # external binaries called at runtime

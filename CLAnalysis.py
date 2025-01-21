@@ -10,6 +10,7 @@ import subprocess
 from scipy.io import wavfile
 import pandas as pd
 import os
+from qtpy.QtWidgets import QErrorMessage
 
 
 # module with helper functions for chirp analysis, mostly math stuff
@@ -38,6 +39,33 @@ def generate_stimulus():
         np.zeros(round(clp.project['pre_sweep']*clp.project['sample_rate'])),
         logchirp(clp.project['start_freq'], clp.project['stop_freq'], clp.project['chirp_length'], clp.project['sample_rate']),
         np.zeros(round(clp.project['post_sweep']*clp.project['sample_rate']))])
+
+def generate_stimulus_file(out_path):
+    # generate a stimulus file to play on the DUT using the project output parameters
+    stimulus = clp.project['output']['amplitude'] * np.concatenate([
+        np.zeros(round(clp.project['output']['pre_sweep']*clp.project['output']['sample_rate'])),
+        logchirp(clp.project['start_freq'], clp.project['stop_freq'], clp.project['chirp_length'], clp.project['output']['sample_rate']),
+        np.zeros(round(clp.project['output']['post_sweep']*clp.project['output']['sample_rate']))])
+    if clp.project['output']['include_silence']:
+        stimulus = np.concatenate([
+            np.zeros(len(stimulus)),
+            stimulus])
+    
+    if clp.project['output']['channel'] == 'all':
+        stimulus = np.tile(stimulus, (clp.project['output']['num_channels'], 1)).transpose()
+    else:
+        stimulus_signal = stimulus
+        stimulus = np.zeros((len(stimulus_signal), clp.project['output']['num_channels']))
+        stimulus[:, clp.project['output']['channel']-1] = stimulus_signal
+    try:
+        write_audio_file(stimulus, out_path, clp.project['output']['sample_rate'], clp.project['output']['bit_depth'])
+    except PermissionError as ex:
+        print(ex)
+        if clp.gui_mode:
+            error_box = QErrorMessage()
+            error_box.showMessage('Error writing stimulus file \n' + str(ex))
+            error_box.exec()
+    
 
 def read_response():
     # will need to be reworked when adding audio device in/out
@@ -78,7 +106,39 @@ def read_audio_file(audio_file):
         subprocess.run([clp.sox_path, audio_file, '-b', '32', '-e', 'floating-point', str(temp_wav)])
         rate, samples = wavfile.read(str(temp_wav))
         return samples
-    
+
+def write_audio_file(samples, out_path, sample_rate=48000, depth='24 int'):
+    match depth:
+        case '16 int':
+            bits = 16
+            numtype = 'signed-integer'
+        case '24 int':
+            bits = 24
+            numtype = 'signed-integer'
+        case '32 int':
+            bits = 32
+            numtype = 'signed-integer'
+        case '32 float':
+            bits = 32
+            numtype = 'floating-point'
+        case _:
+            bits = 24
+            numtype = 'signed-integer'
+                
+    # write the input samples to a temporary 32-bit floating point format, then convert to the desired output format
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+        temp_wav = Path(temp_dir) / 'stimulus.wav'
+        wavfile.write(temp_wav, sample_rate, samples)
+        # sox output is really weird. All output is sent through a weird version of stderr and the only way access it is redirecting stderr *in the shell*.
+        # Regardless of settings, result.stdout and result.stderr are always None, but returncode correlates to actual errors (warnings=0, errors=2)
+        # subprocess.run() with shell=True is unsafe. Find or write a better audio file IO library at some point. #todo #security
+        result = subprocess.run([clp.sox_path, str(temp_wav), '-b', str(bits), '-e', numtype, str(out_path), '2>', str(Path(temp_dir) / 'soxerr.txt')], shell=True)
+        if result.returncode:
+            with open(Path(temp_dir) / 'soxerr.txt') as e:
+                # for writing a file with sox, assume the problem is a permissions error
+                soxerr = e.read()
+                raise PermissionError(soxerr)
+
 def find_offset(input_sig, find_sig):
     # for two 1D input arrays where a signal similar to find_sig is expected to be somewhere in input_sig, find the position of find_sig in input_sig and return the index of the start of find_sig
     # implemented using cross correlation through fft convolution

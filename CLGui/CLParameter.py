@@ -43,7 +43,7 @@ class CLParameter(QWidget):
         self.units_update_callback = None
     
     def set_value(self, new_value):
-        self.text_box.setText(new_value)
+        self.text_box.setText(str(new_value))
     
     def revert(self):
         self.set_value(self.last_value)
@@ -81,6 +81,7 @@ class CLParamNum(QWidget):
         self.spin_box = QDoubleSpinBox()
         self.spin_box.setMinimum(float('-inf'))
         self.spin_box.setMaximum(float('inf'))
+        self.spin_box.setKeyboardTracking(False) # keep callbacks from firing until you press enter or click an arror
         self.set_numtype(numtype)
         #self.layout.insertWidget(1, self.spin_box) # works, but the spinbox doesn't fill the middle the way it would if the spinbox is added directly instead of inserted
         #self.layout.update()

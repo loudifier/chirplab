@@ -25,6 +25,8 @@ def main():
         #load project file
             #error message if there is a problem loading project file, exit
         clp.new_project()
+    else:
+        clp.gui_mode = True
     
     if args.project:
         print('load project')
