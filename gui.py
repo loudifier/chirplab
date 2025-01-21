@@ -1,4 +1,4 @@
-from qtpy.QtWidgets import QApplication, QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QSplitter, QTextEdit
+from qtpy.QtWidgets import QApplication, QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QSplitter, QTextEdit
 from qtpy import QtCore
 from qt_collapsible_section.Section import Section as QSection # accordion-type widget from https://github.com/RubendeBruin/qt-collapsible-section
 import matplotlib.pyplot as plt
@@ -26,9 +26,10 @@ class CLTab(QSplitter): # base widget is a splitter
         section = QSection(section_name)
         self.panel.addWidget(section)
         vbox = QSectionVBoxLayout(section)
+        section.toggleButton.click()
         return vbox # return the section layout so the caller can add elements to the section
 
-# super class of the VBoxLayout for use in collaptible sections
+# sub class of the VBoxLayout for use in collaptible sections
 # sections only update their expanded height when section.setContentLayout() is called
 # QSectionVBoxLayout stores a reference to the parent section and updates the section height whenever a new element is added
 class QSectionVBoxLayout(QVBoxLayout):
@@ -39,3 +40,21 @@ class QSectionVBoxLayout(QVBoxLayout):
     def addWidget(self, a0):
         super().addWidget(a0)
         self.section.setContentLayout(self) # force containing section to update its expanded height when adding new elements
+
+
+# combination class for displaying and entering configuration parameters
+# label on the left, text box in the middle, and a unit label on the right (right label to be expanded later to use a drop down for units, checkbox, etc.)
+class CLParameter(QWidget):
+    def __init__(self, label_text, parameter_value, unit):
+        super().__init__()
+        self.layout = QHBoxLayout()
+        self.setLayout(self.layout)
+        
+        self.label = QLabel(label_text)
+        self.layout.addWidget(self.label)
+        
+        self.text_box = QTextEdit(str(parameter_value))
+        self.layout.addWidget(self.text_box)
+        
+        self.unit = QLabel(unit)
+        self.layout.addWidget(self.unit)

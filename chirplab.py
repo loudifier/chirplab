@@ -3,7 +3,7 @@ from qt_collapsible_section.Section import Section as QSection # accordion-type 
 import matplotlib.pyplot as plt
 import sys
 from measurements import FrequencyResponse
-from gui import CLTab
+from gui import CLTab, CLParameter
 
 CHIRPLAB_VERSION = 0
 
@@ -81,8 +81,13 @@ class MainWindow(QMainWindow):
         tabs.addTab(chirp_tab,'Chirp Stimulus/Response')
         
         chirp_params = chirp_tab.addPanelSection('Chirp Parameters')
-        chirp_params.addWidget(QLabel('blarg'))
-        chirp_params.addWidget(QLabel('honk'))
+        start_freq = CLParameter('Start Freq', self.project['start_freq'], 'Hz')
+        chirp_params.addWidget(start_freq)
+        stop_freq = CLParameter('Stop Freq', self.project['stop_freq'], 'Hz')
+        chirp_params.addWidget(stop_freq)
+        chirp_length = CLParameter('Chirp Length', self.project['chirp_length'], 'Sec')
+        chirp_params.addWidget(chirp_length)
+        
         
         output_params = chirp_tab.addPanelSection('Output')
         input_params = chirp_tab.addPanelSection('Input')
