@@ -1,15 +1,18 @@
 import CLProject as clp
-from CLGui import CLTab, CLParameter, CLParamNum, clear_plot
+from CLGui import CLTab, CLParameter, CLParamNum#, clear_plot
 from CLAnalysis import generate_stimulus, read_response
 import numpy as np
 from qtpy.QtWidgets import QComboBox, QPushButton
+import pyqtgraph as pg
 
 # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
 class ChirpTab(CLTab):
     def __init__(self):
         super().__init__()
-        self.graph.axes.set_title('Stimulus Signal / Captured Response')
-        self.graph.axes.set_ylabel('Amplitude (FS)') # option to display units in V or Pa?
+        #self.graph.axes.set_title('Stimulus Signal / Captured Response')
+        self.graph.setTitle('Stimulus Signal / Captured Response')
+        #self.graph.axes.set_ylabel('Amplitude (FS)') 
+        self.graph.setLabel('left', 'Amplitude (FS)') # option to display units in V or Pa?
         
         # Chirp parameters section
         self.chirp_params = self.addPanelSection('Chirp Parameters')
@@ -117,21 +120,25 @@ class ChirpTab(CLTab):
     
     # plot stimulus, response, and noise
     def plot(self):
-        # self.graph.axes.cla() # much faster to update plots in place and requires setting title/label/etc every time, but updating in place only works for same size data and does not automatically update ranges
-        clear_plot(self.graph.axes)
+        self.graph.clear()
         
         if self.chirp_length.units.currentIndex() == 0: #times in seconds
             times = np.arange(len(clp.signals['stimulus']))/clp.project['sample_rate'] - clp.project['pre_sweep']
-            self.graph.axes.set_xlabel('Time (seconds)')
+            self.graph.setLabel('bottom', 'Time (seconds)')
         else: #times in samples
             times = np.arange(len(clp.signals['stimulus'])) - round(clp.project['pre_sweep']*clp.project['sample_rate'])
-            self.graph.axes.set_xlabel(' Time (samples)')
-        self.graph.axes.plot(times, clp.signals['stimulus'], label='stimulus')
-        self.graph.axes.plot(times, clp.signals['response'], label='response')
+            self.graph.setLabel('bottom', 'Time (samples)')
+        
+        signal_pen = pg.mkPen(color=clp.PLOT_COLORS[0], width = clp.PLOT_PEN_WIDTH)
+        self.graph.plot(times, clp.signals['stimulus'], name='stimulus', pen=signal_pen)
+        
+        response_pen = pg.mkPen(color=clp.PLOT_COLORS[1], width = clp.PLOT_PEN_WIDTH)
+        self.graph.plot(times, clp.signals['response'], name='response', pen=response_pen)
+        
         if any(clp.signals['noise']):
-            self.graph.axes.plot(times, clp.signals['noise'], label='noise sample', color='gray')
-        self.graph.axes.legend()
-        self.graph.draw()
+            noise_pen = pg.mkPen(color=clp.NOISE_COLOR, width = clp.PLOT_PEN_WIDTH)
+            self.graph.plot(times, clp.signals['noise'], lname='noise sample', pen=noise_pen)
+
 
 
        

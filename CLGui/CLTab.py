@@ -1,6 +1,8 @@
 from qtpy.QtWidgets import QSplitter, QVBoxLayout, QScrollArea, QFrame, QWidget
 from qtpy import QtCore
 from qt_collapsible_section.Section import Section as QSection # accordion-type widget from https://github.com/RubendeBruin/qt-collapsible-section
+import pyqtgraph as pg
+from CLGui import EngAxisItem
 
 # main recurring gui structure of chirplab. A configuration panel on the left, with a graph area on the right
 class CLTab(QSplitter): # base widget is a splitter
@@ -17,10 +19,10 @@ class CLTab(QSplitter): # base widget is a splitter
         self.panel.setAlignment(QtCore.Qt.AlignTop)
                 
         # graph area setup
-        self.graph = MplCanvas(self)
-        self.graph_toolbar = NavigationToolbar(self.graph)
+        self.graph = pg.PlotWidget(axisItems={'bottom':EngAxisItem('bottom')})
+        self.graph.showGrid(True, True, 0.25)
+        self.graph.addLegend(brush=pg.mkBrush(255,255,255,192))
         graph_layout = QVBoxLayout()
-        graph_layout.addWidget(self.graph_toolbar)
         graph_layout.addWidget(self.graph)
         graph_area = QWidget()
         graph_area.setLayout(graph_layout)
@@ -54,35 +56,3 @@ class QSectionVBoxLayout(QVBoxLayout):
     def addWidget(self, a0):
         super().addWidget(a0)
         self.section.setContentLayout(self) # force containing section to update its expanded height when adding new elements
-
-
-
-# matplotlib stuff, mostly copied from pythonguis.com
-import matplotlib
-matplotlib.use('QtAgg') # 'Qt5Agg' is only use for backwards compatibility to force Qt5
-
-#matplotlib speed settings
-#matplotlib.style.use('default') # settings are persistent in Spyder. use('default') to reset
-# agg.path.chunksize = 0
-# path.simplify = True
-# path.simplify_threshold = 1/9
-
-#matplotlib.style.use('fast') # fast, but sometimes leaves holes in stimulus/response plots. Equivalent to:
-matplotlib.rcParams['agg.path.chunksize'] = 10000
-matplotlib.rcParams['path.simplify'] = True
-matplotlib.rcParams['path.simplify_threshold'] = 1.0
-
-# chunksize and simplify_threshold have some interdependency. Increasing one or the other is fine, marginally improves performance. Increasing both improves performance more but introduces artefacts.
-#matplotlib.rcParams['agg.path.chunksize'] = 100
-#matplotlib.rcParams['path.simplify'] = True
-#matplotlib.rcParams['path.simplify_threshold'] = 1.0
-
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
-from matplotlib.figure import Figure
-
-class MplCanvas(FigureCanvasQTAgg):
-
-    def __init__(self, parent=None, width=5, height=4, dpi=100): # DPI doesn't seem to make artefacts better/worse, Qt or actual display DPI might.
-        fig = Figure(figsize=(width, height), dpi=dpi)
-        self.axes = fig.add_subplot(111)
-        super(MplCanvas, self).__init__(fig)

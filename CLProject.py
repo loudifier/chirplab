@@ -26,6 +26,21 @@ MAX_CHIRP_LENGTH = 60
 MIN_CHIRP_FREQ = 0.01
 
 
+# GUI style parameters
+GRAPH_BG = 'w'
+GRAPH_FG = 'k'
+PLOT_COLORS = [ # default color order used by MATLAB
+    '#0072BD', # blue
+    '#D95319', # orange
+    '#EDB120', # yellow
+    '#7E2F8E', # purple
+    '#77AC30', # green
+    '#4DBEEE', # light blue
+    '#A2142F'] # red
+NOISE_COLOR = '#808080'
+PLOT_PEN_WIDTH = 3
+
+
 # default project parameters
 def new_project():
     global project

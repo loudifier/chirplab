@@ -1,8 +1,10 @@
 # individual measurement imports at bottom of file
+import CLProject as clp
 import numpy as np
-from CLGui import CLTab, clear_plot
+from CLGui import CLTab
 from qtpy.QtWidgets import QLineEdit
 from matplotlib.ticker import LogLocator, EngFormatter
+import pyqtgraph as pg
 
 
 class CLMeasurement():
@@ -54,23 +56,25 @@ class CLMeasurement():
     
     def format_graph(self):
         # default graph formatting with title, legend, axis titles, log x scale
-        self.tab.graph.axes.set_title(self.name)
-        self.tab.graph.axes.set_xscale('log')
-        self.tab.graph.axes.xaxis.set_major_locator(LogLocator(subs=[1.0, 2.0, 5.0])) # 1-2-5 ticks along x axis
-        self.tab.graph.axes.xaxis.set_major_formatter(EngFormatter()) # 100>"100", 2000>"2k", etc.
+        self.tab.graph.setTitle(self.name)
+        self.tab.graph.setLogMode(True, False) # default to log frequency scale
+        self.tab.graph.setLabel('bottom', 'Frequency (Hz)')
+        self.tab.graph.setLabel('left', self.params['output']['unit'])
+        #self.tab.graph.getAxis('bottom').enableAutoSIPrefix(True) # consider using pyqtgraph's unit system. Manually constructing axis labels for now
+
     
     def plot(self):
         # basic plot, could be much more complex for different measurement types (like waterfalls)
         
-        clear_plot(self.tab.graph.axes) # draw new plot without having to add labels, legend, etc.
+        self.tab.graph.clear()
         
-        self.tab.graph.axes.plot(self.out_freqs, self.out_points, label=self.measurement_type_name)
+        plot_pen = pg.mkPen(color=clp.PLOT_COLORS[0], width=clp.PLOT_PEN_WIDTH)
+        self.tab.graph.plot(self.out_freqs, self.out_points, name = self.measurement_type_name, pen=plot_pen)
+        
         if any(self.out_noise):
-            self.tab.graph.axes.plot(self.out_freqs, self.out_noise, label='Noise Floor', color='gray')
-        self.tab.graph.axes.legend()
-        self.tab.graph.axes.set_ylabel(self.params['output']['unit'])
-        self.tab.graph.axes.set_xlabel('Frequency (Hz)') # majority of measurements assume output data vs frequency
-        self.tab.graph.draw()
+            noise_pen = pg.mkPen(color=clp.NOISE_COLOR, width=clp.PLOT_PEN_WIDTH)
+            self.tab.graph.plot(self.out_freqs, self.out_noise, name='Noise Floor', pen=noise_pen)#, color='gray')
+
         
 
 # imports in __init__.py make measurements available in other code via `import CLMeasurements`, etc.
