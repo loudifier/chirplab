@@ -59,23 +59,23 @@ class QSectionVBoxLayout(QVBoxLayout):
 
 # matplotlib stuff, mostly copied from pythonguis.com
 import matplotlib
-matplotlib.use('Qt5Agg')
+matplotlib.use('QtAgg') # 'Qt5Agg' is only use for backwards compatibility to force Qt5
 
 #matplotlib speed settings
-matplotlib.style.use('default') # settings are persistent in Spyder. use('default') to reset
+#matplotlib.style.use('default') # settings are persistent in Spyder. use('default') to reset
 # agg.path.chunksize = 0
 # path.simplify = True
 # path.simplify_threshold = 1/9
 
-#matplotlib.style.use('fast') # fast, but sometimes leaves holes in stimulus/response plots. Equivalent to:
+matplotlib.style.use('fast') # fast, but sometimes leaves holes in stimulus/response plots. Equivalent to:
 # agg.path.chunksize = 10000
 # path.simplify = True
 # path.simplify_threshold = 1.0
 
 # chunksize and simplify_threshold have some interdependency. Increasing one or the other is fine, marginally improves performance. Increasing both improves performance more but introduces artefacts.
-matplotlib.rcParams['agg.path.chunksize'] = 100
-matplotlib.rcParams['path.simplify'] = True
-matplotlib.rcParams['path.simplify_threshold'] = 1.0
+#matplotlib.rcParams['agg.path.chunksize'] = 100
+#matplotlib.rcParams['path.simplify'] = True
+#matplotlib.rcParams['path.simplify_threshold'] = 1.0
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
