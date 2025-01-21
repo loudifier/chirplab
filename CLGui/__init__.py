@@ -1,8 +1,8 @@
 import CLProject as clp
-
 import pyqtgraph as pg
 from engineering_notation import EngNumber
 import numpy as np
+from qtpy.QtWidgets import QFrame
 
 pg.setConfigOption('background', clp.GRAPH_BG)
 pg.setConfigOption('foreground', clp.GRAPH_FG)
@@ -19,9 +19,14 @@ class EngAxisItem(pg.AxisItem):
     
     
     
+class QHSeparator(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.HLine)
 
 
 
 from CLGui.CLTab import CLTab
 from CLGui.CLParameter import CLParameter, CLParamNum, CLParamDropdown, CLParamFile
+from CLGui.QCollapsible.QCollapsible import QCollapsible
 from CLGui.MainWindow import MainWindow

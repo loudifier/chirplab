@@ -1,6 +1,5 @@
 from qtpy.QtWidgets import QSplitter, QVBoxLayout, QScrollArea, QFrame, QWidget
 from qtpy import QtCore
-from qt_collapsible_section.Section import Section as QSection # accordion-type widget from https://github.com/RubendeBruin/qt-collapsible-section
 import pyqtgraph as pg
 from CLGui import EngAxisItem
 
@@ -34,29 +33,3 @@ class CLTab(QSplitter): # base widget is a splitter
         # set initial panel width
         panel_width = 175 # reasonable initial value on my machine. Panel size/scaling will need a lot of work #DPI
         self.setSizes([panel_width, self.window().width()-panel_width])
-        
-    # add an accordion section to the configuration panel    
-    def addPanelSection(self, section_name):
-        section = QSection(section_name)
-        self.panel.addWidget(section)
-        vbox = QSectionVBoxLayout(section)
-        section.toggleButton.click()
-        return vbox # return the section layout so the caller can add elements to the section
-
-
-
-# sub class of the VBoxLayout for use in collapsible sections
-# sections only update their expanded height when section.setContentLayout() is called
-# QSectionVBoxLayout stores a reference to the parent section and updates the section height whenever a new element is added
-class QSectionVBoxLayout(QVBoxLayout):
-    def __init__(self, section):
-        super().__init__()
-        self.section = section # keep a reference to the parent section to update when adding elements (not the same as the QT parent object, calling .parent() or .parentWidget() on a regular VBox does not return the containing section)
-        
-    def addWidget(self, a0):
-        super().addWidget(a0)
-        self.section.setContentLayout(self) # force containing section to update its expanded height when adding new elements
-
-
-def toggle_section(section_vbox):
-    section_vbox.section.toggleButton.click()

@@ -1,11 +1,11 @@
 import CLProject as clp
-from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile
+from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, QCollapsible, QHSeparator
 from CLAnalysis import generate_stimulus, read_response, generate_stimulus_file, audio_file_info
 import numpy as np
 from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog
 import pyqtgraph as pg
 from engineering_notation import EngNumber
-from CLGui.CLTab import toggle_section
+
 
 # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
 class ChirpTab(CLTab):
@@ -16,12 +16,14 @@ class ChirpTab(CLTab):
         self.graph.setLabel('left', 'Amplitude (FS)') # option to display units in V or Pa?
         
         
-        
         # Chirp parameters section
-        self.chirp_params = self.addPanelSection('Chirp Parameters')
+        self.chirp_params = QCollapsible('Chirp Parameters')
+        #self.chirp_params.expand() # seems to only work after adding first widget, called below
+        self.panel.addWidget(self.chirp_params)
         
         self.start_freq = CLParamNum('Start Freq', clp.project['start_freq'], 'Hz', clp.MIN_CHIRP_FREQ, clp.project['sample_rate']/2)
         self.chirp_params.addWidget(self.start_freq)
+        self.chirp_params.expand()
         def update_start_freq(new_value):
             if new_value == self.stop_freq.value: # catch any other invalid values (min/max are caught automatically)
                 # don't catch start_freq being higher than stop_freq. Down-swept chirps technically still work with most measurements
@@ -64,11 +66,26 @@ class ChirpTab(CLTab):
         self.chirp_length.units_update_callback = update_chirp_length_units
         
         
+        # Chirp analysis parameters
+        self.analysis_params = QCollapsible('Analysis Parameters')
+        self.chirp_params.addWidget(self.analysis_params)
+        
+        self.sample_rate = CLParameter('Sample Rate', clp.project['sample_rate'], 'Hz')
+        self.analysis_params.addWidget(self.sample_rate)
+        
+        self.pre_sweep = CLParameter('Pre Sweep', clp.project['pre_sweep'], 'Sec')
+        self.analysis_params.addWidget(self.pre_sweep)
+        
+        self.post_sweep = CLParameter('Post Sweep', clp.project['post_sweep'], 'Sec')
+        self.analysis_params.addWidget(self.post_sweep)
+        
+        self.panel.addWidget(QHSeparator())
         
         
         # Output file or audio device section
-        self.output_params = self.addPanelSection('Output')
-        toggle_section(self.output_params) # start with output section collapsed
+        #toggle_section(self.output_params) # start with output section collapsed
+        self.output_params = QCollapsible('Output')
+        self.panel.addWidget(self.output_params)
         
         #self.output_mode_dropdown = QComboBox()
         #self.output_params.addWidget(self.output_mode_dropdown)
@@ -241,10 +258,13 @@ class ChirpTab(CLTab):
                 generate_stimulus_file(output_file_path)
         self.output_file_button.clicked.connect(generate_output_file)
         
+        self.panel.addWidget(QHSeparator())
         
         
         # Input file or audio device section
-        self.input_params = self.addPanelSection('Input')
+        self.input_params = QCollapsible('Input')
+        self.input_params.expand()
+        self.panel.addWidget(self.input_params)
         
         #self.input_mode_dropdown = QComboBox()
         #self.input_params.addWidget(self.input_mode_dropdown)
@@ -344,18 +364,6 @@ class ChirpTab(CLTab):
         self.input_params.addWidget(self.analyze_button)
         self.analyze_button.clicked.connect(self.analyze)
         
-        
-        # Chirp analysis parameters
-        self.analysis_params = self.addPanelSection('Analysis Parameters')
-        
-        self.sample_rate = CLParameter('Sample Rate', clp.project['sample_rate'], 'Hz')
-        self.analysis_params.addWidget(self.sample_rate)
-        
-        self.pre_sweep = CLParameter('Pre Sweep', clp.project['pre_sweep'], 'Sec')
-        self.analysis_params.addWidget(self.pre_sweep)
-        
-        self.post_sweep = CLParameter('Post Sweep', clp.project['post_sweep'], 'Sec')
-        self.analysis_params.addWidget(self.post_sweep)
         
         # plot stimulus/response signals
         self.plot()

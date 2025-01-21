@@ -1,7 +1,7 @@
 # individual measurement imports at bottom of file
 import CLProject as clp
 import numpy as np
-from CLGui import CLTab
+from CLGui import CLTab, QCollapsible, QHSeparator
 from qtpy.QtWidgets import QLineEdit
 import pyqtgraph as pg
 
@@ -48,9 +48,14 @@ class CLMeasurement():
         self.tab.panel.addWidget(self.name_box)
         
         # add collapsible sections to measurement config panel. Fill out sections for individual measurements
-        self.param_section = self.tab.addPanelSection(type(self).measurement_type_name + ' Measurement Parameters')
+        self.param_section = QCollapsible(type(self).measurement_type_name + ' Measurement Parameters')
+        self.param_section.expand()
+        self.tab.panel.addWidget(self.param_section)
+        self.tab.panel.addWidget(QHSeparator())
         # if measurement should have additional sections insert them between measurement params and output params or nest inside measurement params
-        self.output_section = self.tab.addPanelSection('Output Settings')
+        self.output_section = QCollapsible('Output Settings')
+        self.output_section.expand()
+        self.tab.panel.addWidget(self.output_section)
         
     
     def format_graph(self):
