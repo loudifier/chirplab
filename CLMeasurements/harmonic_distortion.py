@@ -4,6 +4,7 @@ from qtpy.QtWidgets import QLineEdit
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
+from CLMeasurements.frequency_response import FrequencyResponse
 import matplotlib.pyplot as plt
 
 # Harmonic Distortion analysis based on Farina papers. https://www.researchgate.net/publication/2456363_Simultaneous_Measurement_of_Impulse_Response_and_Distortion_With_a_Swept-Sine_Technique
@@ -33,7 +34,7 @@ class HarmonicDistortion:
         # calculate raw complex frequency response and IR
         fr = fft(clp.signals['response']) / fft(clp.signals['stimulus'])
         ir = ifft(fr)
-        plt.plot(ir)
+        
         # generate array of center frequencies of fft bins
         fr_freqs = fftfreq(len(clp.signals['stimulus']), 1/clp.project['sample_rate'])
         fr_freqs = fr_freqs[1:int(len(fr_freqs)/2)-1] # trim to positive frequencies
@@ -65,23 +66,22 @@ class HarmonicDistortion:
             # get harmonic spectrum
             harmonic_spectrum = fft(harmonic_ir)
             harmonic_spectrum = harmonic_spectrum[1:int(len(harmonic_spectrum)/2)-1]
-            #plt.plot(harmonic_spectrum)
+
             # apply frequncy scaling/interpolation
             harmonic_spectrum = np.interp(fr_freqs, fr_freqs/harmonic, harmonic_spectrum)
-            plt.plot(harmonic_spectrum)
+
             # add single harmonic power to total harmonic power
             total_harmonic_power = total_harmonic_power + np.square(harmonic_spectrum)
         
         
         # take square root of harmonic power to complete power sum
         total_harmonic_power = np.sqrt(total_harmonic_power)
-        plt.show()
 
         # generate array of output frequency points
         if self.params['output']['scaling'] == 'log':
-            self.out_freqs = np.geomspace(clp.project['start_freq'], clp.project['stop_freq']/self.params['start_harmonic'], self.params['output']['num_points'])
+            self.out_freqs = np.geomspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
         else:
-            self.out_freqs = np.linspace(clp.project['start_freq'], clp.project['stop_freq']/self.params['start_harmonic'], self.params['output']['num_points'])
+            self.out_freqs = np.linspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
         
         
         # interpolate output points
@@ -89,7 +89,10 @@ class HarmonicDistortion:
         
         # convert output to desired units
         if self.params['output']['unit'] == 'dB':
-            pass # generate a new FrequencyResponse measurement and evaluate it using default parameters to get the fundamental frequency response reference
+            ref_fr = FrequencyResponse('fr',{})
+            ref_fr.params['output']['unit'] = 'fs'
+            ref_fr.measure()
+            self.out_points = 20*np.log10(self.out_points / ref_fr.out_points)
         
         
         # check for noise sample and calculate noise floor
