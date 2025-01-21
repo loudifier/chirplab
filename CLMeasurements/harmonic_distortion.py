@@ -6,6 +6,7 @@ from scipy.signal.windows import hann
 import numpy as np
 from CLMeasurements.frequency_response import FrequencyResponse
 import matplotlib.pyplot as plt
+from matplotlib.ticker import LogLocator, EngFormatter
 
 # Harmonic Distortion analysis based on Farina papers. https://www.researchgate.net/publication/2456363_Simultaneous_Measurement_of_Impulse_Response_and_Distortion_With_a_Swept-Sine_Technique
 
@@ -119,6 +120,12 @@ class HarmonicDistortion:
         #self.output_unit = CLParameter('Units', self.params['output']['unit'], '')
         #self.output_section.addWidget(self.output_unit)
         
+    # default graph formatting with title, legend, axis titles, log x scale
+    def format_graph(self):
+        self.tab.graph.axes.set_title(self.name)
+        self.tab.graph.axes.set_xscale('log')
+        self.tab.graph.axes.xaxis.set_major_locator(LogLocator(subs=[1.0, 2.0, 5.0])) # 1-2-5 ticks along x axis
+        self.tab.graph.axes.xaxis.set_major_formatter(EngFormatter()) # 100>"100", 2000>"2k", etc.
         
     def plot(self):
         # basic plot, could be much more complex for different measurement types (like waterfalls)

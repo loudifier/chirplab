@@ -71,6 +71,7 @@ def main():
     # add measurement tabs to main window
     for measurement in measurements:
         measurement.init_tab()
+        measurement.format_graph()
         window.tabs.addTab(measurement.tab, measurement.name)
     
     # run initial measurements and plot results
