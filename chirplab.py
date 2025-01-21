@@ -4,8 +4,8 @@ import numpy as np
 from scipy.io import wavfile
 import matplotlib.pyplot as plt
 import sys
-from measurements import FrequencyResponse
-from gui import CLTab, ChirpTab, CLParameter
+import CLMeasurements
+from CLGui import CLTab, ChirpTab, CLParameter
 
 CHIRPLAB_VERSION = 0
 
@@ -36,7 +36,7 @@ def main():
                 'num_channels': 1,
                 'channel':'all', # which channel chirp stimulus is written to (for files) or output to (for playback devices). 'all' to replicate chirp on every output channel
                 'amplitude': 0.1, # amplitude in FS (e.g. 0.1FS = -20dBFS)
-                'pre_sweep': 0.5, # silence to include before/after chirp, independent from analysis pre/post_sweep
+                'pre_sweep': 0.5, # silence to include before/after chirp. Only used for stimulus generation, independent from analysis pre/post_sweep
                 'post_sweep': 0.5,
                 'include_silence': True, # preprend output signal with silence of length pre_sweep + chirp_length + post_sweep for measurement noise floor estimation
                 },
@@ -48,6 +48,15 @@ def main():
                 'file': 'response.wav', # input file path
                 },
             
+            # list of measurements
+            'measurements': [
+                {
+                    'name': 'Frequency Response', # user-defined measurement name
+                    'type': 'FrequencyResponse', # measurement type matching a class name from the measurements module
+                    'params': {} # if empty params will be generated from default in measurement class
+                    } 
+                ]
+            
             }
     else:
         # parse input arguments
@@ -56,13 +65,17 @@ def main():
         # etc
         pass
         
-        
+    # initialize measurements
+    measurements = []
+    for measurement in project['measurements']:
+        Measurement = getattr(CLMeasurements, measurement['type']) # dynamically invoke measurement class from measurement type string
+        measurements.append(Measurement(measurement['name'], measurement['params'], project))
     
     
     app = QApplication([])
     screen_size = app.screens()[0].size()
     
-    window = MainWindow(project)
+    window = MainWindow(project, measurements)
     window.resize(int(screen_size.width()*0.75), int(screen_size.height()*0.75))
     window.show()
     
@@ -72,20 +85,22 @@ def main():
     
 
 class MainWindow(QMainWindow):
-    def __init__(self, project):
+    def __init__(self, project, measurements):
         super().__init__()
         self.project = project
+        self.measurements = measurements
         self.setWindowTitle('Chirplab')
         
         # main GUI structure for navigating between chirp parameters/IO and measurements
         tabs = QTabWidget()
         
-        # # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
-        # chirp_tab = CLTab(self.project)
+        # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
         chirp_tab = ChirpTab(self.project)
         tabs.addTab(chirp_tab,'Chirp Stimulus/Response')
 
-        
+        # Additional tab for each measurement
+        for measurement in measurements:
+            tabs.addTab(measurement.tab, measurement.name)
         
         
         layout = QGridLayout() # base layout. Only 0,0 used

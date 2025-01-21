@@ -3,7 +3,7 @@ from qtpy import QtCore
 from qt_collapsible_section.Section import Section as QSection # accordion-type widget from https://github.com/RubendeBruin/qt-collapsible-section
 from scipy.io import wavfile
 import numpy as np
-from analysis import logchirp
+from CLAnalysis import logchirp
 
 
 # main gui element of chirplab. A configuration panel on the left, with a graph area on the right
@@ -115,7 +115,6 @@ class ChirpTab(CLTab):
     def analyze(self):
         # read in input file
         rate, samples = wavfile.read(self.project['input']['file'])
-        print('analyze')
         self.graph.axes.cla()
         self.graph.axes.plot(samples)
         self.graph.draw()
