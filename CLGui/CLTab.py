@@ -56,3 +56,7 @@ class QSectionVBoxLayout(QVBoxLayout):
     def addWidget(self, a0):
         super().addWidget(a0)
         self.section.setContentLayout(self) # force containing section to update its expanded height when adding new elements
+
+
+def toggle_section(section_vbox):
+    section_vbox.section.toggleButton.click()

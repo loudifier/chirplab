@@ -1,18 +1,21 @@
 import CLProject as clp
-from CLGui import CLTab, CLParameter, CLParamNum#, clear_plot
+from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown
 from CLAnalysis import generate_stimulus, read_response
 import numpy as np
-from qtpy.QtWidgets import QComboBox, QPushButton
+from qtpy.QtWidgets import QComboBox, QPushButton, QCheckBox
 import pyqtgraph as pg
+from engineering_notation import EngNumber
+from CLGui.CLTab import toggle_section
 
 # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
 class ChirpTab(CLTab):
     def __init__(self):
         super().__init__()
         #self.graph.axes.set_title('Stimulus Signal / Captured Response')
-        self.graph.setTitle('Stimulus Signal / Captured Response')
-        #self.graph.axes.set_ylabel('Amplitude (FS)') 
+        self.graph.setTitle('Stimulus Signal / Captured Response') 
         self.graph.setLabel('left', 'Amplitude (FS)') # option to display units in V or Pa?
+        
+        
         
         # Chirp parameters section
         self.chirp_params = self.addPanelSection('Chirp Parameters')
@@ -60,7 +63,75 @@ class ChirpTab(CLTab):
                 self.chirp_length.set_value(clp.project['chirp_length']*clp.project['sample_rate'])
         self.chirp_length.units_update_callback = updateChirpLengthUnits
         
+        
+        
+        
+        # Output file or audio device section
         self.output_params = self.addPanelSection('Output')
+        #toggle_section(self.output_params) # start with output section collapsed
+        
+        self.output_mode_dropdown = QComboBox()
+        self.output_params.addWidget(self.output_mode_dropdown)
+        self.output_mode_dropdown.addItem('File')
+        
+        # amplitude - dB/Fs dropdown
+        self.output_amplitude = CLParamNum('Amplitude', clp.project['output']['amplitude'], ['Fs', 'dBFS'], 0, 1.0, 'float')
+        self.output_params.addWidget(self.output_amplitude)
+        
+        # pre padding - s/sample dropdown
+        self.output_pre_sweep = CLParamNum('Pre Sweep', clp.project['output']['pre_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
+        self.output_params.addWidget(self.output_pre_sweep)
+        
+        # post padding - s/sample dropdown
+        self.output_post_sweep = CLParamNum('Post Sweep', clp.project['output']['post_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
+        self.output_params.addWidget(self.output_post_sweep)
+        
+        # include leading silence checkbox
+        self.include_silence = QCheckBox('Include leading silence')
+        self.include_silence.setChecked(clp.project['output']['include_silence'])
+        self.output_params.addWidget(self.include_silence)
+        
+        # total length text box (non-interactive) - s/sample dropdown
+        def calc_output_length(unit='samples'):
+            sig_length = round(clp.project['output']['pre_sweep']*clp.project['output']['sample_rate'])
+            sig_length += round(clp.project['chirp_length']*clp.project['output']['sample_rate'])
+            sig_length += round(clp.project['output']['post_sweep']*clp.project['output']['sample_rate'])
+            if clp.project['output']['include_silence']:
+                sig_length *= 2
+            if unit=='seconds':
+                return sig_length / clp.project['output']['sample_rate']
+        self.output_length = CLParameter('Total output length', calc_output_length('seconds'), ['Sec','Samples'])
+        self.output_length.text_box.setEnabled(False)
+        self.output_params.addWidget(self.output_length)
+        
+        # sample rate
+        self.output_sample_rate = CLParamDropdown('Sample Rate', [str(EngNumber(rate)) for rate in clp.OUTPUT_SAMPLE_RATES], 'Hz')
+        output_rate_index = self.output_sample_rate.dropdown.findText(str(EngNumber(clp.project['output']['sample_rate'])))
+        if output_rate_index != -1:
+            self.output_sample_rate.dropdown.setCurrentIndex(output_rate_index)
+        self.output_params.addWidget(self.output_sample_rate)
+        
+        # bit depth (dropdown - 16, 24, 32 int, 32 float)
+        self.output_bit_depth = CLParamDropdown('Bit Depth', clp.OUTPUT_BIT_DEPTHS, '')
+        output_depth_index = self.output_bit_depth.dropdown.findText(clp.project['output']['bit_depth'])
+        if output_depth_index != -1:
+            self.output_bit_depth.dropdown.setCurrentIndex(output_depth_index)
+        self.output_params.addWidget(self.output_bit_depth)
+        
+        # Number of output channels spinbox
+        self.num_output_channels = CLParamNum('Number of channels', clp.project['output']['num_channels'],None, 1, clp.MAX_OUTPUT_CHANNELS, 'int')
+        self.output_params.addWidget(self.num_output_channels)
+        
+        # output channel dropdown
+        self.output_channel = CLParamDropdown('Output Channel', ['all'])
+        self.output_channel.dropdown.addItems([str(chan) for chan in range(1, clp.project['output']['num_channels']+1)])
+        self.output_params.addWidget(self.output_channel)
+        
+        # save file button (opens browse window)
+        self.output_file_button = QPushButton('Generate Chirp Stimulus File')
+        self.output_params.addWidget(self.output_file_button)
+        
+        
         
         
         # Input file or audio device section
@@ -137,7 +208,7 @@ class ChirpTab(CLTab):
         
         if any(clp.signals['noise']):
             noise_pen = pg.mkPen(color=clp.NOISE_COLOR, width = clp.PLOT_PEN_WIDTH)
-            self.graph.plot(times, clp.signals['noise'], lname='noise sample', pen=noise_pen)
+            self.graph.plot(times, clp.signals['noise'], name='noise sample', pen=noise_pen)
 
 
 
