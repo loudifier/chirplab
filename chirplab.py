@@ -22,6 +22,8 @@ def main():
             'start_freq': 100, # chirp starting frequency in Hz
             'stop_freq': 20000,
             'chirp_length': 1.0, # length in seconds
+            
+            # chirp analysis parameters
             'pre_sweep': 0.05, # silence before start of chirp included in analysis window, length in seconds
             'post_sweep': 0.05,
             'sample_rate': 48000, # sample rate in Hz used for all analysis
