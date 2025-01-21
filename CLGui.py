@@ -1,5 +1,5 @@
 import CLProject as clp
-from qtpy.QtWidgets import QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QSplitter, QLineEdit, QComboBox
+from qtpy.QtWidgets import QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QSplitter, QLineEdit, QComboBox, QScrollArea, QFrame
 from qtpy import QtCore
 from qt_collapsible_section.Section import Section as QSection # accordion-type widget from https://github.com/RubendeBruin/qt-collapsible-section
 import numpy as np
@@ -30,12 +30,16 @@ class CLTab(QSplitter): # base widget is a splitter
     def __init__(self):
         super().__init__()
         
+        # configuration panel setup
         self.panel = QVBoxLayout() # base layout for the configuration panel
-        self.panel_widget = QWidget()
-        self.panel_widget.setLayout(self.panel)
+        panel_scroll = QScrollArea() #QScrollArea and QFrame needed to make the panel scrollable
+        panel_scroll.setWidgetResizable(True)
+        panel_frame = QFrame(panel_scroll)
+        panel_frame.setLayout(self.panel)
+        panel_scroll.setWidget(panel_frame)
         self.panel.setAlignment(QtCore.Qt.AlignTop)
-        
-        
+                
+        # graph area setup
         self.graph = MplCanvas(self)
         self.graph_toolbar = NavigationToolbar(self.graph)
         graph_layout = QVBoxLayout()
@@ -44,8 +48,13 @@ class CLTab(QSplitter): # base widget is a splitter
         graph_area = QWidget()
         graph_area.setLayout(graph_layout)
         
-        self.addWidget(self.panel_widget)
+        # set config panel and graph area as elements on either side of splitter
+        self.addWidget(panel_scroll)
         self.addWidget(graph_area)
+        
+        # set initial panel width
+        panel_width = 175 # reasonable initial value on my machine. Panel size/scaling will need a lot of work #DPI
+        self.setSizes([panel_width, self.window().width()-panel_width])
         
     # add an accordion section to the configuration panel    
     def addPanelSection(self, section_name):
