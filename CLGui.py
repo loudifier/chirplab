@@ -91,7 +91,7 @@ class ChirpTab(CLTab):
                 self.updateStimulus()
         self.stop_freq.update_callback = updateStopFreq
         
-        self.chirp_length = CLParamNum('Chirp Length', clp.project['chirp_length'], ['Sec','Samples'], 0.1, 60, 'float')
+        self.chirp_length = CLParamNum('Chirp Length', clp.project['chirp_length'], ['Sec','Samples'], clp.MIN_CHIRP_LENGTH, clp.MAX_CHIRP_LENGTH, 'float')
         self.chirp_params.addWidget(self.chirp_length)
         def updateChirpLength(new_value):
             if self.chirp_length.units.currentIndex() == 0: # update seconds directly
@@ -101,15 +101,16 @@ class ChirpTab(CLTab):
             self.updateStimulus()
         self.chirp_length.update_callback = updateChirpLength
         def updateChirpLengthUnits(index):
-            print(clp.project['chirp_length'])
             if index==0: # seconds
-                self.chirp_length.setMinimum(0.1)
-                self.chirp_length.setMaximum(60)
-                self.chirp_length.setValue(clp.project['chirp_length'])
+                self.chirp_length.set_numtype('float')
+                self.chirp_length.min = clp.MIN_CHIRP_LENGTH
+                self.chirp_length.max = clp.MAX_CHIRP_LENGTH
+                self.chirp_length.set_value(clp.project['chirp_length'])
             else:
-                self.chirp_length.setMinimum(0.1*clp.project['sample_rate'])
-                self.chirp_length.setMaximum(60*clp.project['sample_rate'])
-                self.chirp_length.setValue(clp.project['chirp_length']*clp.project['sample_rate'])
+                self.chirp_length.set_numtype('int')
+                self.chirp_length.min = clp.MIN_CHIRP_LENGTH*clp.project['sample_rate']
+                self.chirp_length.max = clp.MAX_CHIRP_LENGTH*clp.project['sample_rate']
+                self.chirp_length.set_value(clp.project['chirp_length']*clp.project['sample_rate'])
         self.chirp_length.units_update_callback = updateChirpLengthUnits
         
         self.output_params = self.addPanelSection('Output')
@@ -153,11 +154,8 @@ class ChirpTab(CLTab):
         # generate new stimulus from chirp and analysis parameters
         generate_stimulus()
         
-        # update chirp tab graph
-        self.plot()
-        
-        # update measurements
-        print('todo: update all measurements')
+        # update chirp tab graph and rerun measurements
+        self.analyze()
         
         
     def analyze(self):
@@ -172,15 +170,19 @@ class ChirpTab(CLTab):
         
     def plot(self):
         self.graph.axes.cla()
+        self.graph.axes.set_ylabel('Amplitude (FS)') # option to display units in V or Pa?
         if self.chirp_length.units.currentIndex() == 0: #times in seconds
-            times = np.arange(len(clp.signals['stimulus']))/clp.project['sample_rate']
+            times = np.arange(len(clp.signals['stimulus']))/clp.project['sample_rate'] - clp.project['pre_sweep']
+            self.graph.axes.set_xlabel('Time (seconds)')
         else: #times in samples
-            times = np.arange(len(clp.signals['stimulus']))
-        self.graph.axes.plot(times, clp.signals['stimulus'])
-        self.graph.axes.plot(times, clp.signals['response'])
+            times = np.arange(len(clp.signals['stimulus'])) - round(clp.project['pre_sweep']*clp.project['sample_rate'])
+            self.graph.axes.set_xlabel(' Time (samples)')
+        self.graph.axes.plot(times, clp.signals['stimulus'], label='stimulus')
+        self.graph.axes.plot(times, clp.signals['response'], label='response')
         if any(clp.signals['noise']):
-            self.graph.axes.plot(times, clp.signals['noise'])
+            self.graph.axes.plot(times, clp.signals['noise'], label='noise sample', color='gray')
         self.graph.draw()
+        self.graph.axes.legend()
 
 # sub class of the VBoxLayout for use in collapsible sections
 # sections only update their expanded height when section.setContentLayout() is called
@@ -264,14 +266,15 @@ class CLParamNum(CLParameter):
         self.spin_box = QDoubleSpinBox()
         self.spin_box.setMinimum(float('-inf'))
         self.spin_box.setMaximum(float('inf'))
-        self.setNumtype(numtype)
+        self.set_numtype(numtype)
         self.layout.insertWidget(1, self.spin_box) # works, but the spinbox doesn't fill the middle the way it would if the spinbox is added directly instead of inserted
         self.layout.update()
         self.spin_box.setValue(float(parameter_value)) # value can only be changed after adding to layout
         def valueChanged(new_val): # can also catch textChanged. textChanged and valueChanged are both called everytime a character is typed, not just editing finished. Might be worth catching textChanged and only validate on editing finished
             if self.numtype == 'int':
-                new_val= round(new_val)
+                new_val = round(new_val)
             self.value = min(max(new_val, self.min), self.max)
+            self.spin_box.setValue(new_val) # update if rounded or changed to min/max. Does this fire extra callbacks?
             if not self.update_callback is None:
                 self.update_callback(self.value)
             self.last_value = self.value
@@ -287,7 +290,7 @@ class CLParamNum(CLParameter):
     def set_value(self, new_value):
         self.spin_box.setValue(new_value)
         
-    def setNumtype(self, new_type):
+    def set_numtype(self, new_type):
         # check for valid values, either 'float' or 'int'
         self.numtype = new_type
         if self.numtype == 'float':
