@@ -1,0 +1,3 @@
+[submodule "qt-collapsible-section"]
+	path = qt_collapsible_section
+	url = https://github.com/RubendeBruin/qt-collapsible-section
