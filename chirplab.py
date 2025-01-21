@@ -1,77 +1,105 @@
-from qtpy.QtWidgets import QApplication, QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QSplitter
+from qtpy.QtWidgets import QApplication, QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QSplitter, QTextEdit
 from qt_collapsible_section.Section import Section as QSection # accordion-type widget from https://github.com/RubendeBruin/qt-collapsible-section
 import matplotlib.pyplot as plt
-
 import sys
+from measurements import FrequencyResponse
+from gui import CLTab
 
-def main(args = sys.argv):
-    app = QApplication(args)
+CHIRPLAB_VERSION = 0
+
+
+def main():
+    if len(sys.argv) < 2:
+        # chirplab started without any arguments. Lauch GUI with a default New Project
+        # project dictionary containing parameters of log chirp used for signal generation and analysis, signal input and output, etc
+        project = {
+            'chirplab_version': CHIRPLAB_VERSION, # when loading project files from older versions of chirplab, the project may be able to be upgraded for compatibility with current version
+            'project_name': 'New Project',
+            
+            # chirp parameters
+            'start_freq': 100, # chirp starting frequency in Hz
+            'stop_freq': 20000,
+            'chirp_length': 1.0, # length in seconds
+            'pre_sweep': 0.05, # silence before start of chirp included in analysis window, length in seconds
+            'post_sweep': 0.05,
+            'sample_rate': 48000, # sample rate in Hz used for all analysis
+            
+            # parameters of stimulus file or audio output device
+            'output': {
+                'mode': 'file', # 'file' or 'device'
+                'sample_rate': 48000,
+                'bit_depth': 24,
+                'num_channels': 1,
+                'channel':'all', # which channel chirp stimulus is written to (for files) or output to (for playback devices). 'all' to replicate chirp on every output channel
+                'amplitude': 0.1, # amplitude in FS (e.g. 0.1FS = -20dBFS)
+                'pre_sweep': 0.5, # silence to include before/after chirp, independent from analysis pre/post_sweep
+                'post_sweep': 0.5,
+                'include_silence': True, # preprend output signal with silence of length pre_sweep + chirp_length + post_sweep for measurement noise floor estimation
+                },
+            
+            # parameters of input file containing recording of chirp response or audio input device to record response
+            'input': {
+                'mode': 'file',
+                'channel': 1, # which channel to use from input file or capture device
+                'file': '', # input file path
+                },
+            
+            }
+    else:
+        # parse input arguments
+        # first argument is chirplab project file
+        # -b for batch mode (command-line) processing
+        # etc
+        pass
+        
+        
     
-    window = MainWindow()
+    
+    app = QApplication([])
+    screen_size = app.screens()[0].size()
+    
+    window = MainWindow(project)
+    window.resize(int(screen_size.width()*0.75), int(screen_size.height()*0.75))
     window.show()
     
     app.exec()
-
-
+    
+    
+    
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, project):
         super().__init__()
+        self.project = project
         self.setWindowTitle('Chirplab')
         
-        layout = QGridLayout() # base layout. Only 0,0 used
-        tabs = QTabWidget() # main GUI structure for navigating between chirp parameters/IO and measurements
+        # main GUI structure for navigating between chirp parameters/IO and measurements
+        tabs = QTabWidget()
         
         # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
-        chirp_graph = QLabel('chirp stimulus/response time-domain graph area')
-        chirp_setup_panel = QVBoxLayout()
-        chirp_setup_panel.addWidget(QLabel('blarg'))
-        chirp_setup_panel.addWidget(QLabel('honk'))
-        #chirp_setup_widget = QWidget()
-        #chirp_setup_widget.setLayout(chirp_setup_panel)
-        chirp_setup_widget = QSection('Chirp Parameters')
-        chirp_setup_widget.setContentLayout(chirp_setup_panel)
-        chirp_split = QSplitter()
-        chirp_split.addWidget(chirp_setup_widget)
-        chirp_split.addWidget(chirp_graph)
-        tabs.addTab(chirp_split, 'Chirp setup/capture')
+        chirp_tab = CLTab(self.project)
+        tabs.addTab(chirp_tab,'Chirp Stimulus/Response')
         
-        label2 = QLabel('tab2')
-        tabs.addTab(label2, 'Frequency Response')
+        chirp_params = chirp_tab.addPanelSection('Chirp Parameters')
+        chirp_params.addWidget(QLabel('blarg'))
+        chirp_params.addWidget(QLabel('honk'))
+        
+        output_params = chirp_tab.addPanelSection('Output')
+        input_params = chirp_tab.addPanelSection('Input')
         
         
         
         
+        
+        layout = QGridLayout() # base layout. Only 0,0 used
         layout.addWidget(tabs, 0,0)
         widget = QWidget() # Layout can't be applied directly to QMainWindow, need a base QWidget
         widget.setLayout(layout)
         self.setCentralWidget(widget)
-
+ 
         
-    def button_clicked(self):
-        if self.button.isChecked():
-            self.button.setText('on')
-        else:
-            self.button.setText('off')
-            
-            
-            
-            
-# class Window(QWidget):
-#     def __init__(self):
-#         QWidget.__init__(self)
-#         layout = QGridLayout()
-#         self.setLayout(layout)
-#         label1 = QLabel("Widget in Tab 1.")
-#         label2 = QLabel("Widget in Tab 2.")
-#         tabwidget = QTabWidget()
-#         tabwidget.addTab(label1, "Tab 1")
-#         tabwidget.addTab(label2, "Tab 2")
-#         layout.addWidget(tabwidget, 0, 0)
+ 
 
-# app = QApplication(sys.argv)
-# screen = Window()
-# screen.show()
-# sys.exit(app.exec_())
-        
+ 
+    
 main()
