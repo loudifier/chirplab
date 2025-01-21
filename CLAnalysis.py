@@ -65,7 +65,7 @@ def read_audio_file(audio_file):
     # convert the input file to a friendly 32-bit floating point format temporary wav file, then reads the file into a numpy array with scipy
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir: # add delete=False if needed for debugging. ignore_cleanup_errors requires python 3.10+
         temp_wav = Path(temp_dir) / 'response.wav'
-        subprocess.run(['bin\\sox-14.4.2\\sox.exe', audio_file, '-b', '32', '-e', 'floating-point', str(temp_wav)])
+        subprocess.run([clp.sox_path, audio_file, '-b', '32', '-e', 'floating-point', str(temp_wav)])
         rate, samples = wavfile.read(str(temp_wav))
         return samples
     

@@ -6,9 +6,17 @@ project = {}
 # signals updated from chirp tab and used for analysis in measurements. Stimulus, response, impulse response, etc.
 signals = {}
 
+# external references
+# should probably be loaded from global config file, handled differently in compiled exe
+bin_dir = 'bin\\' # external binaries called at runtime
+sox_path = bin_dir + 'sox-14.4.2\\sox.exe'
+sox_dl_url = 'https://sourceforge.net/projects/sox/files/sox/14.4.2/sox-14.4.2-win32.zip/download'
+
+
 # when loading project files from older versions of chirplab, the project may be able to be upgraded for compatibility with current version
 CHIRPLAB_VERSION = 0
 
+# default project parameters
 def new_project():
     global project
     project = {
@@ -54,3 +62,7 @@ def new_project():
                 } 
             ]
         }
+
+
+
+
