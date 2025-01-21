@@ -233,6 +233,8 @@ class ChirpTab(CLTab):
             save_dialog.setWindowTitle('Save File')
             save_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
             save_dialog.setViewMode(QFileDialog.ViewMode.Detail)
+            save_dialog.setNameFilters(['WAV files (*.wav)', 'All files (*)'])
+            save_dialog.setDefaultSuffix('wav')
             
             if save_dialog.exec():
                 output_file_path = save_dialog.selectedFiles()[0]

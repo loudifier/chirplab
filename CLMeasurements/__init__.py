@@ -3,7 +3,6 @@ import CLProject as clp
 import numpy as np
 from CLGui import CLTab
 from qtpy.QtWidgets import QLineEdit
-from matplotlib.ticker import LogLocator, EngFormatter
 import pyqtgraph as pg
 
 
