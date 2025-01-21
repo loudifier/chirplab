@@ -22,9 +22,9 @@ class FrequencyResponse:
                 'scaling': 'log'
                 }
             
-        self.out_freqs = 0 # frequency points of most recently calculated measurement
-        self.out_points = 0 # data points of most recently calculated measurement
-        self.out_noise = 0 # data points of most recently calculated measurement noise floor estimate
+        self.out_freqs = np.zeros(0) # frequency points of most recently calculated measurement
+        self.out_points = np.zeros(0) # data points of most recently calculated measurement
+        self.out_noise = np.zeros(0) # data points of most recently calculated measurement noise floor estimate
             
     def measure(self):
         # run measurement using current signals, project settings, and measurement parameters, and update measurement data
@@ -110,9 +110,6 @@ class FrequencyResponse:
         self.output_unit = CLParameter('Units', self.params['output']['unit'], '')
         self.output_section.addWidget(self.output_unit)
         
-        # run initial measurement and plot results
-        self.measure()
-        self.plot()
     
     def plot(self):
         # basic plot, could be much more complex for different measurement types (like waterfalls)

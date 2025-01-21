@@ -27,9 +27,9 @@ class HarmonicDistortion:
                 # default output frequency range from chirp start freq to chirp stop freq/lowest harmonic
                 }
             
-        self.out_freqs = 0 # frequency points of most recently calculated measurement
-        self.out_points = 0 # data points of most recently calculated measurement
-        self.out_noise = 0 # data points of most recently calculated measurement noise floor estimate
+        self.out_freqs = np.zeros(0) # frequency points of most recently calculated measurement
+        self.out_points = np.zeros(0) # data points of most recently calculated measurement
+        self.out_noise = np.zeros(0) # data points of most recently calculated measurement noise floor estimate
             
     def measure(self):
         # calculate raw complex frequency response and IR
@@ -119,8 +119,9 @@ class HarmonicDistortion:
         #self.output_unit = CLParameter('Units', self.params['output']['unit'], '')
         #self.output_section.addWidget(self.output_unit)
         
-        # run initial measurement and plot results
-        self.measure()
+        
+    def plot(self):
+        # basic plot, could be much more complex for different measurement types (like waterfalls)
         self.tab.graph.axes.plot(self.out_freqs, self.out_points)
         self.tab.graph.draw()
         

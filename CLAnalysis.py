@@ -8,6 +8,8 @@ import tempfile
 from pathlib import Path
 import subprocess
 from scipy.io import wavfile
+import pandas as pd
+import os
 
 
 # module with helper functions for chirp analysis, mostly math stuff
@@ -75,4 +77,16 @@ def find_offset(input_sig, find_sig):
     print('todo: handle chirp cut off in response') # need to pad response when chirp (+pre/post_sweep) in response is cut off. Offset negative when beginning is cut off. read_response() should throw index out of bounds when end is cut off. Might also have alignment issues in case of severe mismatch between recorded chirp and stimulus.
     correlation = fftconvolve(input_sig, find_sig[::-1]) # reverse 1 signal for *cross* correlation
     return np.argmax(np.abs(correlation)) - len(find_sig) # cross correlation peaks at point where signals align, offset by reversed signal
-    
+
+def save_csv(measurement, out_dir=''):
+    # get measurement data and save it to a CSV file at the target location
+    out_frame = pd.DataFrame({'Frequency (Hz)':measurement.out_freqs, measurement.params['output']['unit']:measurement.out_points})
+    if any(measurement.out_noise):
+        out_frame['measurement noise floor'] = measurement.out_noise
+    with open(os.path.join(out_dir, clp.project['project_name'] + '_' + measurement.name + '.csv'), 'w', newline='') as out_file:
+        out_file.write(measurement.name + '\n')
+        out_frame.to_csv(out_file, index=False)
+
+def save_xlsx(measurements, out_path):
+    # get measurement data from one or more measurements and save the output data in a single excel file
+    pass

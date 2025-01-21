@@ -1,6 +1,7 @@
 numpy
 scipy
 matplotlib
-pyqt5
-qtpy
+pyqt5 # used by qt_collapsible_section and Spyder
+qtpy # could update qt_collapsible_section to import qtpy and update base QT to pyside6, etc.
 requests
+pandas

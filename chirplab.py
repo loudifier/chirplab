@@ -1,4 +1,6 @@
+# %%
 import CLProject as clp
+
 from qtpy.QtWidgets import QApplication, QWidget, QMainWindow, QGridLayout, QTabWidget, QLabel, QPushButton, QVBoxLayout, QSplitter, QTextEdit, QComboBox
 from qt_collapsible_section.Section import Section as QSection # accordion-type widget from https://github.com/RubendeBruin/qt-collapsible-section
 import numpy as np
@@ -12,24 +14,37 @@ from zipfile import ZipFile
 import subprocess
 import CLMeasurements
 from CLGui import CLTab, ChirpTab, CLParameter
-from CLAnalysis import generate_stimulus, read_response
+from CLAnalysis import generate_stimulus, read_response, save_csv
+import argparse
 
 
 def main():
-    # first, check that sox is available on the system. Download if it isn't
-    check_sox()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('project', nargs='?', help='path to ChirpLab project file to open or process (required for command-line mode)')
+    parser.add_argument('-c', action='store_true', help='process input project file and output data in command-line mode')
+    args = parser.parse_args()
+
+    if args.c:
+        if not args.project:
+            print('please specify ChirpLab project file for command-line processing')
+            sys.exit()
+        
+        #load project file
+            #error message if there is a problem loading project file, exit
+        clp.new_project()
     
-    if len(sys.argv) < 2:
+    if args.project:
+        print('load project')
+        # pop up error message box if there is a problem loading project file, options to create new project or quit
+        clp.new_project()
+    else:
         # chirplab started without any arguments. Generate a default New Project and launch gui
         clp.new_project()
-        
-    else:
-        # parse input arguments
-        # first argument is chirplab project file
-        # -b for batch mode (command-line) processing
-        # etc
-        pass
-        
+    
+    
+    # first, check that sox is available on the system. Download if it isn't
+    check_sox()    
+    
     # initialize measurements from project
     measurements = []
     for measurement in clp.project['measurements']:
@@ -41,13 +56,36 @@ def main():
     read_response()
     
     
+    # if running in command-line mode, process measurements and output measurement data
+    if args.c:
+        for measurement in measurements:
+            measurement.measure()
+            save_csv(measurement)
+        
+        # exit before launching GUI
+        sys.exit()
+            
+    
+    
+    
+    # set up main application window
     app = QApplication([])
     screen_size = app.screens()[0].size()
-    
     window = MainWindow(measurements)
     window.resize(int(screen_size.width()*0.75), int(screen_size.height()*0.75))
     window.show()
     
+    # add measurement tabs to main window
+    for measurement in measurements:
+        measurement.init_tab()
+        window.tabs.addTab(measurement.tab, measurement.name)
+    
+    # run initial measurements and plot results
+    for measurement in measurements:
+        measurement.measure()
+        measurement.plot()
+    
+    # start main application loop
     app.exec()
     
     
@@ -60,21 +98,14 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('Chirplab')
         
         # main GUI structure for navigating between chirp parameters/IO and measurements
-        tabs = QTabWidget()
+        self.tabs = QTabWidget()
         
         # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
         chirp_tab = ChirpTab()
-        tabs.addTab(chirp_tab,'Chirp Stimulus/Response')
-
-        # Additional tab for each measurement
-        for measurement in measurements:
-            measurement.init_tab()
-            tabs.addTab(measurement.tab, measurement.name)
-        
-        
+        self.tabs.addTab(chirp_tab,'Chirp Stimulus/Response')
         
         layout = QGridLayout() # base layout. Only 0,0 used
-        layout.addWidget(tabs, 0,0)
+        layout.addWidget(self.tabs, 0,0)
         widget = QWidget() # Layout can't be applied directly to QMainWindow, need a base QWidget
         widget.setLayout(layout)
         self.setCentralWidget(widget)
