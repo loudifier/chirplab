@@ -1,7 +1,7 @@
 from CLGui import CLTab
 
 class FrequencyResponse:
-    def __init__(self, name, params, project):
+    def __init__(self, name, params):
         self.name = name
         self.params = params
         if not params:
@@ -15,6 +15,5 @@ class FrequencyResponse:
                     'unit': 'dBFS' # fill in the rest later
                     }
                 }
-        self.project = project
         
-        self.tab = CLTab(project)
+        self.tab = CLTab()
