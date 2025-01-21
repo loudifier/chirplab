@@ -1,6 +1,16 @@
 from CLGui.CLTab import CLTab
 from CLGui.CLParameter import CLParameter, CLParamNum
 
+# remove all plots from a graph without removing title, labels, etc.
+def clear_plot(axes):
+    # manually remove all artists (line or surface plots)
+    for artist in axes.lines + axes.collections:
+        artist.remove()
+    
+    # reset color for new plots
+    axes.set_prop_cycle(None)
+    
+    
 
 from qtpy.QtWidgets import QMainWindow, QTabWidget, QGridLayout, QWidget
 from CLGui.ChirpTab import ChirpTab
@@ -22,3 +32,5 @@ class MainWindow(QMainWindow):
         widget = QWidget() # Layout can't be applied directly to QMainWindow, need a base QWidget
         widget.setLayout(layout)
         self.setCentralWidget(widget)
+        
+

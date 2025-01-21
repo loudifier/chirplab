@@ -20,6 +20,7 @@ CHIRPLAB_VERSION = 0
 # constants
 MIN_CHIRP_LENGTH = 0.1
 MAX_CHIRP_LENGTH = 60
+MIN_CHIRP_FREQ = 0.01
 
 
 # default project parameters

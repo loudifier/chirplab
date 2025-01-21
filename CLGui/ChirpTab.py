@@ -1,5 +1,5 @@
 import CLProject as clp
-from CLGui import CLTab, CLParameter, CLParamNum
+from CLGui import CLTab, CLParameter, CLParamNum, clear_plot
 from CLAnalysis import generate_stimulus, read_response
 import numpy as np
 from qtpy.QtWidgets import QComboBox, QPushButton
@@ -8,11 +8,13 @@ from qtpy.QtWidgets import QComboBox, QPushButton
 class ChirpTab(CLTab):
     def __init__(self):
         super().__init__()
+        self.graph.axes.set_title('Stimulus Signal / Captured Response')
+        self.graph.axes.set_ylabel('Amplitude (FS)') # option to display units in V or Pa?
         
         # Chirp parameters section
         self.chirp_params = self.addPanelSection('Chirp Parameters')
         
-        self.start_freq = CLParamNum('Start Freq', clp.project['start_freq'], 'Hz', 0.01, clp.project['sample_rate']/2)
+        self.start_freq = CLParamNum('Start Freq', clp.project['start_freq'], 'Hz', clp.MIN_CHIRP_FREQ, clp.project['sample_rate']/2)
         self.chirp_params.addWidget(self.start_freq)
         def updateStartFreq(new_value):
             if new_value == self.stop_freq.value: # catch any other invalid values (min/max are caught automatically)
@@ -23,7 +25,7 @@ class ChirpTab(CLTab):
                 self.updateStimulus() # update the stimulus (which updates the measurements)
         self.start_freq.update_callback = updateStartFreq
         
-        self.stop_freq = CLParamNum('Stop Freq', clp.project['stop_freq'], 'Hz', 0.01, clp.project['sample_rate']/2)
+        self.stop_freq = CLParamNum('Stop Freq', clp.project['stop_freq'], 'Hz', clp.MIN_CHIRP_FREQ, clp.project['sample_rate']/2)
         self.chirp_params.addWidget(self.stop_freq)
         def updateStopFreq(new_value):
             if new_value == self.start_freq.value:
@@ -112,8 +114,9 @@ class ChirpTab(CLTab):
     
     # override CLTab plot() method
     def plot(self):
-        self.graph.axes.cla()
-        self.graph.axes.set_ylabel('Amplitude (FS)') # option to display units in V or Pa?
+        # self.graph.axes.cla() # much faster to update plots in place and requires setting title/label/etc every time, but updating in place only works for same size data and does not automatically update ranges
+        clear_plot(self.graph.axes)
+        
         if self.chirp_length.units.currentIndex() == 0: #times in seconds
             times = np.arange(len(clp.signals['stimulus']))/clp.project['sample_rate'] - clp.project['pre_sweep']
             self.graph.axes.set_xlabel('Time (seconds)')
@@ -126,4 +129,6 @@ class ChirpTab(CLTab):
             self.graph.axes.plot(times, clp.signals['noise'], label='noise sample', color='gray')
         self.graph.axes.legend()
         self.graph.draw()
-        
+
+
+       

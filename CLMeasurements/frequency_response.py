@@ -28,8 +28,41 @@ class FrequencyResponse(CLMeasurement):
             
             
     def measure(self):
+        fr_freqs, fr = self.calc_fr(clp.signals['response'])
+
+        # generate array of output frequency points
+        if self.params['output']['scaling'] == 'log':
+            self.out_freqs = np.geomspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
+        else:
+            self.out_freqs = np.linspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
+        
+        
+        # interpolate output points
+        print('todo: work out lin/log interpolation')
+        # pretty sure you should take the log of the in/out frequencies before interpolation. Might also depend on whether output units are lin/log. Probably fine for reasonable chirp lengths/resolution
+        #if self.params['output']['scaling'] == 'log':
+        self.out_points = np.interp(self.out_freqs, fr_freqs, fr)
+        
+        # convert output to desired units
+        if self.params['output']['unit'] == 'dBFS':
+            self.out_points = 20*np.log10(self.out_points)
+        
+        
+        # check for noise sample and calculate noise floor
+        if any(clp.signals['noise']):
+            fr_freqs, noise_fr = self.calc_fr(clp.signals['noise'])
+            self.out_noise = np.interp(self.out_freqs, fr_freqs, noise_fr)
+            if self.params['output']['unit'] == 'dBFS':
+                self.out_noise = 20*np.log10(self.out_noise)
+        else:
+            self.noise_points = np.zeros(0)
+    
+
+    # calculate the frquency response of a given signal, relative to the project stimulus signal, using measurement analysis parameters
+    # allows analyzing actual captured signal or noise sample to calculate the measurement and measurement noise floor using the same logic
+    def calc_fr(self, input_signal):
         # calculate raw complex frequency response
-        fr = fft(clp.signals['response']) / fft(clp.signals['stimulus'])
+        fr = fft(input_signal) / fft(clp.signals['stimulus'])
         
         # generate IR, apply window, and calculate windowed FR
         if self.params['window_mode'] == 'windowed':
@@ -62,12 +95,6 @@ class FrequencyResponse(CLMeasurement):
         # generate array of center frequencies of fft bins
         fr_freqs = fftfreq(len(clp.signals['stimulus']), 1/clp.project['sample_rate'])
 
-        # generate array of output frequency points
-        if self.params['output']['scaling'] == 'log':
-            self.out_freqs = np.geomspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
-        else:
-            self.out_freqs = np.linspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
-        
         # trim fft fr and freqs to positive half of spectrum. Easier to interpolate output points
         fr = fr[1:int(len(fr)/2)-1] # technically, removes highest point for odd-length inputs, but shouldn't be a problem
         fr_freqs = fr_freqs[1:int(len(fr_freqs)/2)-1]
@@ -75,19 +102,7 @@ class FrequencyResponse(CLMeasurement):
         # take magnitude of complex frequency response
         fr = np.abs(fr)
         
-        # interpolate output points
-        print('todo: work out lin/log interpolation')
-        # pretty sure you should take the log of the in/out frequencies before interpolation. Might also depend on whether output units are lin/log. Probably fine for reasonable chirp lengths/resolution
-        #if self.params['output']['scaling'] == 'log':
-        self.out_points = np.interp(self.out_freqs, fr_freqs, fr)
-        
-        # convert output to desired units
-        if self.params['output']['unit'] == 'dBFS':
-            self.out_points = 20*np.log10(self.out_points)
-        
-        
-        # check for noise sample and calculate noise floor
-        
+        return fr_freqs, fr
         
         
     def init_tab(self):

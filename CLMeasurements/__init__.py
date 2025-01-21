@@ -1,6 +1,6 @@
 # individual measurement imports at bottom of file
 import numpy as np
-from CLGui import CLTab
+from CLGui import CLTab, clear_plot
 from qtpy.QtWidgets import QLineEdit
 from matplotlib.ticker import LogLocator, EngFormatter
 
@@ -61,7 +61,15 @@ class CLMeasurement():
     
     def plot(self):
         # basic plot, could be much more complex for different measurement types (like waterfalls)
-        self.tab.graph.axes.plot(self.out_freqs, self.out_points)
+        
+        clear_plot(self.tab.graph.axes)
+        
+        self.tab.graph.axes.plot(self.out_freqs, self.out_points, label=self.measurement_type_name)
+        if any(self.out_noise):
+            self.tab.graph.axes.plot(self.out_freqs, self.out_noise, label='Noise Floor', color='gray')
+        self.tab.graph.axes.legend()
+        self.tab.graph.axes.set_ylabel(self.params['output']['unit'])
+        self.tab.graph.axes.set_xlabel('Frequency (Hz)') # majority of measurements assume output data vs frequency
         self.tab.graph.draw()
 
 # imports in __init__.py make measurements available in other code via `import CLMeasurements`, etc.
