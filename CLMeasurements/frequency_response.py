@@ -2,6 +2,7 @@ import CLProject as clp
 from CLGui import CLTab, CLParameter
 from qtpy.QtWidgets import QLineEdit
 from scipy.fftpack import fft, ifft, fftfreq
+from scipy.signal.windows import hann
 import numpy as np
 
 class FrequencyResponse:
@@ -10,20 +11,20 @@ class FrequencyResponse:
         self.params = params
         if not params: # populate default measurement parameters if none are provided
             # add new keys to existing dict instead of defining new one, so updates will propogate to full project dict and can be easily saved to a project file
-            self.params['window_mode'] = 'raw' # options are 'raw' for no windowing, 'windowed' for fixed (time-gated) windowing, or 'adaptive' to use an automatically-derived window for each output frequency point
-            self.params['window_start'] = 10, # for fixed window, amount of time in ms included before beginning of impulse response
-            self.params['fade_in'] = 10, # beginning of fixed window ramps up with a half Hann window of width fade_in (must be <= window_start)
-            self.params['window_end'] = 50,
-            self.params['fade_out'] = 25,
+            self.params['window_mode'] = 'windowed' # options are 'raw' for no windowing, 'windowed' for fixed (time-gated) windowing, or 'adaptive' to use an automatically-derived window for each output frequency point
+            self.params['window_start'] = 10 # for fixed window, amount of time in ms included before beginning of impulse response
+            self.params['fade_in'] = 10 # beginning of fixed window ramps up with a half Hann window of width fade_in (must be <= window_start)
+            self.params['window_end'] = 50
+            self.params['fade_out'] = 25
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
                 'unit': 'dBFS',
                 'num_points': 100,
                 'scaling': 'log'
                 }
             
-            self.out_freqs = 0 # frequency points of most recently calculated measurement
-            self.out_points = 0 # data points of most recently calculated measurement
-            self.out_noise = 0 # data points of most recently calculated measurement noise floor estimate
+        self.out_freqs = 0 # frequency points of most recently calculated measurement
+        self.out_points = 0 # data points of most recently calculated measurement
+        self.out_noise = 0 # data points of most recently calculated measurement noise floor estimate
             
     def measure(self):
         # run measurement using current signals, project settings, and measurement parameters, and update measurement data
@@ -36,7 +37,28 @@ class FrequencyResponse:
         
         # generate IR, apply window, and calculate windowed FR
         if self.params['window_mode'] == 'windowed':
-            pass
+            # calcualte raw impulse response
+            ir = ifft(fr)
+            
+            # calculate windowing times in whole samples
+            window_start = round((self.params['window_start'] / 1000) * clp.project['sample_rate'])
+            fade_in = round((self.params['fade_in'] / 1000) * clp.project['sample_rate'])
+            window_end = round((self.params['window_end'] / 1000) * clp.project['sample_rate'])
+            fade_out = round((self.params['fade_out'] / 1000) * clp.project['sample_rate'])
+            
+            # construct window
+            window = np.zeros(len(ir))
+            window[:fade_in] = hann(fade_in*2)[:fade_in]
+            window[fade_in:window_start+window_end-fade_out] = np.ones(window_start-fade_in+window_end-fade_out)
+            window[window_start+window_end-fade_out:window_start+window_end] = hann(fade_out*2)[fade_out:]
+            window = np.roll(window, -window_start)
+            
+            # apply window to impulse response
+            ir = ir * window
+            
+            # convert windowed impusle response back to frequency response to use for data output
+            fr = fft(ir)
+            
         elif self.params['window_mode'] == 'adaptive':
             pass
         

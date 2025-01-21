@@ -27,9 +27,9 @@ class HarmonicDistortion:
                 # default output frequency range from chirp start freq to chirp stop freq/lowest harmonic
                 }
             
-            self.out_freqs = 0 # frequency points of most recently calculated measurement
-            self.out_points = 0 # data points of most recently calculated measurement
-            self.out_noise = 0 # data points of most recently calculated measurement noise floor estimate
+        self.out_freqs = 0 # frequency points of most recently calculated measurement
+        self.out_points = 0 # data points of most recently calculated measurement
+        self.out_noise = 0 # data points of most recently calculated measurement noise floor estimate
             
     def measure(self):
         # calculate raw complex frequency response and IR
