@@ -35,7 +35,9 @@ MIN_CHIRP_LENGTH = 0.1 # min/max chirp length in seconds
 MAX_CHIRP_LENGTH = 60
 MIN_CHIRP_FREQ = 0.01
 MAX_ZERO_PAD = 10.0 # max length pre/post sweep length in seconds
-OUTPUT_SAMPLE_RATES = [8000, 16000, 44100, 48000, 96000, 192000]
+STANDARD_SAMPLE_RATES = [8000, 16000, 44100, 48000, 96000, 192000]
+MIN_SAMPLE_RATE = 1000
+MAX_SAMPLE_RATE = 768000
 OUTPUT_BIT_DEPTHS = ['16 int', '24 int', '32 int', '32 float']
 MAX_OUTPUT_CHANNELS = 16
 
@@ -71,6 +73,7 @@ def new_project():
         'pre_sweep': 0.05, # silence before start of chirp included in analysis window, length in seconds
         'post_sweep': 0.05,
         'sample_rate': 48000, # sample rate in Hz used for all analysis
+        'use_input_rate': True, # get the sample rate of the input file or device and update sample_rate before performing and calculations
         
         # parameters of stimulus file or audio output device
         'output': {

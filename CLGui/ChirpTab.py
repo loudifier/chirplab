@@ -2,7 +2,7 @@ import CLProject as clp
 from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, QCollapsible, QHSeparator
 from CLAnalysis import generate_stimulus, read_response, generate_stimulus_file, audio_file_info
 import numpy as np
-from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog
+from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox
 import pyqtgraph as pg
 from engineering_notation import EngNumber
 
@@ -30,7 +30,7 @@ class ChirpTab(CLTab):
                 self.start_freq.revert() # revert and do nothing
             else:
                 clp.project['start_freq'] = float(new_value) # apply the new value to the project
-                self.updateStimulus() # update the stimulus (which updates the measurements)
+                self.update_stimulus() # update the stimulus (which updates the measurements)
         self.start_freq.update_callback = update_start_freq
         
         self.stop_freq = CLParamNum('Stop Freq', clp.project['stop_freq'], 'Hz', clp.MIN_CHIRP_FREQ, clp.project['sample_rate']/2)
@@ -40,7 +40,7 @@ class ChirpTab(CLTab):
                 self.stop_freq.revert()
             else:
                 clp.project['stop_freq'] = float(new_value)
-                self.updateStimulus()
+                self.update_stimulus()
         self.stop_freq.update_callback = update_stop_freq
         
         self.chirp_length = CLParamNum('Chirp Length', clp.project['chirp_length'], ['Sec','Samples'], clp.MIN_CHIRP_LENGTH, clp.MAX_CHIRP_LENGTH, 'float')
@@ -50,7 +50,7 @@ class ChirpTab(CLTab):
                 clp.project['chirp_length'] = self.chirp_length.value
             else: # convert samples to seconds
                 clp.project['chirp_length'] = self.chirp_length.value / clp.project['sample_rate']
-            self.updateStimulus()
+            self.update_stimulus()
         self.chirp_length.update_callback = update_chirp_length
         def update_chirp_length_units(index):
             if index==0: # seconds
@@ -70,20 +70,97 @@ class ChirpTab(CLTab):
         self.analysis_params = QCollapsible('Analysis Parameters')
         self.chirp_params.addWidget(self.analysis_params)
         
-        self.sample_rate = CLParameter('Sample Rate', clp.project['sample_rate'], 'Hz')
+        self.sample_rate = CLParamDropdown('Sample Rate', ['use input rate'], 'Hz')
+        self.sample_rate.dropdown.addItems([str(EngNumber(rate)) for rate in clp.STANDARD_SAMPLE_RATES])
+        if not clp.project['use_input_rate']:
+            sample_rate_index = self.sample_rate.dropdown.findText(str(EngNumber(clp.project['sample_rate'])))
+            if sample_rate_index != -1:
+                self.sample_rate.dropdown.setCurrentIndex(sample_rate_index)
+            else:
+                self.sample_rate.dropdown.setCurrentText(str(EngNumber(clp.project['sample_rate'])))
+        self.sample_rate.dropdown.setEditable(True) # a lot of extra junk added to the UI logic here to allow text entry, might be a good idea to roll some of this into CLParamDropdown
+        self.sample_rate.dropdown.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.sample_rate.last_value = self.sample_rate.dropdown.currentText()
         self.analysis_params.addWidget(self.sample_rate)
+        def update_sample_rate(index=-1): # fires when text is entered or when an option is selected from the dropdown. Also fires when clicking the arrow to open the dropdown, which is annoying
+            # dropdown selection will return selected index, text entry will not call with any parameters. Either way, just use the current text
+            new_rate = sample_rate_str2num(self.sample_rate.dropdown.currentText())
+            if new_rate:
+                if self.sample_rate.dropdown.currentIndex()==0:
+                    clp.project['use_input_rate'] = True
+                    if clp.IO['input']['sample_rate']:
+                        clp.project['sample_rate'] = clp.IO['input']['sample_rate']
+                else:
+                    clp.project['use_input_rate'] = False
+                    clp.project['sample_rate'] = new_rate
+                update_pre_sweep_units(self.pre_sweep.units.currentIndex())
+                update_post_sweep_units(self.post_sweep.units.currentIndex())
+                self.update_stimulus()
+        self.sample_rate.update_callback = update_sample_rate
+        self.sample_rate.dropdown.lineEdit().editingFinished.connect(update_sample_rate)
+        def sample_rate_str2num(new_value):
+            if 'input' in new_value:
+               self.sample_rate.last_value = 'use input rate'
+               self.sample_rate.dropdown.setCurrentIndex(0)
+               clp.project['sample_rate'] = 'input'
+               return clp.IO['input']['sample_rate']
+            try:
+                EngNumber(new_value) # if the input text can't be construed as a number then revert and return 0
+            except:
+                self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
+                return 0
+            new_rate = round(float(EngNumber(new_value)))
+            new_rate = min(max(new_rate, clp.MIN_SAMPLE_RATE), clp.MAX_SAMPLE_RATE)
+            self.sample_rate.last_value = str(EngNumber(new_rate))
+            self.sample_rate.dropdown.setCurrentText(str(EngNumber(new_rate)))
+            return new_rate
         
-        self.pre_sweep = CLParameter('Pre Sweep', clp.project['pre_sweep'], 'Sec')
+        # pre sweep - s/sample dropdown
+        self.pre_sweep = CLParamNum('Pre Sweep', clp.project['pre_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
         self.analysis_params.addWidget(self.pre_sweep)
+        def update_pre_sweep(new_value):
+            if self.pre_sweep.units.currentIndex()==0: # sec
+                clp.project['pre_sweep'] = new_value
+            else: # samples
+                clp.project['pre_sweep'] = new_value / clp.project['sample_rate']
+            self.update_stimulus()
+        self.pre_sweep.update_callback = update_pre_sweep
+        def update_pre_sweep_units(index):
+            if index==0: # sec
+                self.pre_sweep.max = clp.MAX_ZERO_PAD
+                self.pre_sweep.set_numtype('float')
+                self.pre_sweep.set_value(clp.project['pre_sweep'])
+            else: # samples
+                self.pre_sweep.max = clp.MAX_ZERO_PAD * clp.project['sample_rate']
+                self.pre_sweep.set_value(clp.project['pre_sweep'] * clp.project['sample_rate'])
+                self.pre_sweep.set_numtype('int')
+        self.pre_sweep.units_update_callback = update_pre_sweep_units
         
-        self.post_sweep = CLParameter('Post Sweep', clp.project['post_sweep'], 'Sec')
+        # post sweep - s/sample dropdown
+        self.post_sweep = CLParamNum('Post Sweep', clp.project['post_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
         self.analysis_params.addWidget(self.post_sweep)
+        def update_post_sweep(new_value):
+            if self.post_sweep.units.currentIndex()==0: # sec
+                clp.project['post_sweep'] = new_value
+            else: # samples
+                clp.project['post_sweep'] = new_value / clp.project['sample_rate']
+            self.update_stimulus()
+        self.post_sweep.update_callback = update_post_sweep
+        def update_post_sweep_units(index):
+            if index==0: # sec
+                self.post_sweep.max = clp.MAX_ZERO_PAD
+                self.post_sweep.set_numtype('float')
+                self.post_sweep.set_value(clp.project['post_sweep'])
+            else: # samples
+                self.post_sweep.max = clp.MAX_ZERO_PAD * clp.project['sample_rate']
+                self.post_sweep.set_value(clp.project['post_sweep'] * clp.project['sample_rate'])
+                self.post_sweep.set_numtype('int')
+        self.post_sweep.units_update_callback = update_post_sweep_units
         
         self.panel.addWidget(QHSeparator())
         
         
         # Output file or audio device section
-        #toggle_section(self.output_params) # start with output section collapsed
         self.output_params = QCollapsible('Output')
         self.panel.addWidget(self.output_params)
         
@@ -185,17 +262,19 @@ class ChirpTab(CLTab):
         self.output_length.units_update_callback = update_output_length_units
         
         # sample rate
-        self.output_sample_rate = CLParamDropdown('Sample Rate', [str(EngNumber(rate)) for rate in clp.OUTPUT_SAMPLE_RATES], 'Hz')
+        self.output_sample_rate = CLParamDropdown('Sample Rate', [str(EngNumber(rate)) for rate in clp.STANDARD_SAMPLE_RATES], 'Hz')
         output_rate_index = self.output_sample_rate.dropdown.findText(str(EngNumber(clp.project['output']['sample_rate'])))
         if output_rate_index != -1:
             self.output_sample_rate.dropdown.setCurrentIndex(output_rate_index)
         self.output_params.addWidget(self.output_sample_rate)
         def update_output_rate(index):
-            clp.project['output']['sample_rate'] = clp.OUTPUT_SAMPLE_RATES[index]
-            if self.output_pre_sweep.units.currentIndex()==1:
-                self.output_pre_sweep.set_value(clp.project['output']['pre_sweep']*clp.project['output']['sample_rate'])
-            if self.output_post_sweep.units.currentIndex()==1:
-                self.output_post_sweep.set_value(clp.project['output']['post_sweep']*clp.project['output']['sample_rate'])
+            clp.project['output']['sample_rate'] = clp.STANDARD_SAMPLE_RATES[index]
+            update_output_pre_sweep_units(self.output_pre_sweep.units.currentIndex())
+            update_output_post_sweep_units(self.output_post_sweep.units.currentIndex())
+            #if self.output_pre_sweep.units.currentIndex()==1:
+            #    self.output_pre_sweep.set_value(clp.project['output']['pre_sweep']*clp.project['output']['sample_rate'])
+            #if self.output_post_sweep.units.currentIndex()==1:
+            #    self.output_post_sweep.set_value(clp.project['output']['post_sweep']*clp.project['output']['sample_rate'])
             update_output_length()
         self.output_sample_rate.update_callback = update_output_rate
             
@@ -369,7 +448,7 @@ class ChirpTab(CLTab):
         self.plot()
         
 
-    def updateStimulus(self):
+    def update_stimulus(self):
         # generate new stimulus from chirp and analysis parameters
         generate_stimulus()
         

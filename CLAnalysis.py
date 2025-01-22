@@ -71,7 +71,11 @@ def read_response():
     # will need to be reworked when adding audio device in/out
     
     # read input file
-    clp.signals['raw_response'] = read_audio_file(clp.project['input']['file'])
+    if clp.project['use_input_rate']:
+        sample_rate = 0
+    else:
+        sample_rate = clp.project['sample_rate']
+    clp.signals['raw_response'] = read_audio_file(clp.project['input']['file'], sample_rate)
     
     #  get only the desired channel
     if clp.signals['raw_response'].ndim > 1: # multiple channels in input file
@@ -99,11 +103,15 @@ def read_response():
     else:
         clp.signals['noise'] = []
 
-def read_audio_file(audio_file):
+def read_audio_file(audio_file, sample_rate=0):
     # convert the input file to a friendly 32-bit floating point format temporary wav file, then reads the file into a numpy array with scipy
+    # if a sample rate is given, also resample the input file to the specified rate
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir: # add delete=False if needed for debugging. ignore_cleanup_errors requires python 3.10+
         temp_wav = Path(temp_dir) / 'response.wav'
-        result = subprocess.run([clp.sox_path, audio_file, '-b', '32', '-e', 'floating-point', str(temp_wav), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
+        if sample_rate:
+            result = subprocess.run([clp.sox_path, audio_file, '-b', '32', '-e', 'floating-point', '-r', str(sample_rate), str(temp_wav), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
+        else:
+            result = subprocess.run([clp.sox_path, audio_file, '-b', '32', '-e', 'floating-point', str(temp_wav), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
         sox_out = (Path(temp_dir) / 'soxerr.txt').read_text()
         if result.returncode:
             if 'No such file' in sox_out:
