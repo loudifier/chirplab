@@ -223,7 +223,8 @@ class CLParamFile(QWidget):
         
     
     def set_value(self, new_value):
-        self.text_box.setText(str(new_value))
+        self.value = str(new_value)
+        self.text_box.setText(self.value)
     
     def revert(self):
         self.set_value(self.last_value)

@@ -82,9 +82,10 @@ class ChirpTab(CLTab):
         self.sample_rate.dropdown.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
         self.sample_rate.last_value = self.sample_rate.dropdown.currentText()
         self.analysis_params.addWidget(self.sample_rate)
-        def update_sample_rate(index=-1): # fires when text is entered or when an option is selected from the dropdown. Also fires when clicking the arrow to open the dropdown, which is annoying
+        def update_sample_rate(index=-1, new_rate=None): # fires when text is entered or when an option is selected from the dropdown. Also fires when clicking the arrow to open the dropdown, which is annoying
             # dropdown selection will return selected index, text entry will not call with any parameters. Either way, just use the current text
-            new_rate = sample_rate_str2num(self.sample_rate.dropdown.currentText())
+            if new_rate is None:
+                new_rate = sample_rate_str2num(self.sample_rate.dropdown.currentText())
             if new_rate:
                 if self.sample_rate.dropdown.currentIndex()==0:
                     clp.project['use_input_rate'] = True
@@ -102,7 +103,6 @@ class ChirpTab(CLTab):
             if 'input' in new_value:
                self.sample_rate.last_value = 'use input rate'
                self.sample_rate.dropdown.setCurrentIndex(0)
-               clp.project['sample_rate'] = 'input'
                return clp.IO['input']['sample_rate']
             try:
                 EngNumber(new_value) # if the input text can't be construed as a number then revert and return 0
@@ -271,10 +271,6 @@ class ChirpTab(CLTab):
             clp.project['output']['sample_rate'] = clp.STANDARD_SAMPLE_RATES[index]
             update_output_pre_sweep_units(self.output_pre_sweep.units.currentIndex())
             update_output_post_sweep_units(self.output_post_sweep.units.currentIndex())
-            #if self.output_pre_sweep.units.currentIndex()==1:
-            #    self.output_pre_sweep.set_value(clp.project['output']['pre_sweep']*clp.project['output']['sample_rate'])
-            #if self.output_post_sweep.units.currentIndex()==1:
-            #    self.output_post_sweep.set_value(clp.project['output']['post_sweep']*clp.project['output']['sample_rate'])
             update_output_length()
         self.output_sample_rate.update_callback = update_output_rate
             
@@ -370,6 +366,10 @@ class ChirpTab(CLTab):
                 self.input_channel.setEnabled(True)
                 self.input_depth.set_value(input_file_info['numtype'])
                 
+                if clp.project['use_input_rate']:
+                    if clp.project['sample_rate'] != clp.IO['input']['sample_rate']:
+                        update_sample_rate(new_rate=clp.IO['input']['sample_rate'])
+                
                 self.input_file.text_box.setStyleSheet('')
                 
             except FileNotFoundError:
@@ -457,8 +457,16 @@ class ChirpTab(CLTab):
         
         
     def analyze(self):
-        # read in input file
-        read_response() # reads in raw response, gets desired channel, and puts segment containing chirp in clp.signals['stimulus']
+        # first, check if input file is valid
+        update_input_file = self.input_file.update_callback # maybe break this function out to a method? Would mean breaking basically all UI callbacks out to methods...
+        update_input_file(self.input_file.value)
+        
+        # if input file was found read it in, otherwise blank out response
+        if clp.IO['input']['length_samples']:
+            read_response() # reads in raw response, gets desired channel, and puts segment containing chirp in clp.signals['stimulus']
+        else:
+            clp.signals['response'] = np.zeros(len(clp.signals['stimulus']))
+            clp.signals['noise'] = []
 
         # update chirp tab graph
         self.plot()
