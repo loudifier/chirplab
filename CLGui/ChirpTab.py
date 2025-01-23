@@ -51,6 +51,7 @@ class ChirpTab(CLTab):
                 clp.project['chirp_length'] = self.chirp_length.value
             else: # convert samples to seconds
                 clp.project['chirp_length'] = self.chirp_length.value / clp.project['sample_rate']
+            update_output_length()
             self.update_stimulus()
         self.chirp_length.update_callback = update_chirp_length
         def update_chirp_length_units(index):
@@ -242,6 +243,10 @@ class ChirpTab(CLTab):
         self.include_silence = QCheckBox('Include leading silence')
         self.include_silence.setChecked(clp.project['output']['include_silence'])
         self.output_params.addWidget(self.include_silence)
+        def update_include_silence(checked):
+            clp.project['output']['include_silence'] = bool(checked)
+            update_output_length()
+        self.include_silence.stateChanged.connect(update_include_silence)
         
         # total length text box (non-interactive) - s/sample dropdown
         def calc_output_length(unit='samples'):
