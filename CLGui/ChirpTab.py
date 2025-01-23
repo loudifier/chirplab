@@ -5,6 +5,7 @@ import numpy as np
 from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox
 import pyqtgraph as pg
 from engineering_notation import EngNumber
+import types
 
 
 # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
@@ -83,6 +84,10 @@ class ChirpTab(CLTab):
         self.sample_rate.last_value = self.sample_rate.dropdown.currentText()
         self.analysis_params.addWidget(self.sample_rate)
         def update_sample_rate(index=-1, new_rate=None): # fires when text is entered or when an option is selected from the dropdown. Also fires when clicking the arrow to open the dropdown, which is annoying
+            # just clicking the dropdown fires editingFinished(). Ignore if value isn't actually changed to avoid firing multiple times
+            if self.sample_rate.dropdown.currentText() == self.sample_rate.last_value:
+                return
+            
             # dropdown selection will return selected index, text entry will not call with any parameters. Either way, just use the current text
             if new_rate is None:
                 new_rate = sample_rate_str2num(self.sample_rate.dropdown.currentText())
@@ -386,6 +391,7 @@ class ChirpTab(CLTab):
                 
                 self.input_file.text_box.setStyleSheet('QLineEdit { background-color: orange; }')
         self.input_file.update_callback = update_input_file
+        self.update_input_file = update_input_file # make inner function callable as a method
         
         # input length
         self.input_length = CLParameter('Input file length', 0, ['Sec','Samples'])
@@ -458,8 +464,7 @@ class ChirpTab(CLTab):
         
     def analyze(self):
         # first, check if input file is valid
-        update_input_file = self.input_file.update_callback # maybe break this function out to a method? Would mean breaking basically all UI callbacks out to methods...
-        update_input_file(self.input_file.value)
+        self.update_input_file(self.input_file.value)
         
         # if input file was found read it in, otherwise blank out response
         if clp.IO['input']['length_samples']:
@@ -473,6 +478,7 @@ class ChirpTab(CLTab):
 
         # update measurements
         for measurement in clp.measurements:
+            measurement.update_tab()
             measurement.measure()
             measurement.plot()
             measurement.format_graph()
