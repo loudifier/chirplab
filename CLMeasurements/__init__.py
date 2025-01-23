@@ -58,6 +58,12 @@ class CLMeasurement():
         self.tab.panel.addWidget(self.output_section)
         
     
+    def update_tab(self):
+        # Provide a hook for upstream GUI elements to propogate updates to measurement tabs
+        # i.e. update frequency response window sample counts when analysis sample rate is changed
+        pass
+        
+        
     def format_graph(self):
         # default graph formatting with title, legend, axis titles, log x scale
         self.tab.graph.setTitle(self.name)

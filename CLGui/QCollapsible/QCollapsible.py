@@ -123,6 +123,10 @@ class QCollapsible(QFrame):
         """Set whether collapse/expand is disabled."""
         self._locked = locked
         self._toggle_btn.setCheckable(not locked)
+        if locked:
+            self._toggle_btn.setStyleSheet("QToolButton {border: none; color: grey;}")
+        else:
+            self._toggle_btn.setStyleSheet("QToolButton {border: none;}")
 
     def locked(self) -> bool:
         """Return True if collapse/expand is disabled."""
