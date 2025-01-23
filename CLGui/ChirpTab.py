@@ -60,10 +60,10 @@ class ChirpTab(CLTab):
                 self.chirp_length.max = clp.MAX_CHIRP_LENGTH
                 self.chirp_length.set_value(clp.project['chirp_length'])
             else:
-                self.chirp_length.set_numtype('int')
                 self.chirp_length.min = clp.MIN_CHIRP_LENGTH*clp.project['sample_rate']
                 self.chirp_length.max = clp.MAX_CHIRP_LENGTH*clp.project['sample_rate']
                 self.chirp_length.set_value(clp.project['chirp_length']*clp.project['sample_rate'])
+                self.chirp_length.set_numtype('int')
         self.chirp_length.units_update_callback = update_chirp_length_units
         
         
