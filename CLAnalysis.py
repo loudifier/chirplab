@@ -199,3 +199,17 @@ def save_csv(measurement, out_dir=''):
 def save_xlsx(measurements, out_path):
     # get measurement data from one or more measurements and save the output data in a single excel file
     pass
+
+def freq_points(start_freq, stop_freq, num_points, spacing='log', round_to_whole_freq=False):
+    # generate an array of frequency points with log or linear spacing, or log spaced in points per octave
+    # for points per octave pass the number of points per octave for num_points and 'octave' for spacing
+    if 'lin' in spacing:
+        out_points = np.linspace(start_freq, stop_freq, num_points)
+    else:
+        if spacing=='octave':
+            num_octaves = np.log2(stop_freq/start_freq)
+            num_points = int(np.ceil(num_octaves * num_points))
+        out_points = np.geomspace(start_freq, stop_freq, num_points)
+    if round_to_whole_freq:
+        return np.unique(np.round(out_points))
+    return out_points
