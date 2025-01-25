@@ -372,7 +372,18 @@ class FreqPointsParams(QWidget):
         self.round_points.stateChanged.connect(update_round_points)
         
         
+        def update_min_max():
+            if params['min_auto'] and self.calc_min_auto is not None:
+                params['min_freq'] = self.calc_min_auto()
+                self.min.set_value(params['min_freq'])
+            if params['max_auto'] and self.calc_max_auto is not None:
+                params['max_freq'] = self.calc_max_auto()
+                self.max.set_value(params['max_freq'])
+        self.update_min_max = update_min_max
+        
+        
         self.update_callback = None
+        
         
 
 # not enough additional functionality to justify a CL combo class            

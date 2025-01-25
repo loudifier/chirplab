@@ -177,12 +177,13 @@ class FrequencyResponse(CLMeasurement):
 
     def update_tab(self):
         self.window_params.update_window_params()
+        self.output_points.update_min_max()
         
     def calc_auto_min_freq(self):
         return clp.project['start_freq']
     
     def calc_auto_max_freq(self):
-        return clp.project['stop_freq']
+        return min(clp.project['stop_freq'], (clp.project['sample_rate']/2) * 0.9)
 
 # break out fixed windowing parameters UI elements, so they can be reused in the impulse response visualizer dialog
 # also try to contain some of the spaghetti that is generated when updating one window parameter cascades to updating other parameters
