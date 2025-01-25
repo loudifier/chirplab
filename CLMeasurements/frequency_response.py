@@ -157,6 +157,12 @@ class FrequencyResponse(CLMeasurement):
 
         self.output_unit = CLParamDropdown('Units', [unit for unit in self.OUTPUT_UNITS], '')
         self.output_section.addWidget(self.output_unit)
+        def update_output_unit(index):
+            self.params['output']['unit'] = self.OUTPUT_UNITS[index]
+            self.measure()
+            self.plot()
+            self.format_graph()
+        self.output_unit.update_callback = update_output_unit
         
         self.output_points = FreqPointsParams(self.params['output'])
         self.output_section.addWidget(self.output_points)
