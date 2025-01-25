@@ -59,10 +59,10 @@ class FrequencyResponse(CLMeasurement):
         
         
         # interpolate output points
-        print('todo: work out lin/log interpolation')
-        # pretty sure you should take the log of the in/out frequencies before interpolation. Might also depend on whether output units are lin/log. Probably fine for reasonable chirp lengths/resolution
-        #if self.params['output']['scaling'] == 'log':
-        self.out_points = np.interp(self.out_freqs, fr_freqs, fr)
+        if self.params['output']['spacing'] == 'linear':
+            self.out_points = np.interp(self.out_freqs, fr_freqs, fr)
+        else:
+            self.out_points = np.interp(np.log(self.out_freqs), np.log(fr_freqs), fr)
         
         # convert output to desired units
         if self.params['output']['unit'] == 'dBFS':
