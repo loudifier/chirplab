@@ -79,7 +79,7 @@ class CLMeasurement():
         self.tab.graph.clear()
         
         plot_pen = pg.mkPen(color=clp.PLOT_COLORS[0], width=clp.PLOT_PEN_WIDTH)
-        self.tab.graph.plot(self.out_freqs, self.out_points, name = self.measurement_type_name, pen=plot_pen)
+        self.tab.graph.plot(self.out_freqs, self.out_points, name = self.measurement_type_name, pen=plot_pen) # todo: do something different when plotting a single point (pyqtgraph falls on its face otherwise)
         
         if any(self.out_noise):
             noise_pen = pg.mkPen(color=clp.NOISE_COLOR, width=clp.PLOT_PEN_WIDTH)

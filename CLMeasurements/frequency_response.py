@@ -1,5 +1,6 @@
 import CLProject as clp
-from CLGui import CLParameter, CLParamDropdown, QCollapsible, CLParamNum
+from CLAnalysis import freq_points
+from CLGui import CLParameter, CLParamDropdown, QCollapsible, CLParamNum, FreqPointsParams
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
@@ -31,19 +32,30 @@ class FrequencyResponse(CLMeasurement):
             
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
                 'unit': 'dBFS',
-                'num_points': 100,
-                'scaling': 'log'
-                }
+                'min_freq': 20,
+                'min_auto': True,
+                'max_freq': 20000,
+                'max_auto': True,
+                'spacing': 'octave',
+                'num_points': 12,
+                'round_points': False}
+        
+        # update min/max output frequencies if they are set to auto
+        if self.params['output']['min_auto']:
+            self.params['output']['min_freq'] = self.calc_auto_min_freq()
+        if self.params['output']['max_auto']:
+            self.params['output']['max_freq'] = self.calc_auto_max_freq()
             
             
     def measure(self):
         fr_freqs, fr = self.calc_fr(clp.signals['response'])
 
         # generate array of output frequency points
-        if self.params['output']['scaling'] == 'log':
-            self.out_freqs = np.geomspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
-        else:
-            self.out_freqs = np.linspace(clp.project['start_freq'], clp.project['stop_freq'], self.params['output']['num_points'])
+        self.out_freqs = freq_points(self.params['output']['min_freq'], 
+                                     self.params['output']['max_freq'],
+                                     self.params['output']['num_points'],
+                                     self.params['output']['spacing'],
+                                     self.params['output']['round_points'])
         
         
         # interpolate output points
@@ -146,11 +158,25 @@ class FrequencyResponse(CLMeasurement):
         self.output_unit = CLParamDropdown('Units', [unit for unit in self.OUTPUT_UNITS], '')
         self.output_section.addWidget(self.output_unit)
         
-        
+        self.output_points = FreqPointsParams(self.params['output'])
+        self.output_section.addWidget(self.output_points)
+        def update_output_points():
+            self.measure()
+            self.plot()
+            self.format_graph()
+        self.output_points.update_callback = update_output_points
+        self.output_points.calc_min_auto = self.calc_auto_min_freq
+        self.output_points.calc_max_auto = self.calc_auto_max_freq
     
 
     def update_tab(self):
         self.window_params.update_window_params()
+        
+    def calc_auto_min_freq(self):
+        return clp.project['start_freq']
+    
+    def calc_auto_max_freq(self):
+        return clp.project['stop_freq']
 
 # break out fixed windowing parameters UI elements, so they can be reused in the impulse response visualizer dialog
 # also try to contain some of the spaghetti that is generated when updating one window parameter cascades to updating other parameters

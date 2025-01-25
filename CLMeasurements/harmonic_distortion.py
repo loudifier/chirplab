@@ -1,4 +1,5 @@
 import CLProject as clp
+from CLAnalysis import freq_points
 from CLGui import CLParameter, CLParamNum
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
@@ -24,19 +25,25 @@ class HarmonicDistortion(CLMeasurement):
             
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
                 'unit': 'dB', # options are 'dB' or '%' relative to fundamental
-                'num_points': 100,
-                'scaling': 'log'
-                }
+                'min_freq': 20,
+                'min_auto': True, # min_freq ignored and updated if True
+                'max_freq': 10000,
+                'max_auto': True,
+                'spacing': 'octave',
+                'num_points': 12,
+                'round_points': False}
+
             
     def measure(self):
         fr_freqs, thd = self.calc_thd(clp.signals['response'])
 
         # generate array of output frequency points
         print('todo: verify effective max thd frequency')
-        if self.params['output']['scaling'] == 'log':
-            self.out_freqs = np.geomspace(clp.project['start_freq'], clp.project['stop_freq']/self.params['start_harmonic'], self.params['output']['num_points'])
-        else:
-            self.out_freqs = np.linspace(clp.project['start_freq'], clp.project['stop_freq']/self.params['start_harmonic'], self.params['output']['num_points'])
+        self.out_freqs = freq_points(self.params['output']['min_freq'], 
+                                     self.params['output']['max_freq'],
+                                     self.params['output']['num_points'],
+                                     self.params['output']['spacing'],
+                                     self.params['output']['round_points'])
         
         
         # interpolate output points
@@ -46,6 +53,12 @@ class HarmonicDistortion(CLMeasurement):
         if self.params['output']['unit'] == 'dB':
             ref_fr = FrequencyResponse('fr',{})
             ref_fr.params['output']['unit'] = 'fs'
+            ref_fr.params['output']['min_freq'] = self.params['output']['min_freq']
+            ref_fr.params['output']['min_auto'] = False
+            ref_fr.params['output']['max_freq'] = self.params['output']['max_freq']
+            ref_fr.params['output']['max_auto'] = False
+            ref_fr.params['output']['spacing'] = ref_fr.params['output']['spacing']
+            ref_fr.params['output']['round_points'] = self.params['output']['round_points']
             ref_fr.measure()
             self.out_points = 20*np.log10(self.out_points / ref_fr.out_points)
         

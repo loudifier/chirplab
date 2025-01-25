@@ -211,5 +211,5 @@ def freq_points(start_freq, stop_freq, num_points, spacing='log', round_to_whole
             num_points = int(np.ceil(num_octaves * num_points))
         out_points = np.geomspace(start_freq, stop_freq, num_points)
     if round_to_whole_freq:
-        return np.unique(np.round(out_points))
+        out_points = np.unique(np.round(out_points))
     return out_points

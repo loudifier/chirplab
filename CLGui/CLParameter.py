@@ -1,5 +1,6 @@
-from qtpy.QtWidgets import QWidget, QHBoxLayout, QLabel, QLineEdit, QComboBox, QDoubleSpinBox, QAbstractSpinBox, QPushButton, QFileDialog
-from pathlib import Path
+import CLProject as clp
+from qtpy.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QComboBox, QDoubleSpinBox, QAbstractSpinBox, QPushButton, QFileDialog, QCheckBox
+import numpy as np
 
 # collection of combination classes for displaying and entering configuration parameters
 # typically a label on the left, text box or similar element in the middle, and sometimes a unit label or dropdown on the right
@@ -261,7 +262,117 @@ class CLParamFile(QWidget):
             self.set_value(file_path)
             self.text_box.editingFinished.emit()
             
+
+# collection of UI elements for configuring and generating a list of frequency points
+# GUI wrapper for CLAnalysis.freq_points() to be used in output params section of measurement tabs
+class FreqPointsParams(QWidget):
+    def __init__(self, params=None):
+        super().__init__()
         
+        if params is None:
+            params = {'min_freq':20, 'max_freq':20000, 'num_points':100, 'spacing':'log'}
+        
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+        
+        self.layout.addWidget(QLabel('Frequency points'))
+        
+        self.min = CLParamNum('Min', params['min_freq'], 'Hz', 0.01, params['max_freq'])
+        def update_min_freq(new_value):
+            params['min_freq'] = new_value
+            self.max.min = params['min_freq']
+            if self.max.value < params['min_freq']: # shouldn't be possible, except maybe in the case of bugs or poorly constructed project files
+                params['max_freq'] = params['min_freq'] # manually handle updates to avoid triggering multiple recalculations
+                self.max.set_value(params['min_freq'])
+            if self.update_callback is not None:
+                self.update_callback()
+        self.min.update_callback = update_min_freq
+        self.min_auto = QCheckBox('auto')
+        def update_min_auto(checked):
+            params['min_auto'] = bool(checked)
+            self.min.spin_box.setEnabled(not bool(checked))
+            if self.calc_min_auto is not None:
+                new_min = self.calc_min_auto() # get automatic min freq from containing measurement
+                self.min.spin_box.setValue(new_min) # set value in spin_box directly to trigger recalculation
+        self.min_auto.stateChanged.connect(update_min_auto)
+        self.calc_min_auto = None
+        self.min_auto.setChecked(params['min_auto'])
+        self.min.layout.addWidget(self.min_auto)
+        self.layout.addWidget(self.min)
+        
+        self.max = CLParamNum('Max', params['max_freq'], 'Hz', params['min_freq'], clp.project['sample_rate']/2)
+        def update_max_freq(new_value):
+            params['max_freq'] = new_value
+            self.min.max = params['max_freq']
+            if self.min.value > params['max_freq']: # shouldn't be possible, except maybe in the case of bugs or poorly constructed project files
+                params['min_freq'] = params['max_freq'] # manually handle updates to avoid triggering multiple recalculations
+                self.min.set_value(params['max_freq'])
+            if self.update_callback is not None:
+                self.update_callback()
+        self.max.update_callback = update_max_freq
+        self.max_auto = QCheckBox('auto')
+        def update_max_auto(checked):
+            params['max_auto'] = bool(checked)
+            self.max.spin_box.setEnabled(not bool(checked))
+            if self.calc_max_auto is not None:
+                new_max = self.calc_max_auto() # get automatic max freq from containing measurement
+                self.max.spin_box.setValue(new_max) # set value in spin_box directly to trigger recalculation
+        self.max_auto.stateChanged.connect(update_max_auto)
+        self.calc_max_auto = None
+        self.max_auto.setChecked(params['max_auto'])
+        self.max.layout.addWidget(self.max_auto)
+        self.layout.addWidget(self.max)
+        
+        self.spacing = CLParamDropdown('Spacing', ['log','linear','points per octave'])
+        if params['spacing']=='linear':
+            self.spacing.dropdown.setCurrentIndex(1)
+        if params['spacing']=='octave':
+            self.spacing.dropdown.setCurrentIndex(2)
+        self.layout.addWidget(self.spacing)
+        def update_spacing(index):
+            # if switching from log or linear to points per octave, update num_points to get roughly the same resolution
+            if index==2 and params['spacing'] != 'octave':
+                num_octaves = np.log2(params['max_freq']/params['min_freq'])
+                params['num_points'] = round(params['num_points'] / num_octaves)
+                self.num_points.set_value(params['num_points'])
+            
+            # if switching from points per octave to log or linear, update num_points to get roughly the same resolution
+            if index<2 and params['spacing'] == 'octave':
+                num_octaves = np.log2(params['max_freq']/params['min_freq'])
+                params['num_points'] = round(params['num_points'] * num_octaves)
+                self.num_points.set_value(params['num_points'])
+                    
+            
+            if index==0:
+                params['spacing'] = 'log'
+            if index==1:
+                # todo: automatically switch graph to linear scaling
+                # `self.tab.graph.setLogMode(False, False)` in callback in measurement doesn't seem to work
+                params['spacing'] = 'linear'
+            if index==2:
+                params['spacing'] = 'octave'
+            if self.update_callback is not None:
+                self.update_callback()
+        self.spacing.update_callback = update_spacing
+        
+        self.num_points = CLParamNum('Number of points', params['num_points'], None, 1, numtype='int')
+        self.layout.addWidget(self.num_points)
+        def update_num_points(new_value):
+            params['num_points'] = new_value
+            if self.update_callback is not None:
+                self.update_callback()
+        self.num_points.update_callback = update_num_points
+        
+        self.round_points = QCheckBox('Round points to nearest Hz')
+        self.layout.addWidget(self.round_points)
+        def update_round_points(checked):
+            params['round_points'] = bool(checked)
+            if self.update_callback is not None:
+                self.update_callback()
+        self.round_points.stateChanged.connect(update_round_points)
+        
+        
+        self.update_callback = None
         
 
 # not enough additional functionality to justify a CL combo class            
