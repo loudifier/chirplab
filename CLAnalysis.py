@@ -1,9 +1,7 @@
 import CLProject as clp
 import math
 import numpy as np
-from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal import fftconvolve
-from scipy import interpolate
 import tempfile
 from pathlib import Path
 import subprocess
@@ -213,3 +211,9 @@ def freq_points(start_freq, stop_freq, num_points, spacing='log', round_to_whole
     if round_to_whole_freq:
         out_points = np.unique(np.round(out_points))
     return out_points
+
+def interpolate(x_input, y_input, x_output, linear=True):
+    if linear:
+        return np.interp(x_output, x_input, y_input)
+    else:
+        return np.interp(np.log(x_output), np.log(x_input), y_input)

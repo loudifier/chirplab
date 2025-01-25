@@ -1,5 +1,5 @@
 import CLProject as clp
-from CLAnalysis import freq_points
+from CLAnalysis import freq_points, interpolate
 from CLGui import CLParameter, CLParamDropdown, QCollapsible, CLParamNum, FreqPointsParams
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
@@ -59,10 +59,7 @@ class FrequencyResponse(CLMeasurement):
         
         
         # interpolate output points
-        if self.params['output']['spacing'] == 'linear':
-            self.out_points = np.interp(self.out_freqs, fr_freqs, fr)
-        else:
-            self.out_points = np.interp(np.log(self.out_freqs), np.log(fr_freqs), fr)
+        self.out_points = interpolate(fr_freqs, fr, self.out_freqs, self.params['output']['spacing']=='linear')
         
         # convert output to desired units
         if self.params['output']['unit'] == 'dBFS':
@@ -72,7 +69,7 @@ class FrequencyResponse(CLMeasurement):
         # check for noise sample and calculate noise floor
         if any(clp.signals['noise']):
             fr_freqs, noise_fr = self.calc_fr(clp.signals['noise'])
-            self.out_noise = np.interp(self.out_freqs, fr_freqs, noise_fr)
+            self.out_noise = interpolate(fr_freqs, noise_fr, self.out_freqs, self.params['output']['spacing']=='linear')
             if self.params['output']['unit'] == 'dBFS':
                 self.out_noise = 20*np.log10(self.out_noise)
         else:

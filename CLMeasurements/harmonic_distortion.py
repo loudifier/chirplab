@@ -1,5 +1,5 @@
 import CLProject as clp
-from CLAnalysis import freq_points
+from CLAnalysis import freq_points, interpolate
 from CLGui import CLParameter, CLParamNum
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
@@ -35,7 +35,7 @@ class HarmonicDistortion(CLMeasurement):
 
             
     def measure(self):
-        fr_freqs, thd = self.calc_thd(clp.signals['response'])
+        thd_freqs, thd = self.calc_thd(clp.signals['response'])
 
         # generate array of output frequency points
         print('todo: verify effective max thd frequency')
@@ -47,7 +47,7 @@ class HarmonicDistortion(CLMeasurement):
         
         
         # interpolate output points
-        self.out_points = np.interp(self.out_freqs, fr_freqs, thd)
+        self.out_points = interpolate(thd_freqs, thd, self.out_freqs, self.params['output']['spacing']=='linear')
         
         # convert output to desired units
         if self.params['output']['unit'] == 'dB':
@@ -66,7 +66,7 @@ class HarmonicDistortion(CLMeasurement):
         # check for noise sample and calculate noise floor
         if any(clp.signals['noise']):
             fr_freqs, noise_floor = self.calc_thd(clp.signals['noise'])
-            self.out_noise = np.interp(self.out_freqs, fr_freqs, noise_floor)
+            self.out_noise = interpolate(fr_freqs, noise_floor, self.out_freqs, self.params['output']['spacing']=='linear')
             if self.params['output']['unit'] == 'dB':
                 self.out_noise = 20*np.log10(self.out_noise / ref_fr.out_points)
         else:
