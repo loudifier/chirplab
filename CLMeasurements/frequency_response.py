@@ -59,7 +59,7 @@ class FrequencyResponse(CLMeasurement):
         
         
         # interpolate output points
-        self.out_points = interpolate(fr_freqs, fr, self.out_freqs, self.params['output']['spacing']=='linear')
+        self.out_points = interpolate(fr_freqs, fr, self.out_freqs, self.params['output']['spacing']=='linear') # todo: still may not be correct. Verify behavior for linear/log frequency scale *and* linear/log output units
         
         # convert output to desired units
         if self.params['output']['unit'] == 'dBFS':

@@ -30,6 +30,16 @@ def logchirp(start_freq, stop_freq, length, sample_rate):
     f_exp = (math.log(stop_freq/start_freq)*t)/length_exact
     return np.sin(f_scalar * (np.exp(f_exp)-1))
 
+def chirp_time_to_freq(start_freq, stop_freq, length, time):
+    # f(t) = start_freq * k^t
+    # k = (stop_freq/start_freq)^(1/length)
+    k = (stop_freq/start_freq)**(1/length)
+    return start_freq * (k**time)
+
+def chirp_freq_to_time(start_freq, stop_freq, length, freq):
+    k = (stop_freq/start_freq)**(1/length)
+    return np.log(freq/start_freq) / np.log(k)
+
 def generate_stimulus():
     # generate the signal used as the reference chirp stimulus for chirp analysis
     # chirp signal is padded at the beginning/end with zeros of length clp.project['pre/post_sweep']

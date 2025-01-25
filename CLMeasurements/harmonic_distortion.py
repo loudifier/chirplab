@@ -1,6 +1,6 @@
 import CLProject as clp
-from CLAnalysis import freq_points, interpolate
-from CLGui import CLParameter, CLParamNum
+from CLAnalysis import logchirp, chirp_freq_to_time, freq_points, interpolate
+from CLGui import CLParameter, CLParamNum, CLParamDropdown, FreqPointsParams
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
@@ -11,6 +11,8 @@ from CLMeasurements.frequency_response import FrequencyResponse
 
 class HarmonicDistortion(CLMeasurement):
     measurement_type_name = 'Harmonic Distortion'
+    
+    OUTPUT_UNITS = ['dB', '%', '% (IEC method)', 'dBFS', 'FS']
     
     def __init__(self, name, params):
         super().__init__(name, params)
@@ -32,13 +34,18 @@ class HarmonicDistortion(CLMeasurement):
                 'spacing': 'octave',
                 'num_points': 12,
                 'round_points': False}
+            
+        # update min/max output frequencies if they are set to auto
+        if self.params['output']['min_auto']:
+            self.params['output']['min_freq'] = self.calc_auto_min_freq()
+        if self.params['output']['max_auto']:
+            self.params['output']['max_freq'] = self.calc_auto_max_freq()
 
             
     def measure(self):
         thd_freqs, thd = self.calc_thd(clp.signals['response'])
 
         # generate array of output frequency points
-        print('todo: verify effective max thd frequency')
         self.out_freqs = freq_points(self.params['output']['min_freq'], 
                                      self.params['output']['max_freq'],
                                      self.params['output']['num_points'],
@@ -49,37 +56,58 @@ class HarmonicDistortion(CLMeasurement):
         # interpolate output points
         self.out_points = interpolate(thd_freqs, thd, self.out_freqs, self.params['output']['spacing']=='linear')
         
+        # assume most output units will want a fundamental frequency response reference
+        ref_fr = FrequencyResponse('fr',{})
+        ref_fr.params['output'] = self.params['output'].copy()
+        ref_fr.params['output']['unit'] = 'fs'
+        ref_fr.params['output']['min_auto'] = False # shouldn't actually have any impact, but set in case of future updates
+        ref_fr.params['output']['max_auto'] = False
+        ref_fr.measure()
+        
         # convert output to desired units
-        if self.params['output']['unit'] == 'dB':
-            ref_fr = FrequencyResponse('fr',{})
-            ref_fr.params['output']['unit'] = 'fs'
-            ref_fr.params['output']['min_freq'] = self.params['output']['min_freq']
-            ref_fr.params['output']['min_auto'] = False
-            ref_fr.params['output']['max_freq'] = self.params['output']['max_freq']
-            ref_fr.params['output']['max_auto'] = False
-            ref_fr.params['output']['spacing'] = ref_fr.params['output']['spacing']
-            ref_fr.params['output']['round_points'] = self.params['output']['round_points']
-            ref_fr.measure()
-            self.out_points = 20*np.log10(self.out_points / ref_fr.out_points)
+        def convert_output_units(fs_points):
+            match self.params['output']['unit']:
+                case 'dB':
+                    return 20*np.log(fs_points / ref_fr.out_points)
+                case '%':
+                    return 100 * fs_points / ref_fr.out_points
+                case '% (IEC method)':
+                    return 100 * fs_points / (ref_fr.out_points + fs_points)
+                case 'dBFS':
+                    return 20*np.log10(fs_points)
+                case _: # 'FS'
+                    return fs_points
+        self.out_points = convert_output_units(self.out_points)
         
         
         # check for noise sample and calculate noise floor
         if any(clp.signals['noise']):
             fr_freqs, noise_floor = self.calc_thd(clp.signals['noise'])
             self.out_noise = interpolate(fr_freqs, noise_floor, self.out_freqs, self.params['output']['spacing']=='linear')
-            if self.params['output']['unit'] == 'dB':
-                self.out_noise = 20*np.log10(self.out_noise / ref_fr.out_points)
+            self.out_noise = convert_output_units(self.out_noise)
         else:
             self.out_noise = np.zeros(0)
         
         
     def calc_thd(self, input_signal):
+        # geneate a reference chirp that extends to Nyquist. Otherwise, only analysis of chirps that extend up to or very near Nyquist will be accurate
+        thd_chirp_length = chirp_freq_to_time(clp.project['start_freq'], clp.project['stop_freq'], clp.project['chirp_length'], clp.project['sample_rate']/2)
+        stimulus = np.concatenate([
+            np.zeros(round(clp.project['pre_sweep']*clp.project['sample_rate'])),
+            logchirp(clp.project['start_freq'], clp.project['sample_rate']/2, thd_chirp_length, clp.project['sample_rate'])])
+        
+        # pad stimulus or response to be the same length
+        if len(stimulus) < len(input_signal):
+            stimulus = np.concatenate([stimulus, np.zeros(len(input_signal) - len(stimulus))])
+        else:
+            input_signal = np.concatenate([input_signal, np.zeros(len(stimulus) - len(input_signal))])
+        
         # calculate raw complex frequency response and IR
-        fr = fft(input_signal) / fft(clp.signals['stimulus'])
+        fr = fft(input_signal) / fft(stimulus)
         ir = ifft(fr)
         
         # generate array of center frequencies of fft bins
-        fr_freqs = fftfreq(len(clp.signals['stimulus']), 1/clp.project['sample_rate'])
+        fr_freqs = fftfreq(len(stimulus), 1/clp.project['sample_rate'])
         fr_freqs = fr_freqs[1:int(len(fr_freqs)/2)-1] # trim to positive frequencies
         
         # initialize blank total harmonic power spectrum
@@ -150,8 +178,38 @@ class HarmonicDistortion(CLMeasurement):
         
         
         
-        self.output_unit = CLParameter('Units', self.params['output']['unit'], '')
+        self.output_unit = CLParamDropdown('Units', [unit for unit in self.OUTPUT_UNITS], '')
+        output_unit_index = self.output_unit.dropdown.findText(self.params['output']['unit'])
+        if output_unit_index != -1:
+            self.output_unit.dropdown.setCurrentIndex(output_unit_index)
         self.output_section.addWidget(self.output_unit)
+        def update_output_unit(index):
+            self.params['output']['unit'] = self.OUTPUT_UNITS[index]
+            self.measure()
+            self.plot()
+            self.format_graph()
+        self.output_unit.update_callback = update_output_unit
+        
+        self.output_points = FreqPointsParams(self.params['output'])
+        self.output_section.addWidget(self.output_points)
+        def update_output_points():
+            self.measure()
+            self.plot()
+            self.format_graph()
+        self.output_points.update_callback = update_output_points
+        self.output_points.calc_min_auto = self.calc_auto_min_freq
+        self.output_points.calc_max_auto = self.calc_auto_max_freq
+        
+    
+    def update_tab(self):
+        self.output_points.update_min_max()
+    
+    def calc_auto_min_freq(self):
+        return clp.project['start_freq']
+    
+    def calc_auto_max_freq(self):
+        # highest chirp frequency or 90% of Nyquist divided by lowest harmonic
+        return min(clp.project['stop_freq'], ((clp.project['sample_rate']/2) * 0.9) / self.params['start_harmonic']) 
         
         
         
