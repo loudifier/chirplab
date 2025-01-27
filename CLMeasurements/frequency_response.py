@@ -24,7 +24,7 @@ class FrequencyResponse(CLMeasurement):
 
         if not params: # populate default measurement parameters if none are provided
             # add new keys to existing dict instead of defining new one, so updates will propogate to full project dict and can be easily saved to a project file
-            self.params['window_mode'] = 'windowed' # options are 'raw' for no windowing, 'windowed' for fixed (time-gated) windowing, or 'adaptive' to use an automatically-derived window for each output frequency point
+            self.params['window_mode'] = 'adaptive' # options are 'raw' for no windowing, 'windowed' for fixed (time-gated) windowing, or 'adaptive' to use an automatically-derived window for each output frequency point
             self.params['window_start'] = 10 # for fixed window, amount of time in ms included before beginning of impulse response
             self.params['fade_in'] = 10 # beginning of fixed window ramps up with a half Hann window of width fade_in (must be <= window_start)
             self.params['window_end'] = 50
@@ -48,15 +48,14 @@ class FrequencyResponse(CLMeasurement):
             
             
     def measure(self):
-        fr_freqs, fr = self.calc_fr(clp.signals['response'])
-
-        # generate array of output frequency points
+        # generate array of output frequency points (adaptive windowing requires out_freqs be generated before calc_fr())
         self.out_freqs = freq_points(self.params['output']['min_freq'], 
                                      self.params['output']['max_freq'],
                                      self.params['output']['num_points'],
                                      self.params['output']['spacing'],
                                      self.params['output']['round_points'])
         
+        fr_freqs, fr = self.calc_fr(clp.signals['response'])
         
         # interpolate output points
         self.out_points = interpolate(fr_freqs, fr, self.out_freqs, self.params['output']['spacing']=='linear') # todo: still may not be correct. Verify behavior for linear/log frequency scale *and* linear/log output units
@@ -82,16 +81,22 @@ class FrequencyResponse(CLMeasurement):
         # calculate raw complex frequency response
         fr = fft(input_signal) / fft(clp.signals['stimulus'])
         
-        # generate IR, apply window, and calculate windowed FR
-        if self.params['window_mode'] == 'windowed':
-            # calcualte raw impulse response
+        # generate array of center frequencies of fft bins, used for interpolation
+        fr_freqs = fftfreq(len(clp.signals['stimulus']), 1/clp.project['sample_rate'])
+        # trim to only positive frequencies
+        fr_freqs = fr_freqs[1:int(len(fr_freqs)/2)-1] # technically, removes highest point for odd-length inputs, but shouldn't be a problem
+        
+        if self.params['window_mode'] != 'raw':
+            # calcualte raw impulse response for windowed and adaptive modes
             ir = ifft(fr)
             
-            # calculate windowing times in whole samples
-            window_start = ms_to_samples(self.params['window_start'])
-            fade_in = ms_to_samples(self.params['fade_in'])
-            window_end = ms_to_samples(self.params['window_end'])
-            fade_out = ms_to_samples(self.params['fade_out'])
+        # process used by both windowed and adaptive modes
+        def calc_windowed_fr(ir, window_start_ms, fade_in_ms, window_end_ms, fade_out_ms):
+            # convert windowing times to whole samples
+            window_start = ms_to_samples(window_start_ms)
+            fade_in = ms_to_samples(fade_in_ms)
+            window_end = ms_to_samples(window_end_ms)
+            fade_out = ms_to_samples(fade_out_ms)
             
             # construct window
             window = np.zeros(len(ir))
@@ -104,18 +109,38 @@ class FrequencyResponse(CLMeasurement):
             ir = ir * window
             
             # convert windowed impusle response back to frequency response to use for data output
-            fr = fft(ir)
+            return fft(ir)
             
-        elif self.params['window_mode'] == 'adaptive':
-            pass
+        if self.params['window_mode'] == 'windowed':
+            fr = calc_windowed_fr(ir, self.params['window_start'], self.params['fade_in'], self.params['window_end'], self.params['fade_out'])
         
+        if self.params['window_mode'] == 'adaptive':
+            # individual windowed frequency response calculated for each output point
+            out_freqs = self.out_freqs
+            out_fr = np.zeros(len(out_freqs))
+            for freq in range(len(out_freqs)):
+                # use a window sized appropriately for the target frequency
+                wavelength_ms = 1000 * 1/out_freqs[freq]
+                
+                # set a 1ms minimum (maybe make this configurable) to avoid issues with phase/alignment skew, especially at higher frequencies when SNR is usually good anyway
+                wavelength_ms = max(1.0, wavelength_ms)
+                
+                # calculate windowed frequency response with window size for target frequency
+                fr = calc_windowed_fr(ir, wavelength_ms, wavelength_ms, 2*wavelength_ms, wavelength_ms)
+                
+                # trim to positive half of spectrum for interpolation
+                fr = fr[1:int(len(fr)/2)-1]
+                
+                # take magnitude of complex frequency response
+                fr = np.abs(fr)
+                
+                # get target frequency
+                out_fr[freq] = interpolate(fr_freqs, fr, out_freqs[freq])
+            
+            return out_freqs, out_fr
         
-        # generate array of center frequencies of fft bins
-        fr_freqs = fftfreq(len(clp.signals['stimulus']), 1/clp.project['sample_rate'])
-
-        # trim fft fr and freqs to positive half of spectrum. Easier to interpolate output points
-        fr = fr[1:int(len(fr)/2)-1] # technically, removes highest point for odd-length inputs, but shouldn't be a problem
-        fr_freqs = fr_freqs[1:int(len(fr_freqs)/2)-1]
+        # trim to positive half of spectrum
+        fr = fr[1:int(len(fr)/2)-1]
         
         # take magnitude of complex frequency response
         fr = np.abs(fr)
@@ -129,8 +154,8 @@ class FrequencyResponse(CLMeasurement):
         self.window_mode = CLParamDropdown('Windowing mode', [mode for mode in self.WINDOW_MODES], '')
         window_mode_index = self.window_mode.dropdown.findText(self.params['window_mode'])
         if window_mode_index==-1:
-            self.params['window_mode'] = 'windowed'
-            window_mode_index = 1 # default to windowed if the project file is mangled
+            self.params['window_mode'] = 'adaptive'
+            window_mode_index = 2 # default to adaptive if the project file is mangled
         self.window_mode.dropdown.setCurrentIndex(window_mode_index)
         self.param_section.addWidget(self.window_mode)
         def update_window_mode(index):
@@ -145,6 +170,8 @@ class FrequencyResponse(CLMeasurement):
         self.window_mode.update_callback = update_window_mode
         
         self.window_params = WindowParamsSection(self.params)
+        if self.params['window_mode'] != 'windowed':
+            self.window_params.setLocked(True)
         self.param_section.addWidget(self.window_params)
         def update_window_params():
             self.measure()
