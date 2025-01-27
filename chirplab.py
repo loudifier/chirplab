@@ -1,5 +1,5 @@
 import CLProject as clp
-from qtpy.QtWidgets import QApplication
+from pyqtgraph.Qt import mkQApp
 import sys
 import os
 import requests
@@ -73,7 +73,7 @@ def main():
     
     
     # set up main application window
-    app = QApplication([])
+    app = mkQApp() # same as a regular QApplication, but first sets up some environment stuff to handle DPI scaling across multiple monitors
     screen_size = app.screens()[0].size()
     window = MainWindow()
     window.resize(int(screen_size.width()*0.75), int(screen_size.height()*0.75))
