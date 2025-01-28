@@ -1,4 +1,16 @@
-"""A collapsible widget to hide and unhide child widgets."""
+"""
+This code is a copy of the QCollapsible widget from (https://github.com/pyapp-kit/superqt),
+with some modifications drawn from (https://github.com/MichaelVoelkel/qt-collapsible-section),
+and additional tweaks for ChirpLab.
+
+superqt is distributed under the BSD license, and qt-collapsible-section is distributed
+under the LGPLv3 license. The full text of these licenses is included in files in this
+directory.
+
+Both the superqt implementation and qt-collapsible-section implementation of this widget
+are based on https://stackoverflow.com/a/68141638
+
+"""
 
 from __future__ import annotations
 
