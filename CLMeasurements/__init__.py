@@ -4,6 +4,7 @@ import numpy as np
 from CLGui import CLTab, QCollapsible, QHSeparator
 from qtpy.QtWidgets import QLineEdit
 import pyqtgraph as pg
+from pathvalidate import is_valid_filename
 
 
 class CLMeasurement():
@@ -46,6 +47,22 @@ class CLMeasurement():
         
         self.name_box = QLineEdit(self.name)
         self.tab.panel.addWidget(self.name_box)
+        self.name_box.last_value = self.name
+        def update_name():
+            new_name = self.name_box.text().strip()
+            if not is_valid_filename(new_name): # measurement name likely used for CLI output. Any other restrictions?
+                self.name_box.setText(self.name_box.last_value)
+                return
+                
+            self.name = new_name
+            self.format_graph()
+            self.name_box.last_value = self.name
+            
+            # updating the tab title is a little sketchy... come back later to see if there is a more elegant soltuion?
+            tab_group = self.tab.parent().parent()
+            tab_index = tab_group.indexOf(self.tab)
+            tab_group.setTabText(tab_index, self.name)
+        self.name_box.editingFinished.connect(update_name)
         
         # add collapsible sections to measurement config panel. Fill out sections for individual measurements
         self.param_section = QCollapsible(type(self).measurement_type_name + ' Measurement Parameters')

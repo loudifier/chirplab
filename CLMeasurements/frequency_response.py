@@ -14,6 +14,7 @@ def samples_to_ms(samples):
 
 class FrequencyResponse(CLMeasurement):
     measurement_type_name = 'Frequency Response'
+    
     WINDOW_MODES = ['raw', 'windowed', 'adaptive']
     MAX_WINDOW_START = 1000 # fixed impulse response window can start up to 1s before t0
     MAX_WINDOW_END = 10000 # IR window can end up to 10s after t0
