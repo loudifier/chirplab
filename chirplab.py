@@ -74,16 +74,15 @@ def main():
     
     # set up main application window
     app = mkQApp() # same as a regular QApplication, but first sets up some environment stuff to handle DPI scaling across multiple monitors
-    screen_size = app.screens()[0].size()
+    
     window = MainWindow()
-    window.resize(int(screen_size.width()*0.75), int(screen_size.height()*0.75))
     window.show()
     
     # add measurement tabs to main window
     for measurement in clp.measurements:
         measurement.init_tab()
         measurement.format_graph()
-        window.tabs.addTab(measurement.tab, measurement.name)
+        window.tabs.insertTab(window.tabs.count()-1, measurement.tab, measurement.name)
     
     # run initial measurements and plot results
     for measurement in clp.measurements:
