@@ -4,12 +4,12 @@ import sys
 import os
 import requests
 import tempfile
-from zipfile import ZipFile
-import CLMeasurements
+from zipfile import ZipFile 
 from CLGui import MainWindow
 from CLAnalysis import generate_stimulus, read_response, save_csv, FormatNotSupportedError
 import argparse
 import numpy as np
+from CLMeasurements import init_measurements
 
 
 def main():
@@ -42,10 +42,7 @@ def main():
     check_sox()    
     
     # initialize measurements from project
-    clp.measurements = []
-    for measurement in clp.project['measurements']:
-        Measurement = getattr(CLMeasurements, measurement['type']) # dynamically invoke measurement class from measurement type string
-        clp.measurements.append(Measurement(measurement['name'], measurement['params']))
+    init_measurements()
     
     # get stimulus and response signals
     generate_stimulus()
@@ -77,17 +74,6 @@ def main():
     
     window = MainWindow()
     window.show()
-    
-    # add measurement tabs to main window
-    for measurement in clp.measurements:
-        measurement.init_tab()
-        measurement.format_graph()
-        window.tabs.insertTab(window.tabs.count()-1, measurement.tab, measurement.name)
-    
-    # run initial measurements and plot results
-    for measurement in clp.measurements:
-        measurement.measure()
-        measurement.plot()
     
     # start main application loop
     app.exec()

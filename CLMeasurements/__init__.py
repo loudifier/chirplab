@@ -107,3 +107,10 @@ class CLMeasurement():
 # imports in __init__.py make measurements available in other code via `import CLMeasurements`, etc.
 from CLMeasurements.frequency_response import FrequencyResponse
 from CLMeasurements.harmonic_distortion import HarmonicDistortion
+
+def init_measurements():
+    # builds (or rebuilds) a new set of measurement objects from current clp.project
+    clp.measurements = []
+    for measurement in clp.project['measurements']:
+        Measurement = globals()[measurement['type']] # dynamically invoke measurement class from measurement type string
+        clp.measurements.append(Measurement(measurement['name'], measurement['params']))

@@ -227,3 +227,4 @@ def interpolate(x_input, y_input, x_output, linear=True):
         return np.interp(x_output, x_input, y_input)
     else:
         return np.interp(np.log(x_output), np.log(x_input), y_input)
+    

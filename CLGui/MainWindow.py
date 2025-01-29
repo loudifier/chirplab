@@ -1,6 +1,9 @@
+import CLProject as clp
 from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidget, QApplication
 from qtpy.QtGui import QAction
 from CLGui.ChirpTab import ChirpTab
+from CLAnalysis import generate_stimulus
+from CLMeasurements import init_measurements
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -14,18 +17,19 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setTabBar(LockableTabBar()) # allow the user to rearrange the measurement tab order, but not the chirp tab or add measurement tab
         
-        # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
-        self.chirp_tab = ChirpTab()
-        self.tabs.addTab(self.chirp_tab,'Chirp Stimulus/Response')
+        # build full set of chirp, measurement, and add measurement tabs from the current clp.project
+        self.init_tabs()
         
-        # last tab - add measurement button (individual measurement tabs to be inserted at index -2)
-        self.tabs.addTab(QWidget(), ' + ')
+        # run and plot initial measurements
+        self.chirp_tab.analyze()
         
         layout = QGridLayout() # base layout. Only 0,0 used
         layout.addWidget(self.tabs, 0,0)
         widget = QWidget() # Layout can't be applied directly to QMainWindow, need a base QWidget
         widget.setLayout(layout)
         self.setCentralWidget(widget)
+        
+        
         
         menubar = self.menuBar()
         
@@ -34,6 +38,14 @@ class MainWindow(QMainWindow):
         
         new_project = QAction('&New Project', self)
         file_menu.addAction(new_project)
+        def create_new_project(checked):
+            # todo: look into spawning a totally separate process. os.fork() works for Linux, but equivalent behavior on Windows is apparently impossible or convoluted to accomplish
+            # check if current project has unsaved changes
+            clp.new_project()
+            init_measurements()
+            self.chirp_tab.update_stimulus()
+            self.init_tabs()
+        new_project.triggered.connect(create_new_project)
         
         open_project = QAction('&Open Project', self)
         file_menu.addAction(open_project)
@@ -76,6 +88,29 @@ class MainWindow(QMainWindow):
         measurement_menu.addAction(save_data)
         
         
+        
+    def init_tabs(self):
+        # build (or rebuild) full set of chirp, measurement, and add measurement tabs from the current clp.project
+        self.tabs.clear()
+        
+        # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
+        self.chirp_tab = ChirpTab()
+        self.tabs.addTab(self.chirp_tab,'Chirp Stimulus/Response')
+        
+        # add measurement tabs to main window
+        for measurement in clp.measurements:
+            measurement.init_tab()
+            measurement.format_graph()
+            self.tabs.addTab(measurement.tab, measurement.name)
+        
+        # last tab - add measurement button (individual measurement tabs to be inserted at index -2)
+        self.tabs.addTab(QWidget(), ' + ')
+        
+        # run initial measurements and plot results
+        #for measurement in clp.measurements:
+        #    measurement.measure()
+        #    measurement.plot()
+        
 class LockableTabBar(QTabBar):
     def __init__(self):
         super().__init__()
@@ -111,6 +146,3 @@ class LockableTabBar(QTabBar):
                 #self.moveTab(self.tab_moved_to, self.tab_moved_from) # only moves the tab button, but doesn't change the tab content
                 self.parent().insertTab(self.tab_moved_from, self.parent().widget(self.tab_moved_to), self.tabText(self.tab_moved_to)) # actually moves the full tab
                 self.setCurrentIndex(self.tab_moved_from)
-                
-        
-                
