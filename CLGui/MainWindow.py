@@ -35,6 +35,7 @@ class MainWindow(QMainWindow):
         
         
         menubar = self.menuBar()
+        # todo: add top level keyboard shortcuts - CTRL+S for save, F5 for analyze, etc
         
         file_menu = menubar.addMenu(' &File   ')
         
@@ -121,7 +122,6 @@ class MainWindow(QMainWindow):
         
         quit_action = QAction('&Quit', self)
         file_menu.addAction(quit_action)
-        
         quit_action.triggered.connect(self.close)
         
         
@@ -136,11 +136,17 @@ class MainWindow(QMainWindow):
         
         measurement_menu.addSeparator()
         
-        analyze = QAction('Analyze Input File (F5)', self)
+        analyze = QAction('Analyze Input File', self)
         measurement_menu.addAction(analyze)
+        analyze.triggered.connect(self.chirp_tab.analyze)
         
-        noise_floor = QAction('Show/&Hide Measurement Noise Floor', self)
-        measurement_menu.addAction(noise_floor)
+        # todo: implement auto analyze option
+        #auto_analyze = QAction('Automatically analyze when a parameter is updated', self)
+        #measurement_menu.addAction(auto_analyze)
+        
+        # todo: implement show/hide noise floor option
+        #noise_floor = QAction('Show/&Hide Measurement Noise Floor', self)
+        #measurement_menu.addAction(noise_floor)
         
         measurement_menu.addSeparator()
         
@@ -148,6 +154,17 @@ class MainWindow(QMainWindow):
         measurement_menu.addAction(save_data)
         
         
+        # todo: add help menu items (after creating things for help menu items to point to...)
+        #help_menu = menubar.addMenu(' &Help    ')
+        
+        #docs_link = QAction('Chirplab &documentation', self)
+        #help_menu.addAction(docs_link)
+        
+        #issues_link = QAction('&Report a bug or request a feature', self)
+        #help_menu.addAction(issues_link)
+        
+        #about = QAction('About Chirplab', self)
+        #help_menu.addAction(about)
         
     def init_tabs(self):
         # build (or rebuild) full set of chirp, measurement, and add measurement tabs from the current clp.project
@@ -214,6 +231,7 @@ class LockableTabBar(QTabBar):
             self.tab_was_moved = True # set flag for mouseReleaseEvent handler to check if the move was valid
             self.tab_moved_from = from_index # keep track of which tab was actually moved
             self.tab_moved_to = to_index
+            # todo: rearrange measurement list in project dict when tabs are moved
         self.tabMoved.connect(tab_moved)
     
     def locked_tabs(self):
