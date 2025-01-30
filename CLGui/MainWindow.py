@@ -231,7 +231,9 @@ class LockableTabBar(QTabBar):
             self.tab_was_moved = True # set flag for mouseReleaseEvent handler to check if the move was valid
             self.tab_moved_from = from_index # keep track of which tab was actually moved
             self.tab_moved_to = to_index
-            # todo: rearrange measurement list in project dict when tabs are moved
+            
+            if to_index not in self.locked_tabs(): # if move is valid, reorder list of measurements so it can be saved/loaded
+                clp.project['measurements'].insert(to_index-1, clp.project['measurements'].pop(from_index-1))
         self.tabMoved.connect(tab_moved)
     
     def locked_tabs(self):
