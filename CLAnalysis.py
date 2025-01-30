@@ -7,7 +7,6 @@ from pathlib import Path
 import subprocess
 from scipy.io import wavfile
 import pandas as pd
-import os
 from qtpy.QtWidgets import QErrorMessage
 
 
@@ -200,7 +199,7 @@ def save_csv(measurement, out_dir=''):
     out_frame = pd.DataFrame({'Frequency (Hz)':measurement.out_freqs, measurement.params['output']['unit']:measurement.out_points})
     if any(measurement.out_noise):
         out_frame['measurement noise floor'] = measurement.out_noise
-    with open(os.path.join(out_dir, clp.project['project_name'] + '_' + measurement.name + '.csv'), 'w', newline='') as out_file:
+    with open(Path(out_dir, (Path(clp.project_file).stem + '_' + measurement.name + '.csv')), 'w', newline='') as out_file:    
         out_file.write(measurement.name + '\n')
         out_frame.to_csv(out_file, index=False)
 

@@ -1,9 +1,10 @@
 import CLProject as clp
-from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidget, QApplication
+from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidget, QApplication, QFileDialog, QErrorMessage, QMessageBox
 from qtpy.QtGui import QAction
 from CLGui.ChirpTab import ChirpTab
-from CLAnalysis import generate_stimulus
 from CLMeasurements import init_measurements
+from CLAnalysis import generate_stimulus
+from pathlib import Path
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -11,17 +12,19 @@ class MainWindow(QMainWindow):
         screen_size = QApplication.instance().screens()[0].size()
         self.resize(int(screen_size.width()*0.75), int(screen_size.height()*0.75))
         
-        self.setWindowTitle('Chirplab')
-        
         # main GUI structure for navigating between chirp parameters/IO and measurements
         self.tabs = QTabWidget()
         self.tabs.setTabBar(LockableTabBar()) # allow the user to rearrange the measurement tab order, but not the chirp tab or add measurement tab
         
-        # build full set of chirp, measurement, and add measurement tabs from the current clp.project
-        self.init_tabs()
-        
-        # run and plot initial measurements
-        self.chirp_tab.analyze()
+        def load_project():
+            # fully load (or reload) the current clp.project
+            generate_stimulus()
+            init_measurements()
+            self.init_tabs()
+            self.chirp_tab.update_stimulus()
+            self.last_saved_project = clp.project.copy()
+            self.setWindowTitle('Chirplab - ' + Path(clp.project_file).name)
+        load_project()
         
         layout = QGridLayout() # base layout. Only 0,0 used
         layout.addWidget(self.tabs, 0,0)
@@ -33,35 +36,92 @@ class MainWindow(QMainWindow):
         
         menubar = self.menuBar()
         
-        
         file_menu = menubar.addMenu(' &File   ')
         
         new_project = QAction('&New Project', self)
         file_menu.addAction(new_project)
         def create_new_project(checked):
             # todo: look into spawning a totally separate process. os.fork() works for Linux, but equivalent behavior on Windows is apparently impossible or convoluted to accomplish
-            # check if current project has unsaved changes
+            if self.is_project_changed():
+                saved = self.save_prompt()
+                if saved==QMessageBox.Cancel:
+                    return # don't create a new project if the user cancels the dialog
             clp.new_project()
-            init_measurements()
-            self.chirp_tab.update_stimulus()
-            self.init_tabs()
+            load_project()
         new_project.triggered.connect(create_new_project)
         
         open_project = QAction('&Open Project', self)
         file_menu.addAction(open_project)
+        def open_project_file(checked):
+            if self.is_project_changed():
+                saved = self.save_prompt()
+                if saved==QMessageBox.Cancel:
+                    return # don't create a new project if the user cancels the dialog
+            file_dialog = QFileDialog()
+            file_dialog.setWindowTitle('Open Project File')
+            file_dialog.setFileMode(QFileDialog.ExistingFile)
+            file_dialog.setViewMode(QFileDialog.ViewMode.Detail)
+            file_dialog.setNameFilters(['Chirplab project files (*.clp)', 'All files (*)'])
+            file_dialog.setDirectory(clp.working_directory)
+            
+            if file_dialog.exec():
+                file_path = file_dialog.selectedFiles()[0]
+                
+                # todo: test file loading corner cases, wrap in try/except, etc.
+                clp.load_project_file(file_path) # sets working directory
+                load_project()
+        open_project.triggered.connect(open_project_file)
         
         file_menu.addSeparator()
         
         save_project = QAction('&Save Project', self)
         file_menu.addAction(save_project)
+        def save_project_file(checked):
+            if Path(clp.project_file).name == 'New Project':
+                save_project_as(True)
+            else:
+                clp.save_project_file(clp.project_file)
+                self.last_saved_project = clp.project.copy()
+        save_project.triggered.connect(save_project_file)
         
         save_as = QAction('Save Project &as...', self)
         file_menu.addAction(save_as)
+        def save_project_as(checked):
+            file_dialog = QFileDialog()
+            file_dialog.setWindowTitle('Save Project File')
+            file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+            file_dialog.setViewMode(QFileDialog.ViewMode.Detail)
+            file_dialog.setNameFilters(['Chirplab project files (*.clp)', 'All files (*)'])
+            file_dialog.setDirectory(clp.working_directory)
+            def filterSelected(filter_string):
+                default_suffix = filter_string.split('(*')[1].split(')')[0].split(' ')[0].split(',')[0].split(';')[0] # try to get the first actual file type suffix from the type string
+                file_dialog.setDefaultSuffix(default_suffix)
+            file_dialog.filterSelected.connect(filterSelected)
+            
+            saved = file_dialog.exec()
+            if saved:
+                file_path = file_dialog.selectedFiles()[0]
+                clp.working_directory = str(Path(file_path).parent)
+                try:
+                    clp.save_project_file(file_path)
+                    clp.project_file = file_path
+                    clp.working_directory = str(Path(file_path).parent)
+                    self.setWindowTitle('Chirplab - ' + Path(clp.project_file).name)
+                except PermissionError as ex:
+                    if clp.gui_mode:
+                        error_box = QErrorMessage()
+                        error_box.showMessage('Error writing project file \n' + str(ex))
+                        error_box.exec()
+            return saved
+        self.save_project_as = save_project_as
+        save_as.triggered.connect(save_project_as)
+            
         
         file_menu.addSeparator()
         
         quit_action = QAction('&Quit', self)
         file_menu.addAction(quit_action)
+        
         quit_action.triggered.connect(self.close)
         
         
@@ -106,10 +166,34 @@ class MainWindow(QMainWindow):
         # last tab - add measurement button (individual measurement tabs to be inserted at index -2)
         self.tabs.addTab(QWidget(), ' + ')
         
-        # run initial measurements and plot results
-        #for measurement in clp.measurements:
-        #    measurement.measure()
-        #    measurement.plot()
+    def is_project_changed(self):
+        # checks the current clp.project against the most recent saved or loaded project
+        return clp.project != self.last_saved_project
+    
+    def save_prompt(self):
+        save_message = QMessageBox()
+        save_message.setWindowTitle('Save Project File?')
+        save_message.setText('The project has changed since it was last saved. Save the current project?')
+        save_message.setStandardButtons(QMessageBox.Save | QMessageBox.No | QMessageBox.Cancel)
+        button = save_message.exec()
+        if button == QMessageBox.Save:
+            if Path(clp.project_file).name == 'New Project': # if project wasn't loaded from a project file, prompt to save as
+                if not self.save_project_as(True):
+                    return # user canceled out of save as dialog
+            else:
+                clp.save_project_file(clp.project_file)
+        return button
+    
+    def closeEvent(self, event):
+        if self.is_project_changed():
+            save = self.save_prompt()
+            if save == QMessageBox.Cancel:
+                event.ignore()
+                return
+        event.accept()
+    
+    # todo: add a mouse and/or key event listener to the main window to check after every action whether the project has been changed and an asterisk should be added to the title bar?
+        
         
 class LockableTabBar(QTabBar):
     def __init__(self):

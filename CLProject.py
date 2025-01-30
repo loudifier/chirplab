@@ -3,6 +3,9 @@
 # project dictionary containing parameters of log chirp used for signal generation and analysis, signal input and output, etc
 project = {}
 
+project_file = '' # full path to the project file
+working_directory = '.' # directory to start any browse dialogs in, updated based on last GUI browse result
+
 # signals updated from chirp tab and used for analysis in measurements. Stimulus, response, impulse response, etc.
 signals = {}
 
@@ -59,10 +62,12 @@ PLOT_PEN_WIDTH = 3
 
 # default project parameters
 def new_project():
+    global project_file
+    project_file = 'New Project'
+    
     global project
     project = {
         'chirplab_version': CHIRPLAB_VERSION,
-        'project_name': 'New Project',
         
         # chirp parameters
         'start_freq': 100, # chirp starting frequency in Hz
@@ -111,5 +116,25 @@ def new_project():
         }
 
 
+
+import yaml
+from pathlib import Path
+
+def load_project_file(load_path):
+    global project
+    with open(load_path) as in_file:
+        # todo: add some sort of project format validation
+        project = yaml.safe_load(in_file)
+    
+    global project_file
+    project_file = load_path
+    
+    global working_directory
+    working_directory = str(Path(load_path).parent)
+
+def save_project_file(save_path):
+    global project
+    with open(save_path, 'w') as out_file:
+        out_file.write(yaml.dump(project))
 
 

@@ -8,3 +8,4 @@ qtpy # could update qt_collapsible_section to import qtpy and update base QT to 
 requests
 pandas
 pathvalidate
+pyyaml

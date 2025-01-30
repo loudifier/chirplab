@@ -1,7 +1,7 @@
 import CLProject as clp
 from pyqtgraph.Qt import mkQApp
 import sys
-import os
+from pathlib import Path
 import requests
 import tempfile
 from zipfile import ZipFile 
@@ -21,54 +21,53 @@ def main():
     if args.c:
         if not args.project:
             print('please specify ChirpLab project file for command-line processing')
-            sys.exit()
-        
-        #load project file
-            #error message if there is a problem loading project file, exit
-        clp.new_project()
+            sys.exit(1)
     else:
         clp.gui_mode = True
     
     if args.project:
-        print('load project')
-        # pop up error message box if there is a problem loading project file, options to create new project or quit
-        clp.new_project()
+        try:
+            clp.load_project_file(args.project)
+        except FileNotFoundError as e:
+            print(e)
+            if args.c:
+                sys.exit(1)
+            print('creating a new project...')
+            clp.new_project()
     else:
         # chirplab started without any arguments. Generate a default New Project and launch gui
         clp.new_project()
     
     
-    # first, check that sox is available on the system. Download if it isn't
-    check_sox()    
-    
-    # initialize measurements from project
-    init_measurements()
-    
-    # get stimulus and response signals
-    generate_stimulus()
-    try:
-        read_response()
-    except (FileNotFoundError, FormatNotSupportedError) as e:
-        print(e)
-        if not clp.gui_mode:
-            sys.exit(1)
-        else:
-            clp.signals['response'] = np.zeros(len(clp.signals['stimulus']))
-            clp.signals['noise'] = []
-    
+    # check that sox is available on the system. Download if it isn't
+    check_sox()
     
     # if running in command-line mode, process measurements and output measurement data
     if not clp.gui_mode:
+        
+        # initialize measurements from project
+        init_measurements()
+        
+        # get stimulus and response signals
+        generate_stimulus()
+        try:
+            read_response()
+        except (FileNotFoundError, FormatNotSupportedError) as e:
+            print(e)
+            if not clp.gui_mode:
+                sys.exit(1)
+            else:
+                clp.signals['response'] = np.zeros(len(clp.signals['stimulus']))
+                clp.signals['noise'] = []
         for measurement in clp.measurements:
             measurement.measure()
-            save_csv(measurement)
+            save_csv(measurement, clp.working_directory)
         
         # exit before launching GUI
         sys.exit()
             
     
-    
-    
+    # not CLI mode, launch GUI
     # set up main application window
     app = mkQApp() # same as a regular QApplication, but first sets up some environment stuff to handle DPI scaling across multiple monitors
     
@@ -82,7 +81,7 @@ def main():
     
 def check_sox():
     # assuming Windows for now (prompt user to `apt-get install sox` on linux), probably needs to be handled differently in compiled .exe
-    if not os.path.exists(clp.sox_path): # pretty unlikely user will already have sox available on PATH, easier to download and use portable version in chirplab folder
+    if not Path(clp.sox_path).exists(): # pretty unlikely user will already have sox available on PATH, easier to download and use portable version in chirplab folder
         try:
             print('SoX not found, downloading from ' + clp.sox_dl_url + '...')
             with tempfile.TemporaryFile() as sox_temp:

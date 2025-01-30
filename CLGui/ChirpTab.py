@@ -456,7 +456,7 @@ class ChirpTab(CLTab):
         
         
         # plot stimulus/response signals
-        self.plot()
+        #self.plot()
         
 
     def update_stimulus(self):
