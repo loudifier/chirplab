@@ -1,5 +1,6 @@
 import CLProject as clp
 from pyqtgraph.Qt import mkQApp
+from qtpy.QtCore import Qt
 import sys
 from pathlib import Path
 import requests
@@ -70,6 +71,7 @@ def main():
     # not CLI mode, launch GUI
     # set up main application window
     app = mkQApp() # same as a regular QApplication, but first sets up some environment stuff to handle DPI scaling across multiple monitors
+    app.setAttribute(Qt.ApplicationAttribute.AA_DisableWindowContextHelpButton)
     
     window = MainWindow()
     window.show()

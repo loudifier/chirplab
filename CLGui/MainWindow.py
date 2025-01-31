@@ -1,10 +1,11 @@
 import CLProject as clp
-from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidget, QApplication, QFileDialog, QErrorMessage, QMessageBox
+from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidget, QApplication, QFileDialog, QErrorMessage, QMessageBox, QDialog, QDialogButtonBox, QVBoxLayout
 from qtpy.QtGui import QAction
-from CLGui.ChirpTab import ChirpTab
-from CLMeasurements import init_measurements
+from CLGui.ChirpTab import ChirpTab, CLParamDropdown, CLParameter
+from CLMeasurements import init_measurements, is_valid_measurement_name
 from CLAnalysis import generate_stimulus
 from pathlib import Path
+import CLMeasurements
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -129,6 +130,21 @@ class MainWindow(QMainWindow):
         
         add_measurement = QAction('&Add Measurement', self)
         measurement_menu.addAction(add_measurement)
+        def add_measurement_dialog():
+            AddMeasurementDialog(self).exec()
+        add_measurement.triggered.connect(add_measurement_dialog)
+        
+        # allow adding a measurement by clicking on the last tab in the tab bar
+        def tab_changed(index):
+            if index == self.tabs.count()-1:
+                self.tabs.setCurrentIndex(self.tabs.prev_tab)
+                AddMeasurementDialog(self).exec()
+                    
+        self.tabs.currentChanged.connect(tab_changed)
+        self.tabs.prev_tab = 0
+        def tabs_clicked(index):
+            self.tabs.prev_tab = self.tabs.currentIndex()
+        self.tabs.tabBarClicked.connect(tabs_clicked)
         
         remove_measurement = QAction('&Remove Current Measurement', self)
         measurement_menu.addAction(remove_measurement)
@@ -250,3 +266,53 @@ class LockableTabBar(QTabBar):
                 #self.moveTab(self.tab_moved_to, self.tab_moved_from) # only moves the tab button, but doesn't change the tab content
                 self.parent().insertTab(self.tab_moved_from, self.parent().widget(self.tab_moved_to), self.tabText(self.tab_moved_to)) # actually moves the full tab
                 self.setCurrentIndex(self.tab_moved_from)
+                
+class AddMeasurementDialog(QDialog):
+    def __init__(self, main_window):
+        super().__init__()
+        
+        self.setWindowTitle('Add new measurement')
+        
+        layout = QVBoxLayout()
+        
+        measurement_type_names = []
+        for measurement_type in CLMeasurements.MEASUREMENT_TYPES:
+            measurement_type_names.append(getattr(CLMeasurements, measurement_type).measurement_type_name)
+        
+        type_dropdown = CLParamDropdown('Measurement type', measurement_type_names)
+        layout.addWidget(type_dropdown)
+        def update_type(index):
+            if measurement_name.value.strip() in measurement_type_names:
+                measurement_name.set_value(measurement_type_names[index])
+                measurement_name.last_value = measurement_type_names[index]
+        type_dropdown.update_callback = update_type
+        
+        measurement_name = CLParameter('New measurement name', measurement_type_names[0])
+        layout.addWidget(measurement_name)
+        def update_name(new_name):
+            new_name = new_name.strip()
+            if not is_valid_measurement_name(new_name):
+                measurement_name.set_value(measurement_name.last_value)
+                return
+            measurement_name.set_value(new_name) # in case whitespace was removed
+            measurement_name.last_value = new_name
+        measurement_name.update_callback = update_name
+        
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        layout.addWidget(button_box)
+        def add_new_measurement():
+            type_index = type_dropdown.dropdown.currentIndex()
+            clp.project['measurements'].append(getattr(CLMeasurements, CLMeasurements.MEASUREMENT_TYPES[type_index])(measurement_name.value, {}))
+            clp.project['measurements'][-1].init_tab()
+            clp.project['measurements'][-1].format_graph()
+            clp.project['measurements'][-1].measure()
+            clp.project['measurements'][-1].plot()
+            main_window.tabs.insertTab(main_window.tabs.count()-1, clp.project['measurements'][-1].tab, measurement_name.value)
+            main_window.tabs.setCurrentIndex(main_window.tabs.count()-2)
+            self.accept()
+        button_box.accepted.connect(add_new_measurement)
+        button_box.rejected.connect(self.reject)
+        
+        self.setLayout(layout)
+        
+        

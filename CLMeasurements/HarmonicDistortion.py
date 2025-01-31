@@ -4,8 +4,8 @@ from CLGui import CLParameter, CLParamNum, CLParamDropdown, FreqPointsParams
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
-from CLMeasurements import CLMeasurement
-from CLMeasurements.frequency_response import FrequencyResponse
+from CLMeasurements import CLMeasurement, FrequencyResponse
+#from CLMeasurements.FrequencyResponse import FrequencyResponse
 
 # Harmonic Distortion analysis based on Farina papers. https://www.researchgate.net/publication/2456363_Simultaneous_Measurement_of_Impulse_Response_and_Distortion_With_a_Swept-Sine_Technique
 

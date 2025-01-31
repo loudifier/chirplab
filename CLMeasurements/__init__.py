@@ -5,6 +5,7 @@ from CLGui import CLTab, QCollapsible, QHSeparator
 from qtpy.QtWidgets import QLineEdit
 import pyqtgraph as pg
 from pathvalidate import is_valid_filename
+from importlib import import_module
 
 
 class CLMeasurement():
@@ -50,7 +51,7 @@ class CLMeasurement():
         self.name_box.last_value = self.name
         def update_name():
             new_name = self.name_box.text().strip()
-            if not is_valid_filename(new_name): # measurement name likely used for CLI output. Any other restrictions?
+            if not is_valid_measurement_name(new_name):
                 self.name_box.setText(self.name_box.last_value)
                 return
                 
@@ -103,10 +104,15 @@ class CLMeasurement():
             self.tab.graph.plot(self.out_freqs, self.out_noise, name='Noise Floor', pen=noise_pen)#, color='gray')
 
         
+# list of the class names of all measurement types that are available
+MEASUREMENT_TYPES = ['FrequencyResponse', 'HarmonicDistortion']
 
-# imports in __init__.py make measurements available in other code via `import CLMeasurements`, etc.
-from CLMeasurements.frequency_response import FrequencyResponse
-from CLMeasurements.harmonic_distortion import HarmonicDistortion
+# imports in __init__.py make measurements available in other code via `from CLMeasurements import <measurement class>`, etc.
+for measurement in MEASUREMENT_TYPES:
+    module = import_module('CLMeasurements.'+measurement)
+    globals()[measurement] = getattr(module, measurement)
+    
+
 
 def init_measurements():
     # builds (or rebuilds) a new set of measurement objects from current clp.project
@@ -114,3 +120,6 @@ def init_measurements():
     for measurement in clp.project['measurements']:
         Measurement = globals()[measurement['type']] # dynamically invoke measurement class from measurement type string
         clp.measurements.append(Measurement(measurement['name'], measurement['params']))
+        
+def is_valid_measurement_name(name):
+    return is_valid_filename(name) # measurement name likely used for CLI output. Any other restrictions?
