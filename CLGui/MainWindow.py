@@ -161,6 +161,25 @@ class MainWindow(QMainWindow):
         remove_measurement = QAction('&Remove Current Measurement', self)
         remove_measurement.setEnabled(False)
         measurement_menu.addAction(remove_measurement)
+        def remove_measurement_prompt(checked=True):
+            remove_message = QMessageBox()
+            remove_message.setWindowTitle('Remove Measurement?')
+            remove_message.setText("Are you sure you want to remove the '" + clp.measurements[self.tabs.currentIndex()-1].params['name'] + "' measurement?")
+            remove_message.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
+            button = remove_message.exec()
+            if button == QMessageBox.Yes:
+                if button:
+                    tab_index = self.tabs.currentIndex()
+                    self.tabs.blockSignals(True) # removing a tab activates the tab to the right. Keep add measurement dialog from firing
+                    self.tabs.removeTab(self.tabs.currentIndex())
+                    self.tabs.setCurrentIndex(tab_index-1)
+                    self.tabs.blockSignals(False)
+                    if not self.tabs.currentIndex(): # ended up back on the chirp tab
+                        remove_measurement.setEnabled(False)
+                    clp.measurements.pop(tab_index-1)
+                    clp.project['measurements'].pop(tab_index-1)
+            return button
+        remove_measurement.triggered.connect(remove_measurement_prompt)
         
         measurement_menu.addSeparator()
         

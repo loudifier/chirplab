@@ -46,10 +46,11 @@ class CLParameter(QWidget):
     
     def set_value(self, new_value):
         self.text_box.setText(str(new_value))
+        self.value = self.text_box.text()
+        self.last_value = self.value
     
     def revert(self):
         self.set_value(self.last_value)
-        self.value = self.last_value
       
         
 class CLParamNum(QWidget):
