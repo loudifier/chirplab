@@ -62,7 +62,8 @@ def main():
                 clp.signals['noise'] = []
         for measurement in clp.measurements:
             measurement.measure()
-            save_csv(measurement, clp.working_directory)
+            save_csv(measurement, '', Path(args.project).parent)
+            # todo: throw a warning that some output files will be overwritten if multiple measurements have the same name
         
         # exit before launching GUI
         sys.exit()

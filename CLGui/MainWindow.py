@@ -3,10 +3,12 @@ from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidge
 from qtpy.QtGui import QAction
 from CLGui.ChirpTab import ChirpTab, CLParamDropdown, CLParameter
 from CLMeasurements import init_measurements, is_valid_measurement_name
-from CLAnalysis import generate_stimulus
+from CLAnalysis import generate_stimulus, save_csv
 from pathlib import Path
 import CLMeasurements
 from copy import deepcopy
+import pyqtgraph as pg
+import pyqtgraph.exporters # just calling pg.exporters... doesn't work unless pyqtgraph.exporters is manually imported
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -197,8 +199,50 @@ class MainWindow(QMainWindow):
         
         measurement_menu.addSeparator()
         
-        save_data = QAction('&Save Measurement Data', self)
+        save_data = QAction('&Save Measurement/Graph Data', self)
         measurement_menu.addAction(save_data)
+        def save_measurement_data(checked=True):
+            tab_index = self.tabs.currentIndex()
+            file_dialog = QFileDialog()
+            file_dialog.setWindowTitle('Save Measurement Data')
+            file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+            file_dialog.setViewMode(QFileDialog.ViewMode.Detail)
+            if tab_index:
+                file_dialog.selectFile(clp.measurements[tab_index-1].params['name'] + '.csv')
+                file_dialog.setNameFilters(['Output points (*.csv)', 'Graph image (*.png)',  'All files (*)'])
+            else: # only save graph image from chirp tab
+                file_dialog.selectFile('chirp stimulus-response.png')
+                file_dialog.setNameFilters(['Graph image (*.png)',  'All files (*)'])
+            file_dialog.setDirectory(clp.working_directory)
+            def filterSelected(filter_string):
+                default_suffix = filter_string.split('(*')[1].split(')')[0].split(' ')[0].split(',')[0].split(';')[0] # try to get the first actual file type suffix from the type string
+                file_dialog.setDefaultSuffix(default_suffix)
+            file_dialog.filterSelected.connect(filterSelected)
+            
+            saved = file_dialog.exec()
+            if saved:
+                file_path = file_dialog.selectedFiles()[0]
+                clp.working_directory = str(Path(file_path).parent)
+                
+                file_type = Path(file_path).suffix
+                if file_type.casefold() == '.png'.casefold(): # save graph image with default pyqtgraph settings
+                    if tab_index: # export measurement graph
+                        exporter = pg.exporters.ImageExporter(clp.measurements[self.tabs.currentIndex()-1].tab.graph.plotItem)
+                    else: # export chirp tab graph
+                        exporter = pg.exporters.ImageExporter(self.chirp_tab.graph.plotItem)
+                    exporter.export(file_path)
+                else: # for any other extension default to exporting as .csv
+                    if tab_index: # export measurement data
+                        try:
+                            save_csv(clp.measurements[self.tabs.currentIndex()-1], file_path)
+                        except PermissionError as ex:
+                            error_box = QErrorMessage()
+                            error_box.showMessage('Error writing measurement data \n' + str(ex))
+                            error_box.exec()
+                    else:
+                        pass # silently fail if trying to save chirp tab as anything other than .png. Throw a message of some sort?
+            return saved
+        save_data.triggered.connect(save_measurement_data)
         
         
         # todo: add help menu items (after creating things for help menu items to point to...)
