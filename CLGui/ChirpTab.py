@@ -5,7 +5,6 @@ import numpy as np
 from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox
 import pyqtgraph as pg
 from engineering_notation import EngNumber
-import types
 
 
 # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms

@@ -1,6 +1,6 @@
 import CLProject as clp
 from CLAnalysis import freq_points, interpolate
-from CLGui import CLParameter, CLParamDropdown, QCollapsible, CLParamNum, FreqPointsParams
+from CLGui import CLParamDropdown, QCollapsible, CLParamNum, FreqPointsParams
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
@@ -20,10 +20,13 @@ class FrequencyResponse(CLMeasurement):
     MAX_WINDOW_END = 10000 # IR window can end up to 10s after t0
     OUTPUT_UNITS = ['dBFS', 'FS'] # add more options when adding acoustic/electrical calibration
     
-    def __init__(self, name, params):
+    def __init__(self, name, params=None):
+        if params is None:
+            params = {}
         super().__init__(name, params)
+        self.params['type'] = 'FrequencyResponse'
 
-        if not params: # populate default measurement parameters if none are provided
+        if len(params)<3: # populate default measurement parameters if none are provided
             # add new keys to existing dict instead of defining new one, so updates will propogate to full project dict and can be easily saved to a project file
             self.params['window_mode'] = 'adaptive' # options are 'raw' for no windowing, 'windowed' for fixed (time-gated) windowing, or 'adaptive' to use an automatically-derived window for each output frequency point
             self.params['window_start'] = 10 # for fixed window, amount of time in ms included before beginning of impulse response

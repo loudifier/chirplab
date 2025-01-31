@@ -6,6 +6,7 @@ from CLMeasurements import init_measurements, is_valid_measurement_name
 from CLAnalysis import generate_stimulus
 from pathlib import Path
 import CLMeasurements
+from copy import deepcopy
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -17,13 +18,34 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setTabBar(LockableTabBar()) # allow the user to rearrange the measurement tab order, but not the chirp tab or add measurement tab
         
+        # allow adding a measurement by clicking on the last tab in the tab bar
+        def tab_changed(index):
+            if self.tabs.last_tab_clicked != self.tabs.count()-1: # user didn't actually click on add measurement tab, they dragged another measurement all the way over to the right
+                return
+            if index == self.tabs.count()-1: # user clicked add measurement tab
+                self.tabs.setCurrentIndex(self.tabs.prev_tab) # change back to tab that was showing before the click
+                add_measurement_dialog()
+        self.tabs.currentChanged.connect(tab_changed)
+        self.tabs.last_tab_clicked = 0
+        self.tabs.prev_tab = 0
+        def tabs_clicked(index):
+            self.tabs.prev_tab = self.tabs.currentIndex()
+            self.tabs.last_tab_clicked = index
+            if not index: # chirp tab
+                remove_measurement.setEnabled(False)
+            elif index < self.tabs.count()-1: # measurement tab
+                remove_measurement.setEnabled(True)
+            # don't check for add measurement tab, handle in tab_changed
+        self.tabs.tabBarClicked.connect(tabs_clicked)
+        
+        
         def load_project():
             # fully load (or reload) the current clp.project
             generate_stimulus()
             init_measurements()
             self.init_tabs()
             self.chirp_tab.update_stimulus()
-            self.last_saved_project = clp.project.copy()
+            self.last_saved_project = deepcopy(clp.project)
             self.setWindowTitle('Chirplab - ' + Path(clp.project_file).name)
         load_project()
         
@@ -83,7 +105,7 @@ class MainWindow(QMainWindow):
                 save_project_as(True)
             else:
                 clp.save_project_file(clp.project_file)
-                self.last_saved_project = clp.project.copy()
+                self.last_saved_project = deepcopy(clp.project)
         save_project.triggered.connect(save_project_file)
         
         save_as = QAction('Save Project &as...', self)
@@ -109,6 +131,7 @@ class MainWindow(QMainWindow):
                     clp.project_file = file_path
                     clp.working_directory = str(Path(file_path).parent)
                     self.setWindowTitle('Chirplab - ' + Path(clp.project_file).name)
+                    self.last_saved_project = deepcopy(clp.project)
                 except PermissionError as ex:
                     if clp.gui_mode:
                         error_box = QErrorMessage()
@@ -131,24 +154,13 @@ class MainWindow(QMainWindow):
         add_measurement = QAction('&Add Measurement', self)
         measurement_menu.addAction(add_measurement)
         def add_measurement_dialog():
-            AddMeasurementDialog(self).exec()
+            if AddMeasurementDialog(self).exec():
+                remove_measurement.setEnabled(True) # if measurement is added its tab will be activated
         add_measurement.triggered.connect(add_measurement_dialog)
         
-        # allow adding a measurement by clicking on the last tab in the tab bar
-        def tab_changed(index):
-            if index == self.tabs.count()-1:
-                self.tabs.setCurrentIndex(self.tabs.prev_tab)
-                AddMeasurementDialog(self).exec()
-                    
-        self.tabs.currentChanged.connect(tab_changed)
-        self.tabs.prev_tab = 0
-        def tabs_clicked(index):
-            self.tabs.prev_tab = self.tabs.currentIndex()
-        self.tabs.tabBarClicked.connect(tabs_clicked)
-        
         remove_measurement = QAction('&Remove Current Measurement', self)
+        remove_measurement.setEnabled(False)
         measurement_menu.addAction(remove_measurement)
-        # add something in currentChanged slot to gray out if currently on chirp tab
         
         measurement_menu.addSeparator()
         
@@ -183,6 +195,8 @@ class MainWindow(QMainWindow):
         #help_menu.addAction(about)
         
     def init_tabs(self):
+        self.tabs.blockSignals(True)
+        
         # build (or rebuild) full set of chirp, measurement, and add measurement tabs from the current clp.project
         self.tabs.clear()
         
@@ -194,10 +208,12 @@ class MainWindow(QMainWindow):
         for measurement in clp.measurements:
             measurement.init_tab()
             measurement.format_graph()
-            self.tabs.addTab(measurement.tab, measurement.name)
+            self.tabs.addTab(measurement.tab, measurement.params['name'])
         
         # last tab - add measurement button (individual measurement tabs to be inserted at index -2)
         self.tabs.addTab(QWidget(), ' + ')
+        
+        self.tabs.blockSignals(False)
         
     def is_project_changed(self):
         # checks the current clp.project against the most recent saved or loaded project
@@ -248,8 +264,9 @@ class LockableTabBar(QTabBar):
             self.tab_moved_from = from_index # keep track of which tab was actually moved
             self.tab_moved_to = to_index
             
-            if to_index not in self.locked_tabs(): # if move is valid, reorder list of measurements so it can be saved/loaded
-                clp.project['measurements'].insert(to_index-1, clp.project['measurements'].pop(from_index-1))
+            if to_index not in self.locked_tabs(): # if move is valid, reorder list of measurements
+                clp.project['measurements'].insert(to_index-1, clp.project['measurements'].pop(from_index-1)) # reorder project parameters so they can be saved/loaded in the correct order
+                clp.measurements.insert(to_index-1, clp.measurements.pop(from_index-1)) # reorder actual measurement objects for cases where they are referenced by index
         self.tabMoved.connect(tab_moved)
     
     def locked_tabs(self):
@@ -302,12 +319,13 @@ class AddMeasurementDialog(QDialog):
         layout.addWidget(button_box)
         def add_new_measurement():
             type_index = type_dropdown.dropdown.currentIndex()
-            clp.project['measurements'].append(getattr(CLMeasurements, CLMeasurements.MEASUREMENT_TYPES[type_index])(measurement_name.value, {}))
-            clp.project['measurements'][-1].init_tab()
-            clp.project['measurements'][-1].format_graph()
-            clp.project['measurements'][-1].measure()
-            clp.project['measurements'][-1].plot()
-            main_window.tabs.insertTab(main_window.tabs.count()-1, clp.project['measurements'][-1].tab, measurement_name.value)
+            clp.measurements.append(getattr(CLMeasurements, CLMeasurements.MEASUREMENT_TYPES[type_index])(measurement_name.value))
+            clp.project['measurements'].append(clp.measurements[-1].params)
+            clp.measurements[-1].init_tab() # todo: figure out why tab sections end up thinking they are 
+            clp.measurements[-1].format_graph()
+            clp.measurements[-1].measure()
+            clp.measurements[-1].plot()
+            main_window.tabs.insertTab(main_window.tabs.count()-1, clp.measurements[-1].tab, measurement_name.value)
             main_window.tabs.setCurrentIndex(main_window.tabs.count()-2)
             self.accept()
         button_box.accepted.connect(add_new_measurement)

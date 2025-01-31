@@ -11,9 +11,13 @@ from importlib import import_module
 class CLMeasurement():
     measurement_type_name = 'CLMeasurement' # override with individual measurement type. e.g. 'Frequency Response'
     
-    def __init__(self, name, params):
-        self.name = name
-        self.params = params
+    def __init__(self, name, params=None):
+        if params is None:
+            self.params = {}
+        else:
+            self.params = params
+        self.params['name'] = name
+        self.params['type'] = 'CLMeasurement'
         
         # add default measurement parameters in individual measurement __init__(). Example for frequency response:
         #if not params: # populate default measurement parameters if none are provided
@@ -46,23 +50,23 @@ class CLMeasurement():
     def init_tab(self):
         self.tab = CLTab()
         
-        self.name_box = QLineEdit(self.name)
+        self.name_box = QLineEdit(self.params['name'])
         self.tab.panel.addWidget(self.name_box)
-        self.name_box.last_value = self.name
+        self.name_box.last_value = self.params['name']
         def update_name():
             new_name = self.name_box.text().strip()
             if not is_valid_measurement_name(new_name):
                 self.name_box.setText(self.name_box.last_value)
                 return
                 
-            self.name = new_name
+            self.params['name'] = new_name
             self.format_graph()
-            self.name_box.last_value = self.name
+            self.name_box.last_value = self.params['name']
             
             # updating the tab title is a little sketchy... come back later to see if there is a more elegant soltuion?
             tab_group = self.tab.parent().parent()
             tab_index = tab_group.indexOf(self.tab)
-            tab_group.setTabText(tab_index, self.name)
+            tab_group.setTabText(tab_index, self.params['name'])
         self.name_box.editingFinished.connect(update_name)
         
         # add collapsible sections to measurement config panel. Fill out sections for individual measurements
@@ -84,7 +88,7 @@ class CLMeasurement():
         
     def format_graph(self):
         # default graph formatting with title, legend, axis titles, log x scale
-        self.tab.graph.setTitle(self.name)
+        self.tab.graph.setTitle(self.params['name'])
         self.tab.graph.setLogMode(True, False) # default to log frequency scale
         self.tab.graph.setLabel('bottom', 'Frequency (Hz)')
         self.tab.graph.setLabel('left', self.params['output']['unit'])
@@ -119,7 +123,7 @@ def init_measurements():
     clp.measurements = []
     for measurement in clp.project['measurements']:
         Measurement = globals()[measurement['type']] # dynamically invoke measurement class from measurement type string
-        clp.measurements.append(Measurement(measurement['name'], measurement['params']))
+        clp.measurements.append(Measurement(measurement['name'], measurement))
         
 def is_valid_measurement_name(name):
     return is_valid_filename(name) # measurement name likely used for CLI output. Any other restrictions?

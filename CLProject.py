@@ -102,15 +102,13 @@ def new_project():
         
         # list of measurements
         'measurements': [
-            {
+            {   # only providing name and type will populate default measurement parameters
                 'name': 'Frequency Response', # user-defined measurement name
-                'type': 'FrequencyResponse', # measurement type matching a class name from the measurements module
-                'params': {} # if empty params will be generated from default in measurement class
+                'type': 'FrequencyResponse' # measurement type matching a class name from the measurements module
                 },
             {
                 'name': 'Total Harmonic Distortion',
-                'type': 'HarmonicDistortion',
-                'params': {}
+                'type': 'HarmonicDistortion'
                 }
             ]
         }

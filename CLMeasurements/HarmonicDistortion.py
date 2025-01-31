@@ -1,11 +1,10 @@
 import CLProject as clp
 from CLAnalysis import logchirp, chirp_freq_to_time, freq_points, interpolate
-from CLGui import CLParameter, CLParamNum, CLParamDropdown, FreqPointsParams
+from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
 from CLMeasurements import CLMeasurement, FrequencyResponse
-#from CLMeasurements.FrequencyResponse import FrequencyResponse
 
 # Harmonic Distortion analysis based on Farina papers. https://www.researchgate.net/publication/2456363_Simultaneous_Measurement_of_Impulse_Response_and_Distortion_With_a_Swept-Sine_Technique
 
@@ -14,10 +13,13 @@ class HarmonicDistortion(CLMeasurement):
     
     OUTPUT_UNITS = ['dB', '%', '% (IEC method)', 'dBFS', 'FS']
     
-    def __init__(self, name, params):
+    def __init__(self, name, params=None):
+        if params is None:
+            params = {}
         super().__init__(name, params)
+        self.params['type'] = 'HarmonicDistortion'
 
-        if not params: # default measurement parameters
+        if len(params)<3: # default measurement parameters
             self.params['start_harmonic'] = 2 # default to low order THD (H2:H7)
             self.params['stop_harmonic'] = 7
             self.params['window_start'] = 0.1 # windowing parameters similar to frequency response windowing, but windows are centered on harmonic impulses, numbers are expressed in proportion of time to previous/next harmonic impulse
@@ -57,9 +59,9 @@ class HarmonicDistortion(CLMeasurement):
         self.out_points = interpolate(thd_freqs, thd, self.out_freqs, self.params['output']['spacing']=='linear')
         
         # assume most output units will want a fundamental frequency response reference
-        ref_fr = FrequencyResponse('fr',{})
+        ref_fr = FrequencyResponse('fr')
         ref_fr.params['output'] = self.params['output'].copy()
-        ref_fr.params['output']['unit'] = 'fs'
+        ref_fr.params['output']['unit'] = 'FS'
         ref_fr.params['output']['min_auto'] = False # shouldn't actually have any impact, but set in case of future updates
         ref_fr.params['output']['max_auto'] = False
         ref_fr.measure()
