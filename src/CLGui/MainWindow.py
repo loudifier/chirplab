@@ -384,7 +384,7 @@ class AddMeasurementDialog(QDialog):
             type_index = type_dropdown.dropdown.currentIndex()
             clp.measurements.append(getattr(CLMeasurements, CLMeasurements.MEASUREMENT_TYPES[type_index])(measurement_name.value))
             clp.project['measurements'].append(clp.measurements[-1].params)
-            clp.measurements[-1].init_tab() # todo: figure out why tab sections end up thinking they are 
+            clp.measurements[-1].init_tab() 
             clp.measurements[-1].format_graph()
             clp.measurements[-1].measure()
             clp.measurements[-1].plot()

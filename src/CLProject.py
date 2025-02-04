@@ -30,7 +30,7 @@ sox_dl_url = 'https://sourceforge.net/projects/sox/files/sox/14.4.2/sox-14.4.2-w
 
 
 # when loading project files from older versions of chirplab, the project may be able to be upgraded for compatibility with current version
-CHIRPLAB_VERSION = 0
+CHIRPLAB_VERSION = 0.1
 
 
 # constants
@@ -97,7 +97,7 @@ def new_project():
         'input': {
             'mode': 'file',
             'channel': 1, # which channel to use from input file or capture device
-            'file': 'response.wav', # input file path
+            'file': '../examples/new-project_response.wav', # input file path
             },
         
         # list of measurements
