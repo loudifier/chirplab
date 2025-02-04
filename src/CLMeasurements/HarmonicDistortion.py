@@ -70,7 +70,7 @@ class HarmonicDistortion(CLMeasurement):
         def convert_output_units(fs_points):
             match self.params['output']['unit']:
                 case 'dB':
-                    return 20*np.log(fs_points / ref_fr.out_points)
+                    return 20*np.log10(fs_points / ref_fr.out_points)
                 case '%':
                     return 100 * fs_points / ref_fr.out_points
                 case '% (IEC method)':
@@ -173,6 +173,7 @@ class HarmonicDistortion(CLMeasurement):
             else:
                 self.params['start_harmonic'] = self.start_harmonic.value
                 self.params['stop_harmonic'] = self.stop_harmonic.value
+                self.output_points.update_min_max()
                 self.measure()
                 self.plot()
         self.start_harmonic.update_callback = update_harmonics
