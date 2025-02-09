@@ -162,24 +162,27 @@ class HarmonicDistortion(CLMeasurement):
 
         self.start_harmonic = CLParamNum('Lowest harmonic', self.params['start_harmonic'], '', 2, 40, 'int')
         self.param_section.addWidget(self.start_harmonic)
+        def update_start_harmonic(val):
+            if self.start_harmonic.value > self.stop_harmonic.value:
+                self.stop_harmonic.set_value(self.start_harmonic.value)
+            update_harmonics()
+        self.start_harmonic.update_callback = update_start_harmonic
         
         self.stop_harmonic = CLParamNum('Highest harmonic', self.params['stop_harmonic'], '', 2, 40, 'int')
         self.param_section.addWidget(self.stop_harmonic)
+        def update_stop_harmonic(val):
+            if self.stop_harmonic.value < self.start_harmonic.value:
+                self.start_harmonic.set_value(self.stop_harmonic.value)
+            update_harmonics()
+        self.stop_harmonic.update_callback = update_stop_harmonic
         
-        def update_harmonics(val):
-            if self.start_harmonic.value > self.stop_harmonic.value:
-                self.start_harmonic.revert()
-                self.stop_harmonic.revert()
-            else:
-                self.params['start_harmonic'] = self.start_harmonic.value
-                self.params['stop_harmonic'] = self.stop_harmonic.value
-                self.output_points.update_min_max()
-                self.measure()
-                self.plot()
-        self.start_harmonic.update_callback = update_harmonics
-        self.stop_harmonic.update_callback = update_harmonics
-        
-        
+        def update_harmonics():
+            self.params['start_harmonic'] = self.start_harmonic.value
+            self.params['stop_harmonic'] = self.stop_harmonic.value
+            self.output_points.update_min_max()
+            self.measure()
+            self.plot()
+
         
         self.output_unit = CLParamDropdown('Units', [unit for unit in self.OUTPUT_UNITS], '')
         output_unit_index = self.output_unit.dropdown.findText(self.params['output']['unit'])

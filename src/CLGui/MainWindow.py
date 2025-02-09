@@ -96,7 +96,7 @@ class MainWindow(QMainWindow):
                 file_path = file_dialog.selectedFiles()[0]
                 
                 # todo: test file loading corner cases, wrap in try/except, etc.
-                clp.load_project_file(file_path) # sets working directory
+                clp.load_project_file(file_path) # sets working directory # todo: figure out why Input section of chirp tab initializes as collapsed when loading a project file
                 load_project()
         open_project.triggered.connect(open_project_file)
         
