@@ -116,9 +116,9 @@ def read_audio_file(audio_file, sample_rate=0):
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir: # add delete=False if needed for debugging. ignore_cleanup_errors requires python 3.10+
         temp_wav = Path(temp_dir) / 'response.wav'
         if sample_rate:
-            result = subprocess.run([clp.sox_path, audio_file, '-b', '32', '-e', 'floating-point', '-r', str(sample_rate), str(temp_wav), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
+            result = subprocess.run([clp.sox_path, str(find_file(audio_file)), '-b', '32', '-e', 'floating-point', '-r', str(sample_rate), str(temp_wav), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
         else:
-            result = subprocess.run([clp.sox_path, audio_file, '-b', '32', '-e', 'floating-point', str(temp_wav), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
+            result = subprocess.run([clp.sox_path, str(find_file(audio_file)), '-b', '32', '-e', 'floating-point', str(temp_wav), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
         sox_out = (Path(temp_dir) / 'soxerr.txt').read_text()
         if result.returncode:
             if 'No such file' in sox_out:
@@ -166,7 +166,7 @@ def audio_file_info(file_path):
     # read audio file header using sox
     # subprocess.run() with shell=True is unsafe. Find or write a better audio file IO library at some point. #todo #security
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
-        result = subprocess.run([clp.sox_path, '--i', str(file_path), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
+        result = subprocess.run([clp.sox_path, '--i', str(find_file(file_path)), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
         sox_out = (Path(temp_dir) / 'soxerr.txt').read_text()
         
         if result.returncode:
@@ -187,6 +187,20 @@ def audio_file_info(file_path):
 
 class FormatNotSupportedError(Exception):
     pass
+
+def find_file(filename):
+    # convert local or relative file paths to full file path
+    if not Path(filename).is_absolute():
+        # search for file relative to the Chirplab working directory
+        if Path(clp.working_directory, filename).exists():
+            return Path(clp.working_directory, filename)
+        
+        # search for file relative to the current project file
+        if Path(Path(clp.project_file).parent, filename).exists():
+            return Path(Path(clp.project_file).parent, filename)
+        
+    # if file was not found (or was already a full path) then just return it and let the caller decide what to do
+    return filename
 
 def find_offset(input_sig, find_sig):
     # for two 1D input arrays where a signal similar to find_sig is expected to be somewhere in input_sig, find the position of find_sig in input_sig and return the index of the start of find_sig
