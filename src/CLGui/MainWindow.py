@@ -1,6 +1,6 @@
 import CLProject as clp
 from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidget, QApplication, QFileDialog, QErrorMessage, QMessageBox, QDialog, QDialogButtonBox, QVBoxLayout
-from qtpy.QtGui import QAction
+from qtpy.QtGui import QAction, QIcon
 from CLGui.ChirpTab import ChirpTab, CLParamDropdown, CLParameter
 from CLMeasurements import init_measurements, is_valid_measurement_name
 from CLAnalysis import generate_stimulus, save_csv
@@ -13,6 +13,8 @@ import pyqtgraph.exporters # just calling pg.exporters... doesn't work unless py
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.setWindowIcon(QIcon(str(Path(__file__).parent) + '/icon.png'))
+
         screen_size = QApplication.instance().screens()[0].size()
         self.resize(int(screen_size.width()*0.75), int(screen_size.height()*0.75))
         

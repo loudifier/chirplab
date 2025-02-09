@@ -1,0 +1,2 @@
+# this list is for additional packages that are needed to build chirplab, on top of requirements.txt in the /src/ folder
+pyinstaller

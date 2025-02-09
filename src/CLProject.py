@@ -1,5 +1,8 @@
 # module for sharing globals throughout chirplab
 
+import sys
+IS_BUNDLED = (getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')) # true if Chirplab is being run via pyinstaller bundle
+
 # project dictionary containing parameters of log chirp used for signal generation and analysis, signal input and output, etc
 project = {}
 
@@ -61,6 +64,11 @@ PLOT_PEN_WIDTH = 3
 
 
 # default project parameters
+if IS_BUNDLED: # todo: rethink how the new project response file is included with bundled app.
+    newproj_response_dir = './examples/'
+else:
+    newproj_response_dir = '../examples/'
+
 def new_project():
     global project_file
     project_file = 'New Project'
@@ -97,7 +105,7 @@ def new_project():
         'input': {
             'mode': 'file',
             'channel': 1, # which channel to use from input file or capture device
-            'file': '../examples/new-project_response.wav', # input file path
+            'file': newproj_response_dir + 'new-project_response.wav', # input file path
             },
         
         # list of measurements

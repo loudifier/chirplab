@@ -71,3 +71,16 @@ plt.xlim(nfft, int(len(logo_signal)/2)-nfft)
 plt.show()
 
 #wavfile.write('logo.wav', fs, logo_signal)
+
+
+
+
+
+nfft = 512
+
+icon = wavfile.read('../examples/new-project_response.wav')[1]
+plt.specgram(icon, NFFT=nfft, pad_to=nfft*32, mode='magnitude', noverlap=int(nfft/2), cmap='binary', vmin=100, vmax=155)
+plt.yscale('log')
+plt.xlim(27000, 53000)
+plt.ylim(0.001, 1.0)
+plt.show()
