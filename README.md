@@ -6,36 +6,38 @@ Chirplab is an audio and acoutics measurement suite based on fast open-loop log-
 Chirplab is built on Python, NumPy/SciPy, Qt, and other open source software and is released under the [MIT license](LICENSE)
 
 ## Overview
-Chirplab can be used as a standalone GUI for interactively examining measurement data and experimenting with different project parameter settings, or entirely via a command line interface using plaintext project file input and measurement data output. This allows a seamless transision between R&D and automated or manufacturing workflows, and even allows custom Chirplab measurements to be incorporated into other audio test software that can call external programs as part of a measurement sequence.
+Chirplab can be used as a standalone GUI for interactively examining measurement data and experimenting with different project parameter settings, or entirely via a command line interface using plaintext project file input and measurement data output. This allows a seamless transision between R&D and automated or manufacturing workflows, and even allows custom Chirplab measurements to be incorporated into other audio test software that can call external programs as part of a measurement sequence. Chirplab is early in development, but will eventually support a wide variety of standard and specialized audio measurements.
 
-### Main GUI
-- Configure chirp parameters
-- Define input file
-- Add and configure measurements and measurement outputs
-- Save and load project files
+<!-- todo: insert screenshots of GUI and CLI -->
 
-### Command line interface
-- Process a project file and output measurement data
+## Project Goals
+In most respects Chirplab is entirely conventional and all of the processing that it performs is based on DSP literature, readily available research papers, and experimentation to produce measurement outputs that are roughly equivalent to those produced by commercial audio test systems. However, Chirplab has a slightly different focus and has some key capabilities that are not found in any other software
 
-### Comparison to other audio measurement systems
---- This will be eventually filled out with graphs comparing Chirplab measurements to other free and commercial audio measurement suites ---
+### Measurement noise floor
+Where most audio measurement tools have some sort of noise floor measurement feature, almost none of them make any connection between the *system* noise floor and its real impact on other measurements. Chirplab captures a section of the system noise floor equal in length to the stimulus chirp, processes that through the same calculations as the regular response, and gives you an estimate of the noise floor *for that measurement*. This gives you a quick sanity check on your measurement data, which can save a lot of time during research or debugging efforts, especially when measuring distortion products that are close to the system noise floor.
 
-## Measurement noise floor
-In most respects Chirplab is entirely conventional and all of the processing that it performs is based on DSP literature, readily available research papers, and experimentation to produce measurement outputs that are roughly equivalent to those produced by commercial audio test systems. However, Chirplab includes a unique feature that helps you avoid misleading data and understand whether a measurement is providing insight into the performance of a device or system under test, or if it is just showing you the noise floor of your measurement system.
+<!-- todo: insert a couple graphs to illustrate what measurement noise floor does -->
 
-As an example, here is a graph showing the frequency response of the same speaker measured with two different microphones:
+<br/>
 
-![Speaker response measured with different micropohnes](img/fr-comparison.png)
+### Comprehensive distortion measurements
+Some standardized metrics for audio distortion measurement exist, but those standards do not comprehensively cover the range of distortion mechanisms and products that audio engineers would like to measure. In practice, "distortion", "THD", "Rub and "Buzz" and other terms are poorly defined. Different measurement systems will yield significantly different results for measurements with the same name and measurement methodologies are usually not communicated clearly with measurement results.
 
-The speaker was driven at the same level with the microphones at the same distance from the speaker in the same room, and the responses have been normalized to account for different microphone sensitivity. The microphones have flat, closely matched responses, and they show nearly identical response from the speaker.
+A wide variety of distortion metrics that provide equivalent results from other measurement systems will be added over time, but currently only Harmonic Distortion measurements (equivalent to "THD", "HOHD", "Distortion Product Level", etc.) are supported.
 
-However, when these microphones are used to measure the distortion of the speaker they show significantly different results.
+<br/>
 
-![Speaker distortion measured with different microphones](img/thd-comparison.png)
+### Fine control over measurement parameters
+One of the disconnects between different measurement systems having measurements with the same name but different results is that they use very similar algorithms, but hide the parameters used for analysis. "THD" almost always start with the 2nd harmonic, but may include harmonics up to 7, 10, or 35, and *many measurement systems don't give the user any control over the range used*. Chirplab gives the user control over all of the critical analysis parameters for a particular measurement. Unfortunately, the user is still responsible for clearly communicating the context of the measurement and settings used when they share measurement results. 🙃
 
-The only notable performance difference between the microphones is that one has a lower noise floor. Most audio measurement systems allow you to measure noise floor as an individual measurement, but the connection between the system noise floor and its impact on other measurements is almost never communicated. Chirplab captures a section of the system noise floor equal in length to the stimulus chirp, processes that through the same calculations as the regular response, and gives you an estimate of the noise floor *for that measurement*.
+At this time all major measurement parameters are exposed in the GUI, but in the future some measurements may hide parameters that are obscure or easy to misconfigure within the project file. If you are seeing results that do not align with your expectations or you don't see parameters that you expect to be able to control, please [raise an issue](https://github.com/loudifier/chirplab/issues).
 
-![Speaker distortion vs estimated measurement noise floor](img/thd-noise-comparison.png)
+<br/>
+
+### Seamless workflow between GUI and CLI
+The Chirplab GUI and CLI produce 1:1 measurement results. You can easily set up all of your chirp and measurement parameters in the GUI, previewing results and refining settings with immediate feedback, and saving the configurations to a plaintext YAML project file. Then you can automate repeated measurements or batch process different input measurement recordings using the same project file created in the GUI.
+
+The CLI is simple and is run using the same main script/executable as the GUI. There is no server, API, or Chirplab interface library. You should not need to understand any of the underlying code heirarchy to make basic configuration changes or call Chirplab measurements from an automation process or other audio test program that allows external processing steps.
 
 ## Project Status
 Chirplab v0.1 is in an initial "minimally usable" state, supporting file input and output and two basic measurements - Frequency Response and Harmonic Distortion. It will eventually support audio interface (sound card) playback and recording, acoustic/electrical signal level calibration, and several additional measurement types, including equivalent measurements to those that you would expect from commercial audio measurement systems and some entirely unique distortion metrics. See the [roadmap](ROADMAP.md) for a high level list of currently implemented and planned features. Contributions are welcome.
