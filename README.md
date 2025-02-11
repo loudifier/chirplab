@@ -39,6 +39,13 @@ The Chirplab GUI and CLI produce 1:1 measurement results. You can easily set up 
 
 The CLI is simple and is run using the same main script/executable as the GUI. There is no server, API, or Chirplab interface library. You should not need to understand any of the underlying code heirarchy to make basic configuration changes or call Chirplab measurements from an automation process or other audio test program that allows external processing steps.
 
+<br/>
+
+### Open loop signal path as a first-class test setup
+With the decreasing number of audio devices that provide realtime audio passthrough (i.e. mobile devices that allow you to sideload, play, and record files but not stream audio to/from a host PC) and increasing number of devices that only have variable-latency connections like Bluetooth, modern audio testing needs to be able to handle fully open loop testing. **All** Chirplab measurements are open loop-native, meaning all processing performs automatic chirp response time alingment, even when using soundcard input and output. Some measurements may require a pilot tone for time alignment in the future, but cross correlation time alingment is used now and should be sufficient for the vast majority of analyses.
+
+<br/>
+
 ## Project Status
 Chirplab v0.1 is in an initial "minimally usable" state, supporting file input and output and two basic measurements - Frequency Response and Harmonic Distortion. It will eventually support audio interface (sound card) playback and recording, acoustic/electrical signal level calibration, and several additional measurement types, including equivalent measurements to those that you would expect from commercial audio measurement systems and some entirely unique distortion metrics. See the [roadmap](ROADMAP.md) for a high level list of currently implemented and planned features. Contributions are welcome.
 
