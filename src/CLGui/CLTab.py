@@ -31,5 +31,5 @@ class CLTab(QSplitter): # base widget is a splitter
         self.addWidget(graph_area)
         
         # set initial panel width
-        panel_width = 175 # reasonable initial value on my machine. Panel size/scaling will need a lot of work #DPI
+        panel_width = 200 # todo: reasonable initial value on my machine. Panel size/scaling will need a lot of work #DPI
         self.setSizes([panel_width, self.window().width()-panel_width])
