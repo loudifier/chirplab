@@ -25,7 +25,7 @@ Where most audio measurement tools have some sort of noise floor measurement fea
 ### Comprehensive distortion measurements
 Some standardized metrics for audio distortion measurement exist, but those standards do not comprehensively cover the range of distortion mechanisms and products that audio engineers would like to measure. In practice, "distortion", "THD", "Rub and "Buzz" and other terms are poorly defined. Different measurement systems will yield significantly different results for measurements with the same name and measurement methodologies are usually not communicated clearly with measurement results.
 
-A wide variety of distortion metrics that provide equivalent results from other measurement systems will be added over time, but currently only Harmonic Distortion measurements (equivalent to "THD", "HOHD", "Distortion Product Level", etc.) are supported.
+Chirplab currently only supports Harmonic Distortion measurements (equivalent to "THD", "HOHD", "Distortion Product Level", etc.), but a wide variety of distortion metrics that provide equivalent results from other measurement systems will be added over time.
 
 <br/>
 
