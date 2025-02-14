@@ -76,7 +76,7 @@ def new_project():
     project_file = 'New Project'
 
     global working_directory
-    working_directory = Path(__file__).parent
+    working_directory = str(Path(__file__).parent)
     
     global project
     project = {
