@@ -1,7 +1,9 @@
 # Chirplab
 Chirplab is an audio and acoutics measurement suite based on fast open-loop log-swept sine chirp generation, capture, and analysis.
 
-![Chirplab logo](img/splash.png)
+<picture>
+    <img alt="Chirplab logo" src="img/splash.png">
+</picture>
 
 Chirplab is built on Python, NumPy/SciPy, Qt, and other open source software and is released under the [MIT license](LICENSE)
 

@@ -1,5 +1,7 @@
 # module for sharing globals throughout chirplab
 
+from pathlib import Path
+
 import sys
 IS_BUNDLED = (getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')) # true if Chirplab is being run via pyinstaller bundle
 
@@ -72,6 +74,9 @@ else:
 def new_project():
     global project_file
     project_file = 'New Project'
+
+    global working_directory
+    working_directory = Path(__file__).parent
     
     global project
     project = {

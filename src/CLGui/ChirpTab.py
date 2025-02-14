@@ -241,7 +241,7 @@ class OutputParameters(QCollapsible):
         super().__init__('Output')
 
         self.mode_dropdown = QComboBox()
-        self.addWidget(self.mode_dropdown)
+        #self.addWidget(self.mode_dropdown)
         self.mode_dropdown.addItems(['File','Device'])
         def update_output_mode(index):
             self.output_stack.setCurrentIndex(index)
@@ -440,13 +440,17 @@ class DeviceOutput(QFrame):
 
         layout = QVBoxLayout(self)
 
+        # Host API dropdown
+
+        # Device selection
+
 
 class InputParameters(QCollapsible):
     def __init__(self, chirp_tab):
         super().__init__('Input')
 
         self.mode_dropdown = QComboBox()
-        self.addWidget(self.mode_dropdown)
+        #self.addWidget(self.mode_dropdown)
         self.mode_dropdown.addItems(['File', 'Device'])
         def update_input_mode(index):
             self.input_stack.setCurrentIndex(index)
