@@ -29,8 +29,8 @@ gui_mode = False
 
 # external references
 # should probably be loaded from global config file, handled differently in compiled exe
-bin_dir = 'bin\\' # external binaries called at runtime
-sox_path = bin_dir + 'sox-14.4.2\\sox.exe'
+bin_dir = str(Path(__file__).parent) + '/bin/' # external binaries called at runtime
+sox_path = bin_dir + 'sox-14.4.2/sox.exe'
 sox_dl_url = 'https://sourceforge.net/projects/sox/files/sox/14.4.2/sox-14.4.2-win32.zip/download'
 
 

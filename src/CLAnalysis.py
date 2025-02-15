@@ -7,7 +7,11 @@ from pathlib import Path
 import subprocess
 from scipy.io import wavfile
 import pandas as pd
-from qtpy.QtWidgets import QErrorMessage
+from qtpy.QtWidgets import QErrorMessage, QMessageBox
+import sys
+import requests
+import tempfile
+from zipfile import ZipFile
 
 
 # module with helper functions for chirp analysis, mostly math stuff
@@ -246,3 +250,47 @@ def interpolate(x_input, y_input, x_output, linear=True):
     else:
         return np.interp(np.log(x_output), np.log(x_input), y_input)
     
+def check_sox():
+    if sys.platform == 'win32':
+        # first check of sox is available on the PATH
+        result = subprocess.run(['sox', '-h', '>nul', '2>&1'], shell=True)
+        if result.returncode==0: # sox found on PATH
+            clp.sox_path = 'sox' # just call the version on the PATH
+        else:
+            # sox not found on PATH, check if local copy has been downloaded to default location expected by CLProject
+            if not Path(clp.sox_path).exists():
+                # no local copy has been downloaded, prompt the user to download
+                if clp.gui_mode:
+                    message_box = QMessageBox()
+                    message_box.setWindowTitle('Download SoX?')
+                    message_box.setText('Chirplab requires SoX for audio processing. Would you like to download SoX?')
+                    message_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                    download = message_box.exec() == QMessageBox.Yes
+                else:
+                    response = input('Chirplab requires SoX for audio processing. Would you like to download SoX? [Y/n]\n')
+                    if not response:
+                        response = 'Y'
+                    download = 'Y'.casefold() in response.casefold()
+
+                if download:
+                    try:
+                        print('Downloading SoX from ' + clp.sox_dl_url + '...')
+                        with tempfile.TemporaryFile() as sox_temp:
+                            content = requests.get(clp.sox_dl_url, stream=True).content
+                            sox_temp.write(content)
+                            sox_zip = ZipFile(sox_temp, 'r')
+                            sox_zip.extractall(clp.bin_dir) # creates target folder and/or merges zip contents with target folder contents, no need to check for/create bin folder
+                            # todo: add something to test that sox is working correctly?
+                            #     Sox executable works fine for non-audio commands (--version, etc) even without any of its DLLs
+                    except:
+                        print('error while downloading SoX')
+                        sys.exit()
+                else: # just quit if user doesn't want to download sox
+                    sys.exit()
+
+    else: # assume non-Windows is some standardish unixlike with `which` and/or user will be savvy enough to figure out installing sox on their own
+        clp.sox_path = 'sox'
+        result = subprocess.run(['which', 'sox'])
+        if result.returncode:
+            print('Chirplab requires SoX for audio processing. SoX is usually available via standard sources, e.g. `sudo apt install sox`')
+            sys.exit()

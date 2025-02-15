@@ -137,10 +137,9 @@ class MainWindow(QMainWindow):
                     self.setWindowTitle('Chirplab - ' + Path(clp.project_file).name)
                     self.last_saved_project = deepcopy(clp.project)
                 except PermissionError as ex:
-                    if clp.gui_mode:
-                        error_box = QErrorMessage()
-                        error_box.showMessage('Error writing project file \n' + str(ex))
-                        error_box.exec()
+                    error_box = QErrorMessage()
+                    error_box.showMessage('Error writing project file \n' + str(ex))
+                    error_box.exec()
             return saved
         self.save_project_as = save_project_as
         save_as.triggered.connect(save_project_as)

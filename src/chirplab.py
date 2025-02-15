@@ -2,12 +2,9 @@ import CLProject as clp
 from pyqtgraph.Qt import mkQApp
 from qtpy.QtCore import Qt
 import sys
-from pathlib import Path
-import requests
-import tempfile
-from zipfile import ZipFile 
+from pathlib import Path 
 from CLGui import MainWindow
-from CLAnalysis import generate_stimulus, read_response, save_csv, FormatNotSupportedError
+from CLAnalysis import check_sox, generate_stimulus, read_response, save_csv, FormatNotSupportedError
 import argparse
 import numpy as np
 from CLMeasurements import init_measurements
@@ -25,6 +22,9 @@ def main():
             sys.exit(1)
     else:
         clp.gui_mode = True
+        # initialize main application
+        app = mkQApp() # same as a regular QApplication, but first sets up some environment stuff to handle DPI scaling across multiple monitors
+        app.setAttribute(Qt.ApplicationAttribute.AA_DisableWindowContextHelpButton)
     
     if args.project:
         try:
@@ -70,37 +70,10 @@ def main():
             
     
     # not CLI mode, launch GUI
-    # set up main application window
-    app = mkQApp() # same as a regular QApplication, but first sets up some environment stuff to handle DPI scaling across multiple monitors
-    app.setAttribute(Qt.ApplicationAttribute.AA_DisableWindowContextHelpButton)
-    
     window = MainWindow()
     window.show()
     
     # start main application loop
     app.exec()
  
-        
-    
-def check_sox():
-    # assuming Windows for now (prompt user to `apt-get install sox` on linux), probably needs to be handled differently in compiled .exe
-    if not Path(clp.sox_path).exists(): # pretty unlikely user will already have sox available on PATH, easier to download and use portable version in chirplab folder
-        try:
-            print('SoX not found, downloading from ' + clp.sox_dl_url + '...')
-            with tempfile.TemporaryFile() as sox_temp:
-                content = requests.get(clp.sox_dl_url, stream=True).content
-                sox_temp.write(content)
-                sox_zip = ZipFile(sox_temp, 'r')
-                sox_zip.extractall(clp.bin_dir) # creates target folder and/or merges zip contents with target folder contents, no need to check for/create bin folder
-                # add something to test that sox is working correctly?
-                #     Sox executable works fine for non-audio commands (--version, etc) even without any of its DLLs
-                #     Sox outputs to console weirdly, so capturing and parsing output is annoying
-        except:
-            print('error while downloading SoX')
-            sys.exit()
-       
-    
-    
- 
-    
 main()
