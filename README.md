@@ -1,16 +1,26 @@
 # Chirplab
 Chirplab is an audio and acoutics measurement suite based on fast open-loop log-swept sine chirp generation, capture, and analysis.
 
-<picture>
-    <img alt="Chirplab logo" src="img/splash.png">
-</picture>
+<picture><img alt="Chirplab logo" src="img/splash.png"></picture>
 
 Chirplab is built on Python, NumPy/SciPy, Qt, and other open source software and is released under the [MIT license](LICENSE)
 
 ## Overview
 Chirplab can be used as a standalone GUI for interactively examining measurement data and experimenting with different project parameter settings, or entirely via a command line interface using plaintext project file input and measurement data output. This allows a seamless transision between R&D and automated or manufacturing workflows, and even allows custom Chirplab measurements to be incorporated into other audio test software that can call external programs as part of a measurement sequence. Chirplab is early in development, but will eventually support a wide variety of standard and specialized audio measurements.
 
-<!-- todo: insert screenshots of GUI and CLI -->
+<picture><img alt="GUI stimulus/response tab" src="img/gui_chirp-tab.png"></picture>
+
+<br/>
+
+<picture><img alt="GUI frequency response measurement" src="img/gui_fr.png"></picture>
+
+<br/>
+
+<picture><img alt="GUI THD measurement" src="img/gui_thd.png"></picture>
+
+<br/>
+
+<picture><img alt="command line interface" src="img/cli.png"></picture>
 
 ## Project Goals
 In most respects Chirplab is entirely conventional and all of the processing that it performs is based on DSP literature, readily available research papers, and experimentation to produce measurement outputs that are roughly equivalent to those produced by commercial audio test systems. However, Chirplab has a slightly different focus and has some key capabilities that are not found in any other software

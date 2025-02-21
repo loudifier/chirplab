@@ -62,10 +62,11 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Automatic calibration using a reference tone
     - [ ] General unit conversion function (or class? interface?) in CLAnalysis to convert raw measurement outputs in FS to common units
 - [ ] Pilot tone. Required by some commercial audio software, need to investigate to determine what measurements actually require precise timing that can't be determined by cross correlation
+- [ ] Input and/or output EQ. Similar to multi-channel/multi-file analysis, this is heavily dependant on interface, but with added complications of how filtering is implemented (direct amplitude vs time, FIR filtering, biquad sum-of-sections, how an EQ table is interpolated, etc...)
 
 ## Graphical User Interface
 - [x] Chirp settings, input and output tab
-    - [ ] Break individual parameter sections into their own classes? Probably a good idea to keep things organized before adding hardware IO
+    - [x] Break individual parameter sections into their own classes? Probably a good idea to keep things organized before adding hardware IO
     - [ ] Ability to plot stimulus response against frequency X axis
 - [x] Project file save/load
     - [ ] (As things evolve and breaking changes are made) Implement project version upgrading. At the very least a warning message that project files that don't match the current Chirplab version may fail in interesting ways
@@ -77,6 +78,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
         - [ ] I am not very familiar with screen readers, but I believe Qt should have good support natively
     - [ ] Proper scaling over a wide range of DPI
     - [ ] Speed up plotting, particularly chirp tab updating every time a chirp parameter spinbox is clicked
+    - [ ] Bundle Windows exe in such a way that GUI launches without console window and CLI/GUI both output to stdout. Currently bundled with console showing so error messages and CLI output goes to the console. https://pyinstaller.org/en/stable/feature-notes.html#automatic-hiding-and-minimization-of-console-window-under-windows
 - [ ] Undo/redo - a lot of work with many edge cases that need to be handled, but would be really nice to have
 
 ## Command Line Interface
@@ -95,3 +97,8 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Project file format
     - [ ] Calibration guide (including clear explanation of 3dB RMS vs peak compensation)
     - [ ] Explanations of individual measurements. How they work, what the different parameters do, what the outputs mean, etc.
+- [ ] Testing
+- End-to-end tests of measurement outputs from different input signals, rather than typical TDD-style units tests
+- Ground truth comparisons to other measurement software
+- Synthetic signals that simulate different noise floors, direct harmonics, modeled speaker nonlinearities, etc.
+- Actual acoustic measurements with different speakers and microphones
