@@ -9,7 +9,6 @@ import argparse
 import numpy as np
 from CLMeasurements import init_measurements
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('project', nargs='?', help='path to ChirpLab project file to open or process (required for command-line mode)')
@@ -22,7 +21,21 @@ def main():
             sys.exit(1)
     else:
         clp.gui_mode = True
-        # initialize main application
+
+        if clp.IS_BUNDLED and sys.platform == 'win32': # hide console window when bundled, in GUI mode, on Windows 11, when started by double-clicking
+            # todo: see if there is a way to keep the console window from flashing up (and/or see if https://github.com/pyinstaller/pyinstaller/issues/8022 has been resolved)
+            import ctypes
+            import win32gui
+            kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+            process_array = (ctypes.c_uint8 * 1)()
+            num_processes = kernel32.GetConsoleProcessList(process_array, 1)
+            if num_processes == 1: # parent proccess count *should* be 1 if double-clicked. This may not cover some corner cases, but the worst that would happen is the console is hidden when calling from console or the console is left open when double-clicking the GUI
+                # for some reason you need to set the console window to the foreground and then retrieve it, or else ShowWindow minimizes the window instead of hiding it
+                hWnd = kernel32.GetConsoleWindow()
+                win32gui.SetForegroundWindow(hWnd)
+                hWnd = win32gui.GetForegroundWindow()
+                win32gui.ShowWindow(hWnd, 0) # hide the console window
+        
         app = mkQApp() # same as a regular QApplication, but first sets up some environment stuff to handle DPI scaling across multiple monitors
         app.setAttribute(Qt.ApplicationAttribute.AA_DisableWindowContextHelpButton)
     
