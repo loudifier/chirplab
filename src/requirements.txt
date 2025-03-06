@@ -9,3 +9,4 @@ requests
 pandas
 pathvalidate
 pyyaml
+pyaudio

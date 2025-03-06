@@ -10,7 +10,6 @@ import pandas as pd
 from qtpy.QtWidgets import QErrorMessage, QMessageBox
 import sys
 import requests
-import tempfile
 from zipfile import ZipFile
 
 

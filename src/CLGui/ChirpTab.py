@@ -5,6 +5,7 @@ import numpy as np
 from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QStackedWidget, QVBoxLayout, QSizePolicy
 import pyqtgraph as pg
 from engineering_notation import EngNumber
+import DeviceIO
 
 
 # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
@@ -25,7 +26,6 @@ class ChirpTab(CLTab):
         
         # Output file or audio device section
         self.output_params = OutputParameters(self)
-        #self.output_section = QCollapsible('Output')
         self.panel.addWidget(self.output_params)
 
 
@@ -241,10 +241,11 @@ class OutputParameters(QCollapsible):
         super().__init__('Output')
 
         self.mode_dropdown = QComboBox()
-        #self.addWidget(self.mode_dropdown)
+        self.addWidget(self.mode_dropdown)
         self.mode_dropdown.addItems(['File','Device'])
         def update_output_mode(index):
             self.output_stack.setCurrentIndex(index)
+            self.file_output.refresh()
         self.mode_dropdown.activated.connect(update_output_mode)
         
         self.output_stack = ResizableStackedWidget()
@@ -254,7 +255,7 @@ class OutputParameters(QCollapsible):
         self.output_stack.addWidget(self.file_output)
 
         self.device_output = DeviceOutput(chirp_tab)
-        self.output_stack.addWidget(self.device_output)        
+        self.output_stack.addWidget(self.device_output)
 
 
 class FileOutput(QFrame):
@@ -264,69 +265,69 @@ class FileOutput(QFrame):
         layout = QVBoxLayout(self)
 
         # amplitude - dB/Fs dropdown
-        self.output_amplitude = CLParamNum('Amplitude', clp.project['output']['amplitude'], ['Fs', 'dBFS'], 0, 1.0, 'float')
-        self.output_amplitude.spin_box.setDecimals(5)
-        layout.addWidget(self.output_amplitude)
-        def update_output_amplitude(new_value):
-            if self.output_amplitude.units.currentIndex()==0: # FS
+        self.amplitude = CLParamNum('Amplitude', clp.project['output']['amplitude'], ['Fs', 'dBFS'], 0, 1.0, 'float')
+        self.amplitude.spin_box.setDecimals(5)
+        layout.addWidget(self.amplitude)
+        def update_amplitude(new_value):
+            if self.amplitude.units.currentIndex()==0: # FS
                 clp.project['output']['amplitude'] = new_value
             else: # dBFS
                 clp.project['output']['amplitude'] = 10**(new_value/20)
-        self.output_amplitude.update_callback = update_output_amplitude
-        def update_output_amplitude_units(index):
+        self.amplitude.update_callback = update_amplitude
+        def update_amplitude_units(index):
             if index==0: # FS
-                self.output_amplitude.min = 0
-                self.output_amplitude.max = 1.0
-                self.output_amplitude.spin_box.setStepType(QAbstractSpinBox.StepType.AdaptiveDecimalStepType)
-                self.output_amplitude.set_value(clp.project['output']['amplitude'])
+                self.amplitude.min = 0
+                self.amplitude.max = 1.0
+                self.amplitude.spin_box.setStepType(QAbstractSpinBox.StepType.AdaptiveDecimalStepType)
+                self.amplitude.set_value(clp.project['output']['amplitude'])
             else: # dBFS
-                self.output_amplitude.min = float('-inf')
-                self.output_amplitude.max = 0
-                self.output_amplitude.spin_box.setStepType(QAbstractSpinBox.StepType.DefaultStepType)
-                self.output_amplitude.set_value(20*np.log10(clp.project['output']['amplitude']))
-        self.output_amplitude.units_update_callback = update_output_amplitude_units
+                self.amplitude.min = float('-inf')
+                self.amplitude.max = 0
+                self.amplitude.spin_box.setStepType(QAbstractSpinBox.StepType.DefaultStepType)
+                self.amplitude.set_value(20*np.log10(clp.project['output']['amplitude']))
+        self.amplitude.units_update_callback = update_amplitude_units
             
         # pre padding - s/sample dropdown
-        self.output_pre_sweep = CLParamNum('Pre Sweep', clp.project['output']['pre_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
-        layout.addWidget(self.output_pre_sweep)
-        def update_output_pre_sweep(new_value):
-            if self.output_pre_sweep.units.currentIndex()==0: # sec
+        self.pre_sweep = CLParamNum('Pre Sweep', clp.project['output']['pre_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
+        layout.addWidget(self.pre_sweep)
+        def update_pre_sweep(new_value):
+            if self.pre_sweep.units.currentIndex()==0: # sec
                 clp.project['output']['pre_sweep'] = new_value
             else: # samples
                 clp.project['output']['pre_sweep'] = new_value / clp.project['output']['sample_rate']
             update_output_length()
-        self.output_pre_sweep.update_callback = update_output_pre_sweep
-        def update_output_pre_sweep_units(index):
+        self.pre_sweep.update_callback = update_pre_sweep
+        def update_pre_sweep_units(index):
             if index==0: # sec
-                self.output_pre_sweep.max = clp.MAX_ZERO_PAD
-                self.output_pre_sweep.set_numtype('float')
-                self.output_pre_sweep.set_value(clp.project['output']['pre_sweep'])
+                self.pre_sweep.max = clp.MAX_ZERO_PAD
+                self.pre_sweep.set_numtype('float')
+                self.pre_sweep.set_value(clp.project['output']['pre_sweep'])
             else: # samples
-                self.output_pre_sweep.max = clp.MAX_ZERO_PAD * clp.project['output']['sample_rate']
-                self.output_pre_sweep.set_value(clp.project['output']['pre_sweep'] * clp.project['output']['sample_rate'])
-                self.output_pre_sweep.set_numtype('int')
-        self.output_pre_sweep.units_update_callback = update_output_pre_sweep_units
+                self.pre_sweep.max = clp.MAX_ZERO_PAD * clp.project['output']['sample_rate']
+                self.pre_sweep.set_value(clp.project['output']['pre_sweep'] * clp.project['output']['sample_rate'])
+                self.pre_sweep.set_numtype('int')
+        self.pre_sweep.units_update_callback = update_pre_sweep_units
         
         # post padding - s/sample dropdown
-        self.output_post_sweep = CLParamNum('Post Sweep', clp.project['output']['post_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
-        layout.addWidget(self.output_post_sweep)
-        def update_output_post_sweep(new_value):
-            if self.output_post_sweep.units.currentIndex()==0: # sec
+        self.post_sweep = CLParamNum('Post Sweep', clp.project['output']['post_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
+        layout.addWidget(self.post_sweep)
+        def update_post_sweep(new_value):
+            if self.post_sweep.units.currentIndex()==0: # sec
                 clp.project['output']['post_sweep'] = new_value
             else: # samples
                 clp.project['output']['post_sweep'] = new_value / clp.project['output']['sample_rate']
             update_output_length()
-        self.output_post_sweep.update_callback = update_output_post_sweep
-        def update_output_post_sweep_units(index):
+        self.post_sweep.update_callback = update_post_sweep
+        def update_post_sweep_units(index):
             if index==0: # sec
-                self.output_post_sweep.max = clp.MAX_ZERO_PAD
-                self.output_post_sweep.set_numtype('float')
-                self.output_post_sweep.set_value(clp.project['output']['post_sweep'])
+                self.post_sweep.max = clp.MAX_ZERO_PAD
+                self.post_sweep.set_numtype('float')
+                self.post_sweep.set_value(clp.project['output']['post_sweep'])
             else: # samples
-                self.output_post_sweep.max = clp.MAX_ZERO_PAD * clp.project['output']['sample_rate']
-                self.output_post_sweep.set_value(clp.project['output']['post_sweep'] * clp.project['output']['sample_rate'])
-                self.output_post_sweep.set_numtype('int')
-        self.output_post_sweep.units_update_callback = update_output_post_sweep_units
+                self.post_sweep.max = clp.MAX_ZERO_PAD * clp.project['output']['sample_rate']
+                self.post_sweep.set_value(clp.project['output']['post_sweep'] * clp.project['output']['sample_rate'])
+                self.post_sweep.set_numtype('int')
+        self.post_sweep.units_update_callback = update_post_sweep_units
         
         # include leading silence checkbox
         self.include_silence = QCheckBox('Include leading silence')
@@ -362,33 +363,32 @@ class FileOutput(QFrame):
         self.output_length.units_update_callback = update_output_length_units
         
         # sample rate
-        self.output_sample_rate = CLParamDropdown('Sample Rate', [str(EngNumber(rate)) for rate in clp.STANDARD_SAMPLE_RATES], 'Hz')
-        output_rate_index = self.output_sample_rate.dropdown.findText(str(EngNumber(clp.project['output']['sample_rate'])))
-        if output_rate_index != -1:
-            self.output_sample_rate.dropdown.setCurrentIndex(output_rate_index)
-        layout.addWidget(self.output_sample_rate)
-        def update_output_rate(index):
+        self.sample_rate = CLParamDropdown('Sample Rate', [str(EngNumber(rate)) for rate in clp.STANDARD_SAMPLE_RATES], 'Hz')
+        rate_index = self.sample_rate.dropdown.findText(str(EngNumber(clp.project['output']['sample_rate'])))
+        if rate_index != -1:
+            self.sample_rate.dropdown.setCurrentIndex(rate_index)
+        layout.addWidget(self.sample_rate)
+        def update_sample_rate(index):
             clp.project['output']['sample_rate'] = clp.STANDARD_SAMPLE_RATES[index]
-            update_output_pre_sweep_units(self.output_pre_sweep.units.currentIndex())
-            update_output_post_sweep_units(self.output_post_sweep.units.currentIndex())
+            update_pre_sweep_units(self.pre_sweep.units.currentIndex())
+            update_post_sweep_units(self.post_sweep.units.currentIndex())
             update_output_length()
-        self.output_sample_rate.update_callback = update_output_rate
-            
+        self.sample_rate.update_callback = update_sample_rate
         
         # bit depth (dropdown - 16 int, 24 int, 32 int, 32 float)
-        self.output_bit_depth = CLParamDropdown('Bit Depth', clp.OUTPUT_BIT_DEPTHS, '')
-        output_depth_index = self.output_bit_depth.dropdown.findText(clp.project['output']['bit_depth'])
-        if output_depth_index != -1:
-            self.output_bit_depth.dropdown.setCurrentIndex(output_depth_index)
-        layout.addWidget(self.output_bit_depth)
-        def update_output_depth(index):
+        self.bit_depth = CLParamDropdown('Bit Depth', clp.OUTPUT_BIT_DEPTHS, '')
+        depth_index = self.bit_depth.dropdown.findText(clp.project['output']['bit_depth'])
+        if depth_index != -1:
+            self.bit_depth.dropdown.setCurrentIndex(depth_index)
+        layout.addWidget(self.bit_depth)
+        def update_bit_depth(index):
             clp.project['output']['bit_depth'] = clp.OUTPUT_BIT_DEPTHS[index]
-        self.output_bit_depth.update_callback = update_output_depth
+        self.bit_depth.update_callback = update_bit_depth
         
         # Number of output channels spinbox
-        self.num_output_channels = CLParamNum('Number of channels', clp.project['output']['num_channels'],None, 1, clp.MAX_OUTPUT_CHANNELS, 'int')
-        layout.addWidget(self.num_output_channels)
-        def update_num_output_channels(new_value):
+        self.num_channels = CLParamNum('Number of channels', clp.project['output']['num_channels'],None, 1, clp.MAX_OUTPUT_CHANNELS, 'int')
+        layout.addWidget(self.num_channels)
+        def update_num_channels(new_value):
             clp.project['output']['num_channels'] = new_value
             
             # determine output channel before rebuilding channel dropdown list
@@ -398,24 +398,24 @@ class FileOutput(QFrame):
                 channel_index = clp.project['output']['channel']
             
             # rebuild channel dropdown list (updates trigger callback, which resets output channel to 0/'all')
-            self.output_channel.dropdown.clear()
-            self.output_channel.dropdown.addItem('all')
-            self.output_channel.dropdown.addItems([str(chan) for chan in range(1, clp.project['output']['num_channels']+1)])
+            self.channel.dropdown.clear()
+            self.channel.dropdown.addItem('all')
+            self.channel.dropdown.addItems([str(chan) for chan in range(1, clp.project['output']['num_channels']+1)])
             
             # set correct output channel
-            self.output_channel.dropdown.setCurrentIndex(channel_index)            
-        self.num_output_channels.update_callback = update_num_output_channels
+            self.channel.dropdown.setCurrentIndex(channel_index)            
+        self.num_channels.update_callback = update_num_channels
         
         # output channel dropdown
-        self.output_channel = CLParamDropdown('Output Channel', ['all'])
-        self.output_channel.dropdown.addItems([str(chan) for chan in range(1, clp.project['output']['num_channels']+1)])
-        layout.addWidget(self.output_channel)
-        def update_output_channel(index):
+        self.channel = CLParamDropdown('Output Channel', ['all'])
+        self.channel.dropdown.addItems([str(chan) for chan in range(1, clp.project['output']['num_channels']+1)])
+        layout.addWidget(self.channel)
+        def update_channel(index):
             if index==0:
                 clp.project['output']['channel'] = 'all'
             else:
                 clp.project['output']['channel'] = index
-        self.output_channel.update_callback = update_output_channel
+        self.channel.update_callback = update_channel
         
         # save file button (opens browse window)
         self.output_file_button = QPushButton('Generate Chirp Stimulus File')
@@ -433,16 +433,150 @@ class FileOutput(QFrame):
                 generate_stimulus_file(output_file_path)
         self.output_file_button.clicked.connect(generate_output_file)
 
+    def refresh(self): # call to update output parameters that may have changed elsewhere, like in the DeviceOutput settings
+        self.amplitude.units_update_callback(self.amplitude.units.currentIndex())
 
-class DeviceOutput(QFrame):
+
+class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, but trying to DRY it out introduces a lot of weird coupling. More reliable to keep it separate
     def __init__(self, chirp_tab):
         super().__init__()
 
         layout = QVBoxLayout(self)
+        
+        # button to refresh device list, double check that current selection is valid, etc
+        self.refresh = QPushButton('Refresh Device List')
+        layout.addWidget(self.refresh)
 
         # Host API dropdown
+        self.api = CLParamDropdown('Host API', DeviceIO.HOST_APIS)
+        layout.addWidget(self.api)
 
         # Device selection
+        self.device = CLParamDropdown('Output Device', [''])
+        layout.addWidget(self.device)
+
+        # amplitude - dB/Fs dropdown
+        self.amplitude = CLParamNum('Amplitude', clp.project['output']['amplitude'], ['Fs', 'dBFS'], 0, 1.0, 'float')
+        self.amplitude.spin_box.setDecimals(5)
+        layout.addWidget(self.amplitude)
+        def update_amplitude(new_value):
+            if self.amplitude.units.currentIndex()==0: # FS
+                clp.project['output']['amplitude'] = new_value
+            else: # dBFS
+                clp.project['output']['amplitude'] = 10**(new_value/20)
+        self.amplitude.update_callback = update_amplitude
+        def update_amplitude_units(index):
+            if index==0: # FS
+                self.amplitude.min = 0
+                self.amplitude.max = 1.0
+                self.amplitude.spin_box.setStepType(QAbstractSpinBox.StepType.AdaptiveDecimalStepType)
+                self.amplitude.set_value(clp.project['output']['amplitude'])
+            else: # dBFS
+                self.amplitude.min = float('-inf')
+                self.amplitude.max = 0
+                self.amplitude.spin_box.setStepType(QAbstractSpinBox.StepType.DefaultStepType)
+                self.amplitude.set_value(20*np.log10(clp.project['output']['amplitude']))
+        self.amplitude.units_update_callback = update_amplitude_units
+            
+        # pre padding - s/sample dropdown
+        self.pre_sweep = CLParamNum('Pre Sweep', clp.project['output']['pre_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
+        layout.addWidget(self.pre_sweep)
+        def update_pre_sweep(new_value):
+            if self.pre_sweep.units.currentIndex()==0: # sec
+                clp.project['output']['pre_sweep'] = new_value
+            else: # samples
+                clp.project['output']['pre_sweep'] = new_value / clp.project['output']['sample_rate']
+            update_output_length()
+        self.pre_sweep.update_callback = update_pre_sweep
+        def update_pre_sweep_units(index):
+            if index==0: # sec
+                self.pre_sweep.max = clp.MAX_ZERO_PAD
+                self.pre_sweep.set_numtype('float')
+                self.pre_sweep.set_value(clp.project['output']['pre_sweep'])
+            else: # samples
+                self.pre_sweep.max = clp.MAX_ZERO_PAD * clp.project['output']['sample_rate']
+                self.pre_sweep.set_value(clp.project['output']['pre_sweep'] * clp.project['output']['sample_rate'])
+                self.pre_sweep.set_numtype('int')
+        self.pre_sweep.units_update_callback = update_pre_sweep_units
+        
+        # post padding - s/sample dropdown
+        self.post_sweep = CLParamNum('Post Sweep', clp.project['output']['post_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
+        layout.addWidget(self.post_sweep)
+        def update_post_sweep(new_value):
+            if self.post_sweep.units.currentIndex()==0: # sec
+                clp.project['output']['post_sweep'] = new_value
+            else: # samples
+                clp.project['output']['post_sweep'] = new_value / clp.project['output']['sample_rate']
+            update_output_length()
+        self.post_sweep.update_callback = update_post_sweep
+        def update_post_sweep_units(index):
+            if index==0: # sec
+                self.post_sweep.max = clp.MAX_ZERO_PAD
+                self.post_sweep.set_numtype('float')
+                self.post_sweep.set_value(clp.project['output']['post_sweep'])
+            else: # samples
+                self.post_sweep.max = clp.MAX_ZERO_PAD * clp.project['output']['sample_rate']
+                self.post_sweep.set_value(clp.project['output']['post_sweep'] * clp.project['output']['sample_rate'])
+                self.post_sweep.set_numtype('int')
+        self.post_sweep.units_update_callback = update_post_sweep_units
+        
+        # include leading silence checkbox
+        self.include_silence = QCheckBox('Include leading silence')
+        self.include_silence.setChecked(clp.project['output']['include_silence'])
+        layout.addWidget(self.include_silence)
+        def update_include_silence(checked):
+            clp.project['output']['include_silence'] = bool(checked)
+            update_output_length()
+        self.include_silence.stateChanged.connect(update_include_silence)
+        
+        # total length text box (non-interactive) - s/sample dropdown
+        def calc_output_length(unit='samples'):
+            sig_length = round(clp.project['output']['pre_sweep']*clp.project['output']['sample_rate'])
+            sig_length += round(clp.project['chirp_length']*clp.project['output']['sample_rate'])
+            sig_length += round(clp.project['output']['post_sweep']*clp.project['output']['sample_rate'])
+            if clp.project['output']['include_silence']:
+                sig_length *= 2
+            if unit=='seconds':
+                return sig_length / clp.project['output']['sample_rate']
+            else:
+                return sig_length
+        self.output_length = CLParameter('Total stimulus length', round(calc_output_length('seconds'),2), ['Sec','Samples'])
+        self.output_length.text_box.setEnabled(False)
+        layout.addWidget(self.output_length)
+        def update_output_length():
+            if self.output_length.units.currentIndex()==0:
+                self.output_length.set_value(round(calc_output_length('seconds'),2))
+            else:
+                self.output_length.set_value(calc_output_length('samples'))
+        chirp_tab.update_output_length = update_output_length
+        def update_output_length_units(index):
+            update_output_length()
+        self.output_length.units_update_callback = update_output_length_units
+        
+        # sample rate
+        self.sample_rate = CLParamDropdown('Sample Rate', [str(EngNumber(rate)) for rate in clp.STANDARD_SAMPLE_RATES], 'Hz')
+        rate_index = self.sample_rate.dropdown.findText(str(EngNumber(clp.project['output']['sample_rate'])))
+        if rate_index != -1:
+            self.sample_rate.dropdown.setCurrentIndex(rate_index)
+        layout.addWidget(self.sample_rate)
+        def update_sample_rate(index):
+            clp.project['output']['sample_rate'] = clp.STANDARD_SAMPLE_RATES[index]
+            update_pre_sweep_units(self.pre_sweep.units.currentIndex())
+            update_post_sweep_units(self.post_sweep.units.currentIndex())
+            update_output_length()
+        self.sample_rate.update_callback = update_sample_rate
+
+        # no control over bit depth, always use default format for device
+
+        # output channel
+        self.channel = CLParamDropdown('Output Channel', ['1'])
+        layout.addWidget(self.channel)
+
+        # play button
+        self.play = QPushButton('Play Stimulus')
+        layout.addWidget(self.play)
+        # gray out and change text if current selected device seems to be invalid
+
 
 
 class InputParameters(QCollapsible):
@@ -468,7 +602,7 @@ class InputParameters(QCollapsible):
         self.expand()
 
         
-class FileInput(QFrame):
+class FileInput(QFrame): # todo: clean up object names that are now redundant after separating chirp tab panel into separate classes. e.g. `file_output.output_amplitude` -> `file_output.amplitude`
     def __init__(self, chirp_tab):
         super().__init__()
 
