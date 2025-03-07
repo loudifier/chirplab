@@ -143,7 +143,7 @@ class ChirpParameters(QCollapsible):
         self.analysis_params = QCollapsible('Analysis Parameters')
         self.addWidget(self.analysis_params)
         
-        self.sample_rate = CLParamDropdown('Sample Rate', ['use input rate'], 'Hz')
+        self.sample_rate = CLParamDropdown('Sample Rate', ['use input rate'], 'Hz', editable=True)
         self.sample_rate.dropdown.addItems([str(EngNumber(rate)) for rate in clp.STANDARD_SAMPLE_RATES])
         if not clp.project['use_input_rate']:
             sample_rate_index = self.sample_rate.dropdown.findText(str(EngNumber(clp.project['sample_rate'])))
@@ -151,20 +151,14 @@ class ChirpParameters(QCollapsible):
                 self.sample_rate.dropdown.setCurrentIndex(sample_rate_index)
             else:
                 self.sample_rate.dropdown.setCurrentText(str(EngNumber(clp.project['sample_rate'])))
-        self.sample_rate.dropdown.setEditable(True) # a lot of extra junk added to the UI logic here to allow text entry, might be a good idea to roll some of this into CLParamDropdown
-        self.sample_rate.dropdown.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.sample_rate.last_value = self.sample_rate.dropdown.currentText()
         self.analysis_params.addWidget(self.sample_rate)
-        def update_sample_rate(index=-1, new_rate=None): # fires when text is entered or when an option is selected from the dropdown. Also fires when clicking the arrow to open the dropdown, which is annoying
-            # just clicking the dropdown fires editingFinished(). Ignore if value isn't actually changed to avoid firing multiple times
-            if self.sample_rate.dropdown.currentText() == self.sample_rate.last_value:
-                return
-            
-            # dropdown selection will return selected index, text entry will not call with any parameters. Either way, just use the current text
+        def update_sample_rate(index=-1, new_rate=None): # fires when text is entered or when an option is selected from the dropdown.
+            # index is provided by regular dropdown callback, but is ignored here
+            # new_rate is specified when manually setting the analysis sample rate from code outside of the analysis parameters (i.e. from the input parameters when 'use input rate' is selected)
             if new_rate is None:
-                new_rate = sample_rate_str2num(self.sample_rate.dropdown.currentText())
+                new_rate = sample_rate_str2num(self.sample_rate.value)
             if new_rate:
-                if self.sample_rate.dropdown.currentIndex()==0:
+                if self.sample_rate.dropdown.currentIndex()==0 and 'input' in self.sample_rate.value:
                     clp.project['use_input_rate'] = True
                     if clp.IO['input']['sample_rate']:
                         clp.project['sample_rate'] = clp.IO['input']['sample_rate']
@@ -176,7 +170,6 @@ class ChirpParameters(QCollapsible):
                 chirp_tab.update_stimulus()
         self.sample_rate.update_callback = update_sample_rate
         chirp_tab.update_sample_rate = update_sample_rate
-        self.sample_rate.dropdown.lineEdit().editingFinished.connect(update_sample_rate)
         def sample_rate_str2num(new_value):
             if 'input' in new_value:
                self.sample_rate.last_value = 'use input rate'
@@ -190,7 +183,7 @@ class ChirpParameters(QCollapsible):
             new_rate = round(float(EngNumber(new_value)))
             new_rate = min(max(new_rate, clp.MIN_SAMPLE_RATE), clp.MAX_SAMPLE_RATE)
             self.sample_rate.last_value = str(EngNumber(new_rate))
-            self.sample_rate.dropdown.setCurrentText(str(EngNumber(new_rate)))
+            self.sample_rate.dropdown.setCurrentText(str(EngNumber(new_rate))) # todo: handle corner case where this can fire recalculation when clicking the dropdown after typing in a sample rate 
             return new_rate
         
         # pre sweep - s/sample dropdown

@@ -150,7 +150,7 @@ class CLParamNum(QWidget):
 
 
 class CLParamDropdown(QWidget):
-    def __init__(self, label_text, item_list, unit=None):
+    def __init__(self, label_text, item_list, unit=None, editable=False):
         super().__init__()
         self.layout = QHBoxLayout()
         self.setLayout(self.layout)
@@ -162,10 +162,25 @@ class CLParamDropdown(QWidget):
         self.dropdown.addItems(item_list)
         self.layout.addWidget(self.dropdown)
         
+        self.value = self.dropdown.currentText()
         def indexChanged(index):
+            self.value = self.dropdown.currentText()
             if not self.update_callback is None:
                 self.update_callback(index)
+            self.last_value = self.value
         self.dropdown.currentIndexChanged.connect(indexChanged)
+
+        if editable:
+            self.dropdown.setEditable(True)
+            self.dropdown.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+            self.last_value = self.value
+
+            def editingFinished():
+                # just clicking the dropdown fires editingFinished(). Ignore if value isn't actually changed to avoid firing multiple times
+                if self.dropdown.currentText() == self.last_value:
+                    return
+                indexChanged(-1) # follow the regular update callback with index of -1 to indicate text was edited instead of selecting a dropdown entry
+            self.dropdown.lineEdit().editingFinished.connect(editingFinished)
         
         # Only add a unit label if the unit is specified
         if not unit is None:
