@@ -244,9 +244,14 @@ class OutputParameters(QCollapsible):
         self.addWidget(self.mode_dropdown)
         self.mode_dropdown.addItems(['File','Device'])
         def update_output_mode(index):
+            if index:
+                clp.project['output']['mode'] = 'device'
+                # todo: add device output refresh
+            else:
+                clp.project['output']['mode'] = 'file'
+                self.file_output.refresh()
             self.output_stack.setCurrentIndex(index)
-            self.file_output.refresh()
-        self.mode_dropdown.activated.connect(update_output_mode)
+        self.mode_dropdown.currentIndexChanged.connect(update_output_mode)
         
         self.output_stack = ResizableStackedWidget()
         self.addWidget(self.output_stack)
@@ -256,6 +261,10 @@ class OutputParameters(QCollapsible):
 
         self.device_output = DeviceOutput(chirp_tab)
         self.output_stack.addWidget(self.device_output)
+
+        if clp.project['output']['mode'] == 'device':
+            self.mode_dropdown.setCurrentIndex(1)
+            self.expand()
 
 
 class FileOutput(QFrame):
@@ -437,7 +446,7 @@ class FileOutput(QFrame):
         self.amplitude.units_update_callback(self.amplitude.units.currentIndex())
 
 
-class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, but trying to DRY it out introduces a lot of weird coupling. More reliable to keep it separate
+class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, but trying to DRY it out introduces a lot of weird coupling. Simpler to keep it separate and add refresh() method to sync changes
     def __init__(self, chirp_tab):
         super().__init__()
 
@@ -449,11 +458,19 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
 
         # Host API dropdown
         self.api = CLParamDropdown('Host API', DeviceIO.HOST_APIS)
+        api_index = self.api.dropdown.findText(clp.project['output']['api'])
+        if api_index != -1:
+            self.api.dropdown.setCurrentIndex(api_index)
+        else:
+            clp.project['output']['api'] = self.api.dropdown.currentText()
         layout.addWidget(self.api)
 
         # Device selection
-        self.device = CLParamDropdown('Output Device', [''])
+        self.device = CLParamDropdown('Output Device', DeviceIO.get_device_names('output', clp.project['output']['api']))
         layout.addWidget(self.device)
+        def update_device(index):
+            print(DeviceIO.device_name_to_index(self.device.dropdown.currentText(), clp.project['output']['api']))
+        self.device.update_callback = update_device
 
         # amplitude - dB/Fs dropdown
         self.amplitude = CLParamNum('Amplitude', clp.project['output']['amplitude'], ['Fs', 'dBFS'], 0, 1.0, 'float')

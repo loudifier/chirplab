@@ -104,6 +104,8 @@ def new_project():
             'pre_sweep': 0.5, # silence to include before/after chirp. Only used for stimulus generation, independent from analysis pre/post_sweep
             'post_sweep': 0.5,
             'include_silence': True, # preprend output signal with silence of length pre_sweep + chirp_length + post_sweep for measurement noise floor estimation
+            'device': '', # output sound card device name. If blank or otherwise not found, will change to the default output device for the target host API
+            'api': 'MME', # sound card host API to target. If blank or otherwise not found, will default to the first element in the DeviceIO.HOST_APIS list (i.e. MME on Windows)
             },
         
         # parameters of input file containing recording of chirp response or audio input device to record response
