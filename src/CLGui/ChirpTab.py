@@ -170,21 +170,21 @@ class ChirpParameters(QCollapsible):
                 chirp_tab.update_stimulus()
         self.sample_rate.update_callback = update_sample_rate
         chirp_tab.update_sample_rate = update_sample_rate
-        def sample_rate_str2num(new_value):
-            if 'input' in new_value:
+        def sample_rate_str2num(str_rate):
+            if 'input' in str_rate:
                self.sample_rate.last_value = 'use input rate'
                self.sample_rate.dropdown.setCurrentIndex(0)
                return clp.IO['input']['sample_rate']
             try:
-                EngNumber(new_value) # if the input text can't be construed as a number then revert and return 0
+                EngNumber(str_rate) # if the input text can't be construed as a number then revert and return 0
             except:
                 self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
                 return 0
-            new_rate = round(float(EngNumber(new_value)))
-            new_rate = min(max(new_rate, clp.MIN_SAMPLE_RATE), clp.MAX_SAMPLE_RATE)
-            self.sample_rate.last_value = str(EngNumber(new_rate))
-            self.sample_rate.dropdown.setCurrentText(str(EngNumber(new_rate))) # todo: handle corner case where this can fire recalculation when clicking the dropdown after typing in a sample rate 
-            return new_rate
+            num_rate = round(float(EngNumber(str_rate)))
+            num_rate = min(max(num_rate, clp.MIN_SAMPLE_RATE), clp.MAX_SAMPLE_RATE)
+            self.sample_rate.last_value = str(EngNumber(num_rate))
+            self.sample_rate.dropdown.setCurrentText(str(EngNumber(num_rate))) # todo: handle corner case where this can fire recalculation when clicking the dropdown after typing in a sample rate 
+            return num_rate
         
         # pre sweep - s/sample dropdown
         self.pre_sweep = CLParamNum('Pre Sweep', clp.project['pre_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
@@ -364,17 +364,33 @@ class FileOutput(QFrame):
             update_output_length()
         self.output_length.units_update_callback = update_output_length_units
         
-        # sample rate
-        self.sample_rate = CLParamDropdown('Sample Rate', [str(EngNumber(rate)) for rate in clp.STANDARD_SAMPLE_RATES], 'Hz')
+        # sample rate - sample rate dropdowns are very similar but have subtle differences from each other, probably don't create specific CLSampleRateDropdown
+        self.sample_rate = CLParamDropdown('Sample Rate', [str(EngNumber(rate)) for rate in clp.STANDARD_SAMPLE_RATES], 'Hz', editable=True)
+        def sample_rate_str2num(str_rate):
+            try:
+                EngNumber(str_rate) # if the input text can't be construed as a number return 0
+            except:
+                self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
+                return 0
+            num_rate = round(float(EngNumber(str_rate)))
+            num_rate = min(max(num_rate, clp.MIN_SAMPLE_RATE), clp.MAX_SAMPLE_RATE)
+            return num_rate
+        if not sample_rate_str2num(str(clp.project['output']['sample_rate'])): # check if output rate in project file is valid
+            clp.project['output']['sample_rate'] = 48000 # fall back to 48k
         rate_index = self.sample_rate.dropdown.findText(str(EngNumber(clp.project['output']['sample_rate'])))
-        if rate_index != -1:
+        if rate_index == -1: # project output rate is non-standard
+            self.sample_rate.dropdown.setCurrentText(str(EngNumber(clp.project['output']['sample_rate'])))
+        else:
             self.sample_rate.dropdown.setCurrentIndex(rate_index)
         layout.addWidget(self.sample_rate)
-        def update_sample_rate(index):
-            clp.project['output']['sample_rate'] = clp.STANDARD_SAMPLE_RATES[index]
-            update_pre_sweep_units(self.pre_sweep.units.currentIndex())
-            update_post_sweep_units(self.post_sweep.units.currentIndex())
-            update_output_length()
+        def update_sample_rate(index):  # fires when text is entered or when an option is selected from the dropdown.
+            new_rate = sample_rate_str2num(self.sample_rate.value)
+            if new_rate:
+                self.sample_rate.dropdown.setCurrentText(str(EngNumber(new_rate)))
+                clp.project['output']['sample_rate'] = new_rate
+                update_pre_sweep_units(self.pre_sweep.units.currentIndex())
+                update_post_sweep_units(self.post_sweep.units.currentIndex())
+                update_output_length()
         self.sample_rate.update_callback = update_sample_rate
         
         # bit depth (dropdown - 16 int, 24 int, 32 int, 32 float)
