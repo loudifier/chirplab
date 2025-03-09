@@ -56,6 +56,35 @@ def device_name_to_index(device_name, api_name=''): # API needs to be specified 
         if device['hostApi']==api_index and win2utf8(device['name'])==device_name:
             return i
 
+# todo: verify there are no issues with automatically determining input/output in is_sample_rate_valid and get_valid_standard_sample_rates
+# so far all devices I have seen have either input channels -or- output channels, so input/output can be automatically resolved
+def is_sample_rate_valid(sample_rate, device_name, api_name):
+    device_index = device_name_to_index(device_name, api_name)
+    device = pa.get_device_info_by_index(device_index)
+    if device['maxInputChannels'] > device['maxOutputChannels']:
+        # input device
+        try:
+            return pa.is_format_supported(rate=sample_rate, input_device=device_index, input_channels=device['maxInputChannels'], input_format=pyaudio.paFloat32)
+        except ValueError:
+            return False
+    else:
+        # output device
+        try:
+            return pa.is_format_supported(rate=sample_rate, output_device=device_index, output_channels=device['maxOutputChannels'], output_format=pyaudio.paFloat32)
+        except ValueError:
+            return False
+
+def get_valid_standard_sample_rates(device_name, api_name):
+    valid_rates = []
+    for rate in clp.STANDARD_SAMPLE_RATES:
+        if is_sample_rate_valid(rate, device_name, api_name):
+            valid_rates.append(rate)
+    return valid_rates
+
+def play(out_signal, sample_rate, device_name, api_name):
+    device_index = device_name_to_index(device_name, api_name)
+
+
 capture_frames = []
 def capture_callback(in_data, frame_count, time_info, status):
     capture_frames.append(np.frombuffer(in_data, dtype=np.int16))
@@ -80,3 +109,17 @@ def play_callback(in_data, frame_count, time_info, status):
 
 #plt.plot(np.hstack(capture_frames))
 #plt.show()
+
+
+# run directly to print out APIs and devices for debugging purposes
+if __name__ == '__main__':
+    num_apis = pa.get_host_api_count()
+    api_names = []
+    for i in range(num_apis):
+        print(pa.get_host_api_info_by_index(i))
+
+    print('')
+
+    num_devices = pa.get_device_count()
+    for i in range(num_devices):
+        print(pa.get_device_info_by_index(i))

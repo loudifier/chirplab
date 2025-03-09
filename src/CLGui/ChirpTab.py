@@ -237,26 +237,25 @@ class OutputParameters(QCollapsible):
         self.addWidget(self.mode_dropdown)
         self.mode_dropdown.addItems(['File','Device'])
         def update_output_mode(index):
+            # inelegant to recreate the panel each time the mode is updated, but FileOutput/DeviceOutput both change shared project and actually switching still feels fast in the GUI
             if index:
                 clp.project['output']['mode'] = 'device'
-                # todo: add device output refresh
+                device_output = DeviceOutput(chirp_tab)
+                self.output_stack.addWidget(device_output)
             else:
                 clp.project['output']['mode'] = 'file'
-                self.file_output.refresh()
+                file_output = FileOutput(chirp_tab)
+                self.output_stack.addWidget(file_output)
             self.output_stack.setCurrentIndex(index)
         self.mode_dropdown.currentIndexChanged.connect(update_output_mode)
         
         self.output_stack = ResizableStackedWidget()
         self.addWidget(self.output_stack)
 
-        self.file_output = FileOutput(chirp_tab)
-        self.output_stack.addWidget(self.file_output)
-
-        self.device_output = DeviceOutput(chirp_tab)
-        self.output_stack.addWidget(self.device_output)
-
-        if clp.project['output']['mode'] == 'device':
-            self.mode_dropdown.setCurrentIndex(1)
+        if clp.project['output']['mode'] == 'file':
+            update_output_mode(0)
+        else:
+            update_output_mode(1)
             self.expand()
 
 
@@ -451,11 +450,8 @@ class FileOutput(QFrame):
                 generate_stimulus_file(output_file_path)
         self.output_file_button.clicked.connect(generate_output_file)
 
-    def refresh(self): # call to update output parameters that may have changed elsewhere, like in the DeviceOutput settings
-        self.amplitude.units_update_callback(self.amplitude.units.currentIndex())
 
-
-class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, but trying to DRY it out introduces a lot of weird coupling. Simpler to keep it separate and add refresh() method to sync changes
+class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, but trying to DRY it out introduces a lot of weird coupling. Simpler to keep it separate
     def __init__(self, chirp_tab):
         super().__init__()
 
@@ -476,6 +472,11 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
 
         # Device selection
         self.device = CLParamDropdown('Output Device', DeviceIO.get_device_names('output', clp.project['output']['api']))
+        device_index = self.device.dropdown.findText(clp.project['output']['device'])
+        if device_index != -1:
+            self.device.dropdown.setCurrentIndex(device_index)
+        else:
+            clp.project['output']['device'] = self.device.dropdown.currentText()
         layout.addWidget(self.device)
         def update_device(index):
             print(DeviceIO.device_name_to_index(self.device.dropdown.currentText(), clp.project['output']['api']))
@@ -580,19 +581,43 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         self.output_length.units_update_callback = update_output_length_units
         
         # sample rate
-        self.sample_rate = CLParamDropdown('Sample Rate', [str(EngNumber(rate)) for rate in clp.STANDARD_SAMPLE_RATES], 'Hz')
+        self.sample_rate = CLParamDropdown('Sample Rate', [str(EngNumber(rate)) for rate in DeviceIO.get_valid_standard_sample_rates(clp.project['output']['device'], clp.project['output']['api'])], 'Hz', editable=True)
+        def sample_rate_str2num(str_rate):
+            try:
+                EngNumber(str_rate) # if the input text can't be construed as a number return 0
+            except:
+                self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
+                return 0
+            num_rate = round(float(EngNumber(str_rate)))
+            num_rate = min(max(num_rate, clp.MIN_SAMPLE_RATE), clp.MAX_SAMPLE_RATE)
+            return num_rate
         rate_index = self.sample_rate.dropdown.findText(str(EngNumber(clp.project['output']['sample_rate'])))
-        if rate_index != -1:
+        if rate_index == -1: # project output rate is non-standard
+            if DeviceIO.is_sample_rate_valid(clp.project['output']['sample_rate'],clp.project['output']['device'],clp.project['output']['api']): # sample rate is supported by the output device
+                self.sample_rate.dropdown.setCurrentText(str(EngNumber(clp.project['output']['sample_rate'])))
+            else: # project sample rate is not supported by the device
+                # find the closest supported sample rate to 48k
+                standard_rates = [self.sample_rate.dropdown.itemText(i) for i in range(self.sample_rate.dropdown.count())]
+                deltas = [abs(sample_rate_str2num(standard_rate) - clp.project['output']['sample_rate']) for standard_rate in standard_rates]
+                self.sample_rate.dropdown.setCurrentIndex(deltas.index(min(deltas)))
+                clp.project['output']['sample_rate'] = sample_rate_str2num(self.sample_rate.value)
+        else:
             self.sample_rate.dropdown.setCurrentIndex(rate_index)
         layout.addWidget(self.sample_rate)
-        def update_sample_rate(index):
-            clp.project['output']['sample_rate'] = clp.STANDARD_SAMPLE_RATES[index]
-            update_pre_sweep_units(self.pre_sweep.units.currentIndex())
-            update_post_sweep_units(self.post_sweep.units.currentIndex())
-            update_output_length()
+        def update_sample_rate(index):  # fires when text is entered or when an option is selected from the dropdown.
+            new_rate = sample_rate_str2num(self.sample_rate.value)
+            if new_rate and DeviceIO.is_sample_rate_valid(new_rate, clp.project['output']['device'], clp.project['output']['api']):
+                self.sample_rate.dropdown.setCurrentText(str(EngNumber(new_rate)))
+                clp.project['output']['sample_rate'] = new_rate
+                update_pre_sweep_units(self.pre_sweep.units.currentIndex())
+                update_post_sweep_units(self.post_sweep.units.currentIndex())
+                update_output_length()
+            else:
+                self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
+                self.sample_rate.value = self.sample_rate.last_value
         self.sample_rate.update_callback = update_sample_rate
 
-        # no control over bit depth, always use default format for device
+        # no control over bit depth, use float32 for everything. I suspect PortAudio silently converts formats internally so there isn't any point in even displaying it
 
         # output channel
         self.channel = CLParamDropdown('Output Channel', ['1'])
