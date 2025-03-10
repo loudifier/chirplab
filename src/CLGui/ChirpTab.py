@@ -613,7 +613,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
                     standard_rates = [self.sample_rate.dropdown.itemText(i) for i in range(self.sample_rate.dropdown.count())]
                     deltas = [abs(sample_rate_str2num(standard_rate) - new_rate) for standard_rate in standard_rates]
                     self.sample_rate.dropdown.setCurrentIndex(deltas.index(min(deltas)))
-                    new_rate = sample_rate_str2num(self.sample_rate.value)
+                    new_rate = sample_rate_str2num(self.sample_rate.dropdown.currentText())
                 clp.project['output']['sample_rate'] = new_rate
                 self.sample_rate.value = new_rate # set manually because calling externally with new_rate skips CLParamDropdown callback
                 self.sample_rate.last_value = new_rate
