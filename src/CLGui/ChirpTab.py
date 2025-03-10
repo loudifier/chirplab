@@ -469,17 +469,36 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         else:
             clp.project['output']['api'] = self.api.dropdown.currentText()
         layout.addWidget(self.api)
+        def update_api(index):
+            clp.project['output']['api'] = self.api.dropdown.currentText()
+            
+            self.device.dropdown.blockSignals(True)
+            self.device.dropdown.clear()
+            self.device.dropdown.addItems(DeviceIO.get_device_names('output', clp.project['output']['api']))
+            self.device.dropdown.blockSignals(False)
+            set_device_index(clp.project['output']['device'])
+        self.api.update_callback = update_api
 
         # Device selection
         self.device = CLParamDropdown('Output Device', DeviceIO.get_device_names('output', clp.project['output']['api']))
-        device_index = self.device.dropdown.findText(clp.project['output']['device'])
-        if device_index != -1:
-            self.device.dropdown.setCurrentIndex(device_index)
-        else:
-            clp.project['output']['device'] = self.device.dropdown.currentText()
+        def set_device_index(device_name):
+            index = self.device.dropdown.findText(device_name) # find device name in device list
+            if index == -1: # device name not given or not found, use default device
+                default_device = DeviceIO.get_default_output_device(clp.project['output']['api'])
+                index = self.device.dropdown.findText(default_device)
+            self.device.dropdown.setCurrentIndex(index)
+        set_device_index(clp.project['output']['device'])
+        clp.project['output']['device'] = self.device.dropdown.currentText()
         layout.addWidget(self.device)
         def update_device(index):
-            print(DeviceIO.device_name_to_index(self.device.dropdown.currentText(), clp.project['output']['api']))
+            set_device_index(self.device.dropdown.currentText())
+            clp.project['output']['device'] = self.device.dropdown.currentText()
+
+            self.sample_rate.dropdown.blockSignals(True)
+            self.sample_rate.dropdown.clear()
+            self.sample_rate.dropdown.addItems([str(EngNumber(rate)) for rate in DeviceIO.get_valid_standard_sample_rates(clp.project['output']['device'], clp.project['output']['api'])])
+            update_sample_rate(new_rate=clp.project['output']['sample_rate'])
+            self.sample_rate.dropdown.blockSignals(False)
         self.device.update_callback = update_device
 
         # amplitude - dB/Fs dropdown

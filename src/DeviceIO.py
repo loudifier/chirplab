@@ -55,6 +55,18 @@ def device_name_to_index(device_name, api_name=''): # API needs to be specified 
         device = pa.get_device_info_by_index(i)
         if device['hostApi']==api_index and win2utf8(device['name'])==device_name:
             return i
+        
+def get_default_input_device(api_name=''):
+    if not api_name:
+        return(win2utf8(pa.get_default_input_device_info()['name']))
+    device_index = pa.get_host_api_info_by_index(api_name_to_index(api_name))['defaultInputDevice']
+    return(win2utf8(pa.get_device_info_by_index(device_index)['name']))
+
+def get_default_output_device(api_name=''):
+    if not api_name:
+        return(win2utf8(pa.get_default_output_device_info()['name']))
+    device_index = pa.get_host_api_info_by_index(api_name_to_index(api_name))['defaultOutputDevice']
+    return(win2utf8(pa.get_device_info_by_index(device_index)['name']))
 
 # todo: verify there are no issues with automatically determining input/output in is_sample_rate_valid and get_valid_standard_sample_rates
 # so far all devices I have seen have either input channels -or- output channels, so input/output can be automatically resolved
@@ -123,3 +135,6 @@ if __name__ == '__main__':
     num_devices = pa.get_device_count()
     for i in range(num_devices):
         print(pa.get_device_info_by_index(i))
+
+    print('')
+    print(pa.get_default_host_api_info())
