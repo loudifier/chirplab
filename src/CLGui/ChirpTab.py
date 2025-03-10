@@ -582,6 +582,30 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         
         # sample rate
         self.sample_rate = CLParamDropdown('Sample Rate', [str(EngNumber(rate)) for rate in DeviceIO.get_valid_standard_sample_rates(clp.project['output']['device'], clp.project['output']['api'])], 'Hz', editable=True)
+        layout.addWidget(self.sample_rate)
+        def update_sample_rate(index=-1, new_rate=0):  # fires when text is entered or when an option is selected from the dropdown.
+            if not new_rate:
+                new_rate = sample_rate_str2num(self.sample_rate.value)
+            if new_rate:
+                if DeviceIO.is_sample_rate_valid(new_rate, clp.project['output']['device'], clp.project['output']['api']):
+                    self.sample_rate.dropdown.setCurrentText(str(EngNumber(new_rate)))
+                else:
+                    # find the closest supported sample rate to new_rate
+                    standard_rates = [self.sample_rate.dropdown.itemText(i) for i in range(self.sample_rate.dropdown.count())]
+                    deltas = [abs(sample_rate_str2num(standard_rate) - new_rate) for standard_rate in standard_rates]
+                    self.sample_rate.dropdown.setCurrentIndex(deltas.index(min(deltas)))
+                    new_rate = sample_rate_str2num(self.sample_rate.value)
+                clp.project['output']['sample_rate'] = new_rate
+                self.sample_rate.value = new_rate # set manually because calling externally with new_rate skips CLParamDropdown callback
+                self.sample_rate.last_value = new_rate
+                update_pre_sweep_units(self.pre_sweep.units.currentIndex())
+                update_post_sweep_units(self.post_sweep.units.currentIndex())
+                update_output_length()
+            else:
+                self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
+                self.sample_rate.value = self.sample_rate.last_value
+        self.sample_rate.update_callback = update_sample_rate
+        update_sample_rate(new_rate=clp.project['output']['sample_rate'])
         def sample_rate_str2num(str_rate):
             try:
                 EngNumber(str_rate) # if the input text can't be construed as a number return 0
@@ -591,31 +615,6 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             num_rate = round(float(EngNumber(str_rate)))
             num_rate = min(max(num_rate, clp.MIN_SAMPLE_RATE), clp.MAX_SAMPLE_RATE)
             return num_rate
-        rate_index = self.sample_rate.dropdown.findText(str(EngNumber(clp.project['output']['sample_rate'])))
-        if rate_index == -1: # project output rate is non-standard
-            if DeviceIO.is_sample_rate_valid(clp.project['output']['sample_rate'],clp.project['output']['device'],clp.project['output']['api']): # sample rate is supported by the output device
-                self.sample_rate.dropdown.setCurrentText(str(EngNumber(clp.project['output']['sample_rate'])))
-            else: # project sample rate is not supported by the device
-                # find the closest supported sample rate to 48k
-                standard_rates = [self.sample_rate.dropdown.itemText(i) for i in range(self.sample_rate.dropdown.count())]
-                deltas = [abs(sample_rate_str2num(standard_rate) - clp.project['output']['sample_rate']) for standard_rate in standard_rates]
-                self.sample_rate.dropdown.setCurrentIndex(deltas.index(min(deltas)))
-                clp.project['output']['sample_rate'] = sample_rate_str2num(self.sample_rate.value)
-        else:
-            self.sample_rate.dropdown.setCurrentIndex(rate_index)
-        layout.addWidget(self.sample_rate)
-        def update_sample_rate(index):  # fires when text is entered or when an option is selected from the dropdown.
-            new_rate = sample_rate_str2num(self.sample_rate.value)
-            if new_rate and DeviceIO.is_sample_rate_valid(new_rate, clp.project['output']['device'], clp.project['output']['api']):
-                self.sample_rate.dropdown.setCurrentText(str(EngNumber(new_rate)))
-                clp.project['output']['sample_rate'] = new_rate
-                update_pre_sweep_units(self.pre_sweep.units.currentIndex())
-                update_post_sweep_units(self.post_sweep.units.currentIndex())
-                update_output_length()
-            else:
-                self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
-                self.sample_rate.value = self.sample_rate.last_value
-        self.sample_rate.update_callback = update_sample_rate
 
         # no control over bit depth, use float32 for everything. I suspect PortAudio silently converts formats internally so there isn't any point in even displaying it
 
