@@ -427,12 +427,22 @@ class FileOutput(QFrame):
         self.channel = CLParamDropdown('Output Channel', ['all'])
         self.channel.dropdown.addItems([str(chan) for chan in range(1, clp.project['output']['num_channels']+1)])
         layout.addWidget(self.channel)
-        def update_channel(index):
+        def update_channel(index=-1, channel=None):
+            if index==-1:
+                if channel=='all':
+                    index=0
+                else:
+
+                    if channel > clp.project['output']['num_channels']:
+                        index=0
+                    else:
+                        index=channel
             if index==0:
                 clp.project['output']['channel'] = 'all'
             else:
                 clp.project['output']['channel'] = index
         self.channel.update_callback = update_channel
+        update_channel(clp.project['output']['channel'])
         
         # save file button (opens browse window)
         self.output_file_button = QPushButton('Generate Chirp Stimulus File')
@@ -477,6 +487,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             self.device.dropdown.addItems(DeviceIO.get_device_names('output', clp.project['output']['api']))
             self.device.dropdown.blockSignals(False)
             set_device_index(clp.project['output']['device'])
+            update_device(self.device.dropdown.currentIndex()) # force callback to run in case device name is the same across APIs
         self.api.update_callback = update_api
 
         # Device selection
@@ -489,6 +500,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             self.device.dropdown.setCurrentIndex(index)
         set_device_index(clp.project['output']['device'])
         clp.project['output']['device'] = self.device.dropdown.currentText()
+        clp.project['output']['num_channels'] = DeviceIO.get_device_num_channels(clp.project['output']['device'], clp.project['output']['api'])
         layout.addWidget(self.device)
         def update_device(index):
             set_device_index(self.device.dropdown.currentText())
@@ -499,6 +511,9 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             self.sample_rate.dropdown.addItems([str(EngNumber(rate)) for rate in DeviceIO.get_valid_standard_sample_rates(clp.project['output']['device'], clp.project['output']['api'])])
             update_sample_rate(new_rate=clp.project['output']['sample_rate'])
             self.sample_rate.dropdown.blockSignals(False)
+
+            set_num_channels(DeviceIO.get_device_num_channels(clp.project['output']['device'], clp.project['output']['api']))
+            update_channel(channel=clp.project['output']['channel'])
         self.device.update_callback = update_device
 
         # amplitude - dB/Fs dropdown
@@ -638,8 +653,32 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         # no control over bit depth, use float32 for everything. I suspect PortAudio silently converts formats internally so there isn't any point in even displaying it
 
         # output channel
-        self.channel = CLParamDropdown('Output Channel', ['1'])
+        self.channel = CLParamDropdown('Output Channel', ['all'])
+        def set_num_channels(num_channels):
+            clp.project['output']['num_channels'] = num_channels
+            self.channel.dropdown.blockSignals(True)
+            self.channel.dropdown.clear()
+            self.channel.dropdown.addItem('all')
+            self.channel.dropdown.addItems([str(chan) for chan in range(1, num_channels+1)])
+            self.channel.dropdown.blockSignals(False)
+        set_num_channels(clp.project['output']['num_channels'])
         layout.addWidget(self.channel)
+        def update_channel(index=-1, channel=None):
+            if index==-1:
+                if channel=='all':
+                    index=0
+                else:
+                    if channel > clp.project['output']['num_channels']:
+                        index=0
+                    else:
+                        index=channel
+                self.channel.dropdown.setCurrentIndex(index)
+            if index==0:
+                clp.project['output']['channel'] = 'all'
+            else:
+                clp.project['output']['channel'] = index
+        self.channel.update_callback = update_channel
+        update_channel(channel=clp.project['output']['channel'])
 
         # play button
         self.play = QPushButton('Play Stimulus')

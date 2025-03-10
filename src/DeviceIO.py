@@ -68,7 +68,7 @@ def get_default_output_device(api_name=''):
     device_index = pa.get_host_api_info_by_index(api_name_to_index(api_name))['defaultOutputDevice']
     return(win2utf8(pa.get_device_info_by_index(device_index)['name']))
 
-# todo: verify there are no issues with automatically determining input/output in is_sample_rate_valid and get_valid_standard_sample_rates
+# todo: verify there are no issues with automatically determining input/output in is_sample_rate_valid, get_valid_standard_sample_rates, and get_device_num_channels
 # so far all devices I have seen have either input channels -or- output channels, so input/output can be automatically resolved
 def is_sample_rate_valid(sample_rate, device_name, api_name):
     device_index = device_name_to_index(device_name, api_name)
@@ -92,6 +92,16 @@ def get_valid_standard_sample_rates(device_name, api_name):
         if is_sample_rate_valid(rate, device_name, api_name):
             valid_rates.append(rate)
     return valid_rates
+
+def get_device_num_channels(device_name, api_name):
+    device_index = device_name_to_index(device_name, api_name)
+    device = pa.get_device_info_by_index(device_index)
+    if device['maxInputChannels'] > device['maxOutputChannels']:
+        # input device
+        return device['maxInputChannels']
+    else:
+        # output device
+        return device['maxOutputChannels']
 
 def play(out_signal, sample_rate, device_name, api_name):
     device_index = device_name_to_index(device_name, api_name)
