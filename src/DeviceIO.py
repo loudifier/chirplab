@@ -3,6 +3,7 @@ import CLProject as clp
 import numpy as np
 from time import sleep
 import matplotlib.pyplot as plt
+from CLAnalysis import logchirp
 
 # List of host APIs that are supported. By default only make use of MME and WASAPI
 # MME is the highest-level API, the one used by 99% of programs that don't need to know or care about the actual hardware being used. Limited to 2 channels, worst-case latency, automatic resampling, volume control can't be bypassed, etc.
@@ -104,7 +105,22 @@ def get_device_num_channels(device_name, api_name):
         return device['maxOutputChannels']
 
 def play(out_signal, sample_rate, device_name, api_name):
+    # assumes width of out_signal equals the number of output channels to play back
     device_index = device_name_to_index(device_name, api_name)
+    num_channels = out_signal.shape[1]
+    
+    out_signal = out_signal.astype(np.float32)
+    out_signal = out_signal.ravel()
+
+    chunk_count = 0
+    def callback(in_data, frame_count, time_info, status):
+        nonlocal chunk_count
+        data = out_signal[chunk_count*frame_count*num_channels:chunk_count*frame_count*num_channels+frame_count*num_channels]
+        chunk_count += 1
+        return (data, pyaudio.paContinue)
+
+    stream = pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, output=True, output_device_index=device_index, stream_callback=callback)
+    
 
 
 capture_frames = []
@@ -113,16 +129,15 @@ def capture_callback(in_data, frame_count, time_info, status):
     return (None, pyaudio.paContinue)
 #in_stream = pa.open(rate=48000, channels=1, format=pyaudio.paInt16, input=True, input_device_index=1, stream_callback=capture_callback)
 
-#play_data = np.array(logchirp(100, 20000, 1.0, 48000) * 1, dtype=np.float32)
+play_data = np.array(logchirp(100, 20000, 1.0, 48000) * 1, dtype=np.float32)
 chunk_count = 0
 
 def play_callback(in_data, frame_count, time_info, status):
     global chunk_count
-    #out_data = play_data[chunk_count*frame_count:chunk_count*frame_count+frame_count]
-    #chunk_count += 1
-    #return (out_data, pyaudio.paContinue)
+    out_data = play_data[chunk_count*frame_count:chunk_count*frame_count+frame_count]
+    chunk_count += 1
+    return (out_data, pyaudio.paContinue)
     
-    #return (play_data, pyaudio.paContinue)
 #out_stream = pa.open(rate=48000, channels=1, format=pyaudio.paFloat32, output=True, output_device_index=8, stream_callback=play_callback)#, frames_per_buffer=len(play_data))
 
 #sleep(5)
@@ -146,5 +161,19 @@ if __name__ == '__main__':
     for i in range(num_devices):
         print(pa.get_device_info_by_index(i))
 
-    print('')
-    print(pa.get_default_host_api_info())
+    num_channels = 2
+
+    play_data = np.array(logchirp(100, 20000, 1.0, 48000) * 1, dtype=np.float32)
+    play_data = np.tile(play_data,(num_channels,1)).transpose() # duplicate to two channels
+    play_data = play_data.ravel()
+
+    chunk_count = 0
+    def play_callback(in_data, frame_count, time_info, status):
+        global chunk_count
+        out_data = play_data[chunk_count*frame_count*num_channels:chunk_count*frame_count*num_channels+frame_count*num_channels]
+        chunk_count += 1
+        return (out_data, pyaudio.paContinue)
+        
+    #out_stream = pa.open(rate=48000, channels=num_channels, format=pyaudio.paFloat32, output=True, output_device_index=2, stream_callback=play_callback)#, frames_per_buffer=len(play_data))
+    #sleep(5)
+    #out_stream.close()

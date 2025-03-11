@@ -50,8 +50,8 @@ def generate_stimulus():
         logchirp(clp.project['start_freq'], clp.project['stop_freq'], clp.project['chirp_length'], clp.project['sample_rate']),
         np.zeros(round(clp.project['post_sweep']*clp.project['sample_rate']))])
 
-def generate_stimulus_file(out_path):
-    # generate a stimulus file to play on the DUT using the project output parameters
+def generate_output_stimulus():
+    # generate a multi-channel stimulus signal using the project output parameters
     stimulus = clp.project['output']['amplitude'] * np.concatenate([
         np.zeros(round(clp.project['output']['pre_sweep']*clp.project['output']['sample_rate'])),
         logchirp(clp.project['start_freq'], clp.project['stop_freq'], clp.project['chirp_length'], clp.project['output']['sample_rate']),
@@ -67,6 +67,13 @@ def generate_stimulus_file(out_path):
         stimulus_signal = stimulus
         stimulus = np.zeros((len(stimulus_signal), clp.project['output']['num_channels']))
         stimulus[:, clp.project['output']['channel']-1] = stimulus_signal
+    
+    return stimulus
+
+def generate_stimulus_file(out_path):
+    # generate a stimulus file to play on the DUT using the project output parameters
+    stimulus = generate_output_stimulus()
+
     try:
         write_audio_file(stimulus, out_path, clp.project['output']['sample_rate'], clp.project['output']['bit_depth'])
     except PermissionError as ex:

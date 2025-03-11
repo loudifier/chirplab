@@ -1,6 +1,6 @@
 import CLProject as clp
 from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, QCollapsible, QHSeparator
-from CLAnalysis import generate_stimulus, read_response, generate_stimulus_file, audio_file_info
+from CLAnalysis import generate_stimulus, read_response, generate_output_stimulus, generate_stimulus_file, audio_file_info
 import numpy as np
 from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QStackedWidget, QVBoxLayout, QSizePolicy
 import pyqtgraph as pg
@@ -682,8 +682,12 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
 
         # play button
         self.play = QPushButton('Play Stimulus')
-        layout.addWidget(self.play)
         # gray out and change text if current selected device seems to be invalid
+        layout.addWidget(self.play)
+        def play_stimulus():
+            stimulus = generate_output_stimulus()
+            DeviceIO.play(stimulus, clp.project['output']['sample_rate'], clp.project['output']['device'], clp.project['output']['api'])
+        self.play.clicked.connect(play_stimulus)
 
 
 
