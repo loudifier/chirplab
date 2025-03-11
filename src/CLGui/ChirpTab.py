@@ -727,40 +727,41 @@ class InputParameters(QCollapsible):
         self.expand()
 
         
-class FileInput(QFrame): # todo: clean up object names that are now redundant after separating chirp tab panel into separate classes. e.g. `file_output.output_amplitude` -> `file_output.amplitude`
+class FileInput(QFrame):
     def __init__(self, chirp_tab):
         super().__init__()
 
         layout = QVBoxLayout(self)
 
-        self.input_file = CLParamFile('Input File', clp.project['input']['file'])
-        self.input_file.mime_types = ['audio/wav', 'application/octet-stream']
-        layout.addWidget(self.input_file)
-        def update_input_file(file_path=None):
+        self.file = CLParamFile('Input File', clp.project['input']['file'])
+        self.file.mime_types = ['audio/wav', 'application/octet-stream']
+        layout.addWidget(self.file)
+        def update_file(file_path=None):
+
             if not file_path:
-                file_path = self.input_file.value
+                file_path = self.file.value
             try:
-                input_file_info = audio_file_info(file_path)
+                file_info = audio_file_info(file_path)
                 
                 clp.project['input']['file'] = file_path
                 
-                clp.IO['input']['length_samples'] = input_file_info['length_samples']
-                clp.IO['input']['sample_rate'] = input_file_info['sample_rate']
-                clp.IO['input']['channels'] = input_file_info['channels']
-                clp.IO['input']['numtype'] = input_file_info['numtype']
+                clp.IO['input']['length_samples'] = file_info['length_samples']
+                clp.IO['input']['sample_rate'] = file_info['sample_rate']
+                clp.IO['input']['channels'] = file_info['channels']
+                clp.IO['input']['numtype'] = file_info['numtype']
                 
-                update_input_file_length_units(self.input_length.units.currentIndex())
-                self.input_rate.set_value(str(EngNumber(input_file_info['sample_rate'])))
-                self.num_input_channels.set_value(input_file_info['channels'])
-                update_num_input_channels(input_file_info['channels'])
-                self.input_channel.setEnabled(True)
-                self.input_depth.set_value(input_file_info['numtype'])
+                update_input_length_units(self.input_length.units.currentIndex())
+                self.sample_rate.set_value(str(EngNumber(file_info['sample_rate'])))
+                self.num_channels.set_value(file_info['channels'])
+                update_num_channels(file_info['channels'])
+                self.channel.setEnabled(True)
+                self.bit_depth.set_value(file_info['numtype'])
                 
                 if clp.project['use_input_rate']:
                     if clp.project['sample_rate'] != clp.IO['input']['sample_rate']:
                         chirp_tab.update_sample_rate(new_rate=clp.IO['input']['sample_rate'])
                 
-                self.input_file.text_box.setStyleSheet('')
+                self.file.text_box.setStyleSheet('')
                 
             except FileNotFoundError:
                 clp.IO['input']['length_samples'] = 0
@@ -769,43 +770,43 @@ class FileInput(QFrame): # todo: clean up object names that are now redundant af
                 clp.IO['input']['numtype'] = ''
                 
                 self.input_length.set_value('file not found')
-                self.input_rate.set_value('')
-                self.num_input_channels.set_value('')
-                self.input_channel.setEnabled(False)
-                self.input_depth.set_value('')
+                self.sample_rate.set_value('')
+                self.num_channels.set_value('')
+                self.channel.setEnabled(False)
+                self.bit_depth.set_value('')
                 
-                self.input_file.text_box.setStyleSheet('QLineEdit { background-color: orange; }')
-        chirp_tab.update_input_file = update_input_file
-        self.input_file.update_callback = update_input_file
-        self.update_input_file = update_input_file # make inner function callable as a method
+                self.file.text_box.setStyleSheet('QLineEdit { background-color: orange; }')
+        chirp_tab.update_input_file = update_file
+        self.file.update_callback = update_file
+        self.update_input_file = update_file # make inner function callable as a method
         
         # input length
         self.input_length = CLParameter('Input file length', 0, ['Sec','Samples'])
         self.input_length.text_box.setEnabled(False)
         layout.addWidget(self.input_length)
-        def update_input_file_length_units(index):
+        def update_input_length_units(index):
             if clp.IO['input']['length_samples']:
                 if index: # samples
                     self.input_length.set_value(clp.IO['input']['length_samples'])
                 else: # seconds
                     self.input_length.set_value(round(clp.IO['input']['length_samples'] / clp.IO['input']['sample_rate'],2))
-        self.input_length.units_update_callback = update_input_file_length_units
+        self.input_length.units_update_callback = update_input_length_units
         
         # input sample rate
-        self.input_rate = CLParameter('Sample rate', 0, 'Hz')
-        self.input_rate.text_box.setEnabled(False)
-        layout.addWidget(self.input_rate)
+        self.sample_rate = CLParameter('Sample rate', 0, 'Hz')
+        self.sample_rate.text_box.setEnabled(False)
+        layout.addWidget(self.sample_rate)
         
         # input bit depth
-        self.input_depth = CLParameter('Number format', '')
-        self.input_depth.text_box.setEnabled(False)
-        layout.addWidget(self.input_depth)
+        self.bit_depth = CLParameter('Number format', '')
+        self.bit_depth.text_box.setEnabled(False)
+        layout.addWidget(self.bit_depth)
         
         # number of input channels
-        self.num_input_channels = CLParameter('Number of channels', 0)
-        self.num_input_channels.text_box.setEnabled(False)
-        layout.addWidget(self.num_input_channels)
-        def update_num_input_channels(new_value):
+        self.num_channels = CLParameter('Number of channels', 0)
+        self.num_channels.text_box.setEnabled(False)
+        layout.addWidget(self.num_channels)
+        def update_num_channels(new_value):
             # determine input channel before rebuilding channel dropdown list
             if clp.project['input']['channel']>clp.IO['input']['channels']:
                 channel_index = 0
@@ -814,22 +815,22 @@ class FileInput(QFrame): # todo: clean up object names that are now redundant af
                 channel_index = clp.project['input']['channel'] - 1
             
             # rebuild channel dropdown list (updates trigger callback, which resets output channel to 0/'all')
-            self.input_channel.dropdown.clear()
-            self.input_channel.dropdown.addItems([str(chan) for chan in range(1, clp.IO['input']['channels']+1)])
+            self.channel.dropdown.clear()
+            self.channel.dropdown.addItems([str(chan) for chan in range(1, clp.IO['input']['channels']+1)])
             
             # set correct output channel
-            self.input_channel.dropdown.setCurrentIndex(channel_index)            
-        self.num_input_channels.update_callback = update_num_input_channels
+            self.channel.dropdown.setCurrentIndex(channel_index)            
+        self.num_channels.update_callback = update_num_channels
         
         # input channel dropdown        
-        self.input_channel = CLParamDropdown('Channel', ['1'])
-        layout.addWidget(self.input_channel)
-        def update_input_channel(index):
+        self.channel = CLParamDropdown('Channel', ['1'])
+        layout.addWidget(self.channel)
+        def update_channel(index):
             clp.project['input']['channel'] = index + 1
-        self.input_channel.update_callback = update_input_channel
+        self.channel.update_callback = update_channel
         
         # prepopulate input file info
-        update_input_file(clp.project['input']['file'])
+        update_file(clp.project['input']['file'])
         
         self.analyze_button = QPushButton('Analyze')
         layout.addWidget(self.analyze_button)
