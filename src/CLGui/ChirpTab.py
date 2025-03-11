@@ -6,6 +6,7 @@ from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog
 import pyqtgraph as pg
 from engineering_notation import EngNumber
 import DeviceIO
+from time import sleep, time
 
 
 # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
@@ -470,6 +471,10 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         # button to refresh device list, double check that current selection is valid, etc
         self.refresh = QPushButton('Refresh Device List')
         layout.addWidget(self.refresh)
+        def refresh_devices():
+            DeviceIO.restart_pyaudio()
+            update_api(self.api.dropdown.currentIndex())
+        self.refresh.clicked.connect(refresh_devices)
 
         # Host API dropdown
         self.api = CLParamDropdown('Host API', DeviceIO.HOST_APIS)
@@ -684,10 +689,18 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         self.play = QPushButton('Play Stimulus')
         # gray out and change text if current selected device seems to be invalid
         layout.addWidget(self.play)
+        self.play_start_time = time()
         def play_stimulus():
             stimulus = generate_output_stimulus()
-            DeviceIO.play(stimulus, clp.project['output']['sample_rate'], clp.project['output']['device'], clp.project['output']['api'])
+            DeviceIO.play(stimulus, clp.project['output']['sample_rate'], clp.project['output']['device'], clp.project['output']['api'], active_callback=while_playing, finished_callback=when_play_finished)
+            self.play_start_time = time()
+            self.play.setEnabled(False)
         self.play.clicked.connect(play_stimulus)
+        def while_playing():
+            self.play.setText('Playing: ' + str(round(time()-self.play_start_time, 2)) + ' / ' + self.output_length.value)
+        def when_play_finished():
+            self.play.setText('Play Stimulus')
+            self.play.setEnabled(True)
 
 
 

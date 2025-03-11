@@ -13,6 +13,11 @@ HOST_APIS = ['MME', 'Windows WASAPI'] # todo: update to use standard APIs on Lin
 
 pa = pyaudio.PyAudio() # if you can't open multiple streams with separate APIs, I think you can create a separate instance 
 
+def restart_pyaudio():
+    global pa
+    pa.terminate()
+    pa = pyaudio.PyAudio()
+
 def win2utf8(win_str):
     # convert mangled text incorrectly decoded as Windows-1252 to utf-8
     # handles '®' symbol in device names, probably also '™' and similar symbols
@@ -104,7 +109,7 @@ def get_device_num_channels(device_name, api_name):
         # output device
         return device['maxOutputChannels']
 
-def play(out_signal, sample_rate, device_name, api_name):
+def play(out_signal, sample_rate, device_name, api_name, active_callback=None, finished_callback=None):
     # assumes width of out_signal equals the number of output channels to play back
     device_index = device_name_to_index(device_name, api_name)
     num_channels = out_signal.shape[1]
@@ -113,13 +118,31 @@ def play(out_signal, sample_rate, device_name, api_name):
     out_signal = out_signal.ravel()
 
     chunk_count = 0
-    def callback(in_data, frame_count, time_info, status):
+    last_chunk = False
+    def play_callback(in_data, frame_count, time_info, status):
         nonlocal chunk_count
         data = out_signal[chunk_count*frame_count*num_channels:chunk_count*frame_count*num_channels+frame_count*num_channels]
         chunk_count += 1
+
+        nonlocal last_chunk
+        if last_chunk:
+            if finished_callback is not None:
+                finished_callback()
+            return (data, pyaudio.paComplete)
+
+        if len(data)<(frame_count*num_channels):
+            # pad last frame so the play callback will be called one last time
+            data = np.append(data, np.zeros(frame_count*num_channels - len(data)))
+            last_chunk = True
+
+        if active_callback is not None:
+            active_callback()
+
         return (data, pyaudio.paContinue)
 
-    stream = pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, output=True, output_device_index=device_index, stream_callback=callback)
+    stream = pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, output=True, output_device_index=device_index, stream_callback=play_callback)
+
+
     
 
 
@@ -163,7 +186,7 @@ if __name__ == '__main__':
 
     num_channels = 2
 
-    play_data = np.array(logchirp(100, 20000, 1.0, 48000) * 1, dtype=np.float32)
+    play_data = np.array(logchirp(100, 20000, 1.0, 48000) * 0.01, dtype=np.float32)
     play_data = np.tile(play_data,(num_channels,1)).transpose() # duplicate to two channels
     play_data = play_data.ravel()
 
@@ -174,6 +197,23 @@ if __name__ == '__main__':
         chunk_count += 1
         return (out_data, pyaudio.paContinue)
         
-    #out_stream = pa.open(rate=48000, channels=num_channels, format=pyaudio.paFloat32, output=True, output_device_index=2, stream_callback=play_callback)#, frames_per_buffer=len(play_data))
-    #sleep(5)
-    #out_stream.close()
+    out_stream = pa.open(rate=48000, channels=num_channels, format=pyaudio.paFloat32, output=True, output_device_index=3, stream_callback=play_callback)#, frames_per_buffer=len(play_data))
+    print(out_stream.is_active())
+    print(out_stream.is_stopped())
+    sleep(1)
+    print()
+    print(out_stream.is_active())
+    print(out_stream.is_stopped())
+    sleep(1)
+    print()
+    print(out_stream.is_active())
+    print(out_stream.is_stopped())
+    sleep(1)
+    print()
+    print(out_stream.is_active())
+    print(out_stream.is_stopped())
+    sleep(1)
+    print()
+    print(out_stream.is_active())
+    print(out_stream.is_stopped())
+    out_stream.close()
