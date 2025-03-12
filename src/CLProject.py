@@ -97,7 +97,7 @@ def new_project():
         'output': {
             'mode': 'file', # 'file' or 'device'
             'sample_rate': 48000,
-            'bit_depth': '24 int',
+            'bit_depth': '24 int', # 16/24/32-bit signed integer (e.g. '24 int') or 32-bit floating point ('32 float')
             'num_channels': 1,
             'channel':'all', # which channel chirp stimulus is written to (for files) or output to (for playback devices). 'all' to replicate chirp on every output channel
             'amplitude': 0.5, # amplitude in FS (e.g. 0.5FS = -6dBFS)
@@ -113,6 +113,11 @@ def new_project():
             'mode': 'file',
             'channel': 1, # which channel to use from input file or capture device
             'file': newproj_response_dir + 'new-project_response.wav', # input file path
+            'sample_rate': 48000,
+            'capture_length': 4.0, # length of time to record input, in seconds
+            'use_output_length': True, # automatically update capture_length to the same length as the output stimulus length (chirp_length + output pre_sweep + output post_sweep + leading silence)
+            'device': '',
+            'api': 'MME',
             },
         
         # list of measurements

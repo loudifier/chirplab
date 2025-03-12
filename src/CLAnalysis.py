@@ -155,6 +155,7 @@ def write_audio_file(samples, out_path, sample_rate=48000, depth='24 int'):
             bits = 32
             numtype = 'floating-point'
         case _:
+            print('unrecognized bit depth, using 24-bit int')
             bits = 24
             numtype = 'signed-integer'
                 

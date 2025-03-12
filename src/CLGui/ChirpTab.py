@@ -474,6 +474,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         def refresh_devices():
             DeviceIO.restart_pyaudio()
             update_api(self.api.dropdown.currentIndex())
+            # todo: also refresh input devices
         self.refresh.clicked.connect(refresh_devices)
 
         # Host API dropdown
@@ -703,27 +704,36 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             self.play.setEnabled(True)
 
 
-
 class InputParameters(QCollapsible):
     def __init__(self, chirp_tab):
         super().__init__('Input')
 
         self.mode_dropdown = QComboBox()
-        #self.addWidget(self.mode_dropdown)
+        self.addWidget(self.mode_dropdown)
         self.mode_dropdown.addItems(['File', 'Device'])
         def update_input_mode(index):
+            clp.IO['input']['length_samples'] = 0
+            clp.IO['input']['sample_rate'] = 0
+            clp.IO['input']['channels'] = 0
+            clp.IO['input']['numtype'] = 0
+            if index:
+                clp.project['input']['mode'] = 'device'
+                device_input = DeviceInput(chirp_tab)
+                self.input_stack.addWidget(device_input)
+            else:
+                clp.project['input']['mode'] = 'file'
+                file_input = FileInput(chirp_tab)
+                self.input_stack.addWidget(file_input)
             self.input_stack.setCurrentIndex(index)
-        self.mode_dropdown.activated.connect(update_input_mode)
-
+        self.mode_dropdown.currentIndexChanged.connect(update_input_mode)
+        
         self.input_stack = ResizableStackedWidget()
         self.addWidget(self.input_stack)
 
-        self.file_input = FileInput(chirp_tab)
-        self.input_stack.addWidget(self.file_input)
-
-        self.device_input = DeviceInput(chirp_tab)
-        self.input_stack.addWidget(self.device_input) 
-
+        if clp.project['input']['mode'] == 'file':
+            update_input_mode(0)
+        else:
+            update_input_mode(1)
         self.expand()
 
         
@@ -842,6 +852,181 @@ class DeviceInput(QFrame):
         super().__init__()
 
         layout = QVBoxLayout(self)
+        
+        # button to refresh device list, double check that current selection is valid, etc
+        self.refresh = QPushButton('Refresh Device List')
+        layout.addWidget(self.refresh)
+        def refresh_devices():
+            DeviceIO.restart_pyaudio()
+            update_api(self.api.dropdown.currentIndex())
+            # todo: also refresh output devices
+        self.refresh.clicked.connect(refresh_devices)
+
+        # Host API dropdown
+        self.api = CLParamDropdown('Host API', DeviceIO.HOST_APIS)
+        api_index = self.api.dropdown.findText(clp.project['input']['api'])
+        if api_index != -1:
+            self.api.dropdown.setCurrentIndex(api_index)
+        else:
+            clp.project['input']['api'] = self.api.dropdown.currentText()
+        layout.addWidget(self.api)
+        def update_api(index):
+            clp.project['input']['api'] = self.api.dropdown.currentText()
+            
+            self.device.dropdown.blockSignals(True)
+            self.device.dropdown.clear()
+            self.device.dropdown.addItems(DeviceIO.get_device_names('input', clp.project['input']['api']))
+            self.device.dropdown.blockSignals(False)
+            set_device_index(clp.project['input']['device'])
+            update_device(self.device.dropdown.currentIndex()) # force callback to run in case device name is the same across APIs
+        self.api.update_callback = update_api
+
+        # Device selection
+        self.device = CLParamDropdown('Input Device', DeviceIO.get_device_names('input', clp.project['input']['api']))
+        def set_device_index(device_name):
+            index = self.device.dropdown.findText(device_name) # find device name in device list
+            if index == -1: # device name not given or not found, use default device
+                default_device = DeviceIO.get_default_input_device(clp.project['input']['api'])
+                index = self.device.dropdown.findText(default_device)
+            self.device.dropdown.setCurrentIndex(index)
+        set_device_index(clp.project['input']['device'])
+        clp.project['input']['device'] = self.device.dropdown.currentText()
+        layout.addWidget(self.device)
+        def update_device(index):
+            set_device_index(self.device.dropdown.currentText())
+            clp.project['input']['device'] = self.device.dropdown.currentText()
+
+            self.sample_rate.dropdown.blockSignals(True)
+            self.sample_rate.dropdown.clear()
+            self.sample_rate.dropdown.addItems([str(EngNumber(rate)) for rate in DeviceIO.get_valid_standard_sample_rates(clp.project['input']['device'], clp.project['input']['api'])])
+            update_sample_rate(new_rate=clp.project['input']['sample_rate'])
+            self.sample_rate.dropdown.blockSignals(False)
+
+            set_num_channels(DeviceIO.get_device_num_channels(clp.project['input']['device'], clp.project['input']['api']))
+            update_channel(channel=clp.project['input']['channel'])
+
+            # todo: clear clp.IO['input']?
+        self.device.update_callback = update_device
+        
+        # auto capture length checkbox
+        self.auto_length = QCheckBox('auto')
+        self.auto_length.setChecked(clp.project['input']['use_output_length'])
+        layout.addWidget(self.auto_length)
+        def update_auto_length(checked):
+            clp.project['input']['use_output_length'] = checked
+            self.capture_length.spin_box.setEnabled(not checked)
+            if checked:
+                clp.project['input']['capture_length'] = calc_output_length('seconds')
+                update_capture_length_units(self.capture_length.units.currentIndex())
+        self.auto_length.stateChanged.connect(update_auto_length)
+        def calc_output_length(unit='samples'):
+            sig_length = round(clp.project['output']['pre_sweep']*clp.project['output']['sample_rate'])
+            sig_length += round(clp.project['chirp_length']*clp.project['output']['sample_rate'])
+            sig_length += round(clp.project['output']['post_sweep']*clp.project['output']['sample_rate'])
+            if clp.project['output']['include_silence']:
+                sig_length *= 2
+            if unit=='seconds':
+                return sig_length / clp.project['output']['sample_rate']
+            else:
+                return sig_length
+        
+        # total length spinbox - s/sample dropdown
+        self.capture_length = CLParamNum('Capture length', round(clp.project['input']['capture_length'],2), ['Sec','Samples'], 0, 2*(clp.MAX_CHIRP_LENGTH+2*clp.MAX_ZERO_PAD), 'float')
+        layout.addWidget(self.capture_length)
+        def update_capture_length(new_value):
+            if self.capture_length.units.currentIndex()==1: # seconds
+                new_value = new_value / clp.project['input']['sample_rate']
+            clp.project['input']['capture_length'] = new_value
+        self.capture_length.update_callback = update_capture_length
+        chirp_tab.update_capture_length = update_capture_length
+        def update_capture_length_units(index):
+            if index==0: # seconds
+                self.capture_length.set_numtype('float')
+                self.capture_length.max = 2*(clp.MAX_CHIRP_LENGTH+2*clp.MAX_ZERO_PAD)
+                self.capture_length.set_value(clp.project['input']['capture_length'])
+            else: # samples
+                self.capture_length.max = round(2*(clp.MAX_CHIRP_LENGTH+2*clp.MAX_ZERO_PAD) * clp.project['input']['sample_rate'])
+                self.capture_length.set_numtype('int')
+                self.capture_length.set_value(round(clp.project['input']['capture_length'] * clp.project['input']['sample_rate']))
+        self.capture_length.units_update_callback = update_capture_length_units
+        update_auto_length(clp.project['input']['use_output_length'])
+        
+        # sample rate
+        self.sample_rate = CLParamDropdown('Sample Rate', [str(EngNumber(rate)) for rate in DeviceIO.get_valid_standard_sample_rates(clp.project['input']['device'], clp.project['input']['api'])], 'Hz', editable=True)
+        layout.addWidget(self.sample_rate)
+        def update_sample_rate(index=-1, new_rate=0):  # fires when text is entered or when an option is selected from the dropdown.
+            if not new_rate:
+                new_rate = sample_rate_str2num(self.sample_rate.value)
+            if new_rate:
+                if DeviceIO.is_sample_rate_valid(new_rate, clp.project['input']['device'], clp.project['input']['api']):
+                    self.sample_rate.dropdown.setCurrentText(str(EngNumber(new_rate)))
+                else:
+                    # find the closest supported sample rate to new_rate
+                    standard_rates = [self.sample_rate.dropdown.itemText(i) for i in range(self.sample_rate.dropdown.count())]
+                    deltas = [abs(sample_rate_str2num(standard_rate) - new_rate) for standard_rate in standard_rates]
+                    self.sample_rate.dropdown.setCurrentIndex(deltas.index(min(deltas)))
+                    new_rate = sample_rate_str2num(self.sample_rate.dropdown.currentText())
+                clp.project['input']['sample_rate'] = new_rate
+                self.sample_rate.value = new_rate # set manually because calling externally with new_rate skips CLParamDropdown callback
+                self.sample_rate.last_value = new_rate
+                update_capture_length_units(self.capture_length.units.currentIndex())
+            else:
+                self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
+                self.sample_rate.value = self.sample_rate.last_value
+        self.sample_rate.update_callback = update_sample_rate
+        update_sample_rate(new_rate=clp.project['input']['sample_rate'])
+        def sample_rate_str2num(str_rate):
+            try:
+                EngNumber(str_rate) # if the input text can't be construed as a number return 0
+            except:
+                self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
+                return 0
+            num_rate = round(float(EngNumber(str_rate)))
+            num_rate = min(max(num_rate, clp.MIN_SAMPLE_RATE), clp.MAX_SAMPLE_RATE)
+            return num_rate
+
+        # no control over bit depth, use float32 for everything. I suspect PortAudio silently converts formats internally so there isn't any point in even displaying it
+
+        # input channel
+        self.channel = CLParamDropdown('Input Channel', [str(0)])
+        def set_num_channels(num_channels):
+            clp.IO['input']['channels'] = num_channels
+            self.channel.dropdown.blockSignals(True)
+            self.channel.dropdown.clear()
+            self.channel.dropdown.addItems([str(chan) for chan in range(1, num_channels+1)])
+            self.channel.dropdown.blockSignals(False)
+        set_num_channels(DeviceIO.get_device_num_channels(clp.project['input']['device'], clp.project['input']['api']))
+        layout.addWidget(self.channel)
+        def update_channel(index=-1, channel=None):
+            if index==-1:
+                if channel > clp.IO['input']['channels']:
+                    index=0
+                else:
+                    index=channel-1
+                self.channel.dropdown.setCurrentIndex(index)
+            clp.project['input']['channel'] = index+1
+            # todo: reprocess last capture when changing inputs (make sure changing device clears last capture)
+        self.channel.update_callback = update_channel
+        update_channel(channel=clp.project['input']['channel'])
+
+        # todo: add button to save last capture (possible to add bit depth to file picker dialog?)
+
+        # capture button todo: everything about capture
+        self.play = QPushButton('Capture Response')
+        # gray out and change text if current selected device seems to be invalid
+        layout.addWidget(self.play)
+        self.play_start_time = time()
+        def play_stimulus():
+            stimulus = generate_output_stimulus()
+            DeviceIO.play(stimulus, clp.project['output']['sample_rate'], clp.project['output']['device'], clp.project['output']['api'], active_callback=while_playing, finished_callback=when_play_finished)
+            self.play_start_time = time()
+            self.play.setEnabled(False)
+        self.play.clicked.connect(play_stimulus)
+        def while_playing():
+            self.play.setText('Playing: ' + str(round(time()-self.play_start_time, 2)) + ' / ' + self.output_length.value)
+        def when_play_finished():
+            self.play.setText('Play Stimulus')
+            self.play.setEnabled(True)
 
 
 class ResizableStackedWidget(QStackedWidget):

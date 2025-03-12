@@ -152,21 +152,6 @@ def capture_callback(in_data, frame_count, time_info, status):
     return (None, pyaudio.paContinue)
 #in_stream = pa.open(rate=48000, channels=1, format=pyaudio.paInt16, input=True, input_device_index=1, stream_callback=capture_callback)
 
-play_data = np.array(logchirp(100, 20000, 1.0, 48000) * 1, dtype=np.float32)
-chunk_count = 0
-
-def play_callback(in_data, frame_count, time_info, status):
-    global chunk_count
-    out_data = play_data[chunk_count*frame_count:chunk_count*frame_count+frame_count]
-    chunk_count += 1
-    return (out_data, pyaudio.paContinue)
-    
-#out_stream = pa.open(rate=48000, channels=1, format=pyaudio.paFloat32, output=True, output_device_index=8, stream_callback=play_callback)#, frames_per_buffer=len(play_data))
-
-#sleep(5)
-#in_stream.close()
-#out_stream.close()
-
 #plt.plot(np.hstack(capture_frames))
 #plt.show()
 
@@ -183,37 +168,3 @@ if __name__ == '__main__':
     num_devices = pa.get_device_count()
     for i in range(num_devices):
         print(pa.get_device_info_by_index(i))
-
-    num_channels = 2
-
-    play_data = np.array(logchirp(100, 20000, 1.0, 48000) * 0.01, dtype=np.float32)
-    play_data = np.tile(play_data,(num_channels,1)).transpose() # duplicate to two channels
-    play_data = play_data.ravel()
-
-    chunk_count = 0
-    def play_callback(in_data, frame_count, time_info, status):
-        global chunk_count
-        out_data = play_data[chunk_count*frame_count*num_channels:chunk_count*frame_count*num_channels+frame_count*num_channels]
-        chunk_count += 1
-        return (out_data, pyaudio.paContinue)
-        
-    out_stream = pa.open(rate=48000, channels=num_channels, format=pyaudio.paFloat32, output=True, output_device_index=3, stream_callback=play_callback)#, frames_per_buffer=len(play_data))
-    print(out_stream.is_active())
-    print(out_stream.is_stopped())
-    sleep(1)
-    print()
-    print(out_stream.is_active())
-    print(out_stream.is_stopped())
-    sleep(1)
-    print()
-    print(out_stream.is_active())
-    print(out_stream.is_stopped())
-    sleep(1)
-    print()
-    print(out_stream.is_active())
-    print(out_stream.is_stopped())
-    sleep(1)
-    print()
-    print(out_stream.is_active())
-    print(out_stream.is_stopped())
-    out_stream.close()
