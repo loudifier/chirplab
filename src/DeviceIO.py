@@ -1,9 +1,6 @@
 import pyaudio
 import CLProject as clp
 import numpy as np
-from time import sleep
-import matplotlib.pyplot as plt
-from CLAnalysis import logchirp
 
 # List of host APIs that are supported. By default only make use of MME and WASAPI
 # MME is the highest-level API, the one used by 99% of programs that don't need to know or care about the actual hardware being used. Limited to 2 channels, worst-case latency, automatic resampling, volume control can't be bypassed, etc.
@@ -142,18 +139,27 @@ def play(out_signal, sample_rate, device_name, api_name, active_callback=None, f
 
     stream = pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, output=True, output_device_index=device_index, stream_callback=play_callback)
 
-
+def record(record_length_samples, sample_rate, device_name, api_name, active_callback=None, finished_callback=None):
+    device_index = device_name_to_index(device_name, api_name)
+    num_channels = pa.get_device_info_by_index(device_index)['maxInputChannels']
     
+    record_frames = []
 
+    def record_callback(in_data, frame_count, time_info, status):
+        if len(record_frames)*frame_count < record_length_samples:
+            record_frames.append(np.frombuffer(in_data, dtype=np.float32)) # todo: append() in a loop is usually a faux pas. Run some experiments with pre-allocating and/or doing things directly with numpy instead of lists
 
-capture_frames = []
-def capture_callback(in_data, frame_count, time_info, status):
-    capture_frames.append(np.frombuffer(in_data, dtype=np.int16))
-    return (None, pyaudio.paContinue)
-#in_stream = pa.open(rate=48000, channels=1, format=pyaudio.paInt16, input=True, input_device_index=1, stream_callback=capture_callback)
+            if active_callback is not None:
+                active_callback()
+            
+            return (None, pyaudio.paContinue)
+        
+        else:
+            if finished_callback is not None:
+                finished_callback(np.hstack(record_frames).reshape(-1 , num_channels)) # is there a more direct way to asynchronously output data? Returning record_frames ends the recording early and waiting for the recording to finish blocks GUI thread
+            return (None, pyaudio.paComplete)
 
-#plt.plot(np.hstack(capture_frames))
-#plt.show()
+    stream = pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, input=True, input_device_index=device_index, stream_callback=record_callback)
 
 
 # run directly to print out APIs and devices for debugging purposes
