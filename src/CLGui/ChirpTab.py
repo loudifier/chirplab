@@ -1,8 +1,9 @@
 import CLProject as clp
 from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, QCollapsible, QHSeparator
-from CLAnalysis import generate_stimulus, read_response, generate_output_stimulus, generate_stimulus_file, audio_file_info
+from CLAnalysis import generate_stimulus, read_audio_file, read_response, generate_output_stimulus, generate_stimulus_file, audio_file_info
 import numpy as np
 from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QStackedWidget, QVBoxLayout, QSizePolicy
+from qtpy.QtCore import Signal, Slot
 import pyqtgraph as pg
 from engineering_notation import EngNumber
 import DeviceIO
@@ -47,12 +48,12 @@ class ChirpTab(CLTab):
         
         
     def analyze(self):
-        # first, check if input file is valid
-        self.update_input_file()
+        # first, verify input file is valid
+        #self.update_input_file()
         
-        # if input file was found read it in, otherwise blank out response
+        # if input signal was found read it in, otherwise blank out response
         if clp.IO['input']['length_samples']:
-            read_response() # reads in raw response, gets desired channel, and puts segment containing chirp in clp.signals['stimulus']
+            read_response() # reads in raw response, resamples if necessary, gets desired channel, trims/aligns, and puts segment containing response chirp in clp.signals['response'] (and noise sample in clp.signals['noise'])
         else:
             clp.signals['response'] = np.zeros(len(clp.signals['stimulus']))
             clp.signals['noise'] = []
@@ -695,7 +696,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             stimulus = generate_output_stimulus()
             DeviceIO.play(stimulus, clp.project['output']['sample_rate'], clp.project['output']['device'], clp.project['output']['api'], active_callback=while_playing, finished_callback=when_play_finished)
             self.play_start_time = time()
-            self.play.setEnabled(False)
+            self.play.setEnabled(False) # todo: disable all output parameters
         self.play.clicked.connect(play_stimulus)
         def while_playing():
             self.play.setText('Playing: ' + str(round(time()-self.play_start_time, 2)) + ' / ' + self.output_length.value)
@@ -719,6 +720,7 @@ class InputParameters(QCollapsible):
             if index:
                 clp.project['input']['mode'] = 'device'
                 device_input = DeviceInput(chirp_tab)
+                device_input.capture_finished_signal.connect(device_input.when_capture_finished)
                 self.input_stack.addWidget(device_input)
             else:
                 clp.project['input']['mode'] = 'file'
@@ -751,10 +753,13 @@ class FileInput(QFrame):
             if not file_path:
                 file_path = self.file.value
             try:
-                file_info = audio_file_info(file_path)
-                
                 clp.project['input']['file'] = file_path
-                
+
+                # read input file to signals
+                clp.signals['raw_response'] = read_audio_file(file_path)
+
+                file_info = audio_file_info(file_path)
+
                 clp.IO['input']['length_samples'] = file_info['length_samples']
                 clp.IO['input']['sample_rate'] = file_info['sample_rate']
                 clp.IO['input']['channels'] = file_info['channels']
@@ -786,7 +791,7 @@ class FileInput(QFrame):
                 self.bit_depth.set_value('')
                 
                 self.file.text_box.setStyleSheet('QLineEdit { background-color: orange; }')
-        chirp_tab.update_input_file = update_file
+        #chirp_tab.update_input_file = update_file
         self.file.update_callback = update_file
         self.update_input_file = update_file # make inner function callable as a method
         
@@ -905,7 +910,6 @@ class DeviceInput(QFrame):
             set_num_channels(DeviceIO.get_device_num_channels(clp.project['input']['device'], clp.project['input']['api']))
             update_channel(channel=clp.project['input']['channel'])
 
-            # todo: clear clp.IO['input']?
         self.device.update_callback = update_device
         
         # auto capture length checkbox
@@ -1011,22 +1015,41 @@ class DeviceInput(QFrame):
 
         # todo: add button to save last capture (possible to add bit depth to file picker dialog?)
 
-        # capture button todo: everything about capture
-        self.play = QPushButton('Capture Response')
+        # capture button - todo: is "record" or "acquire" more intuitive?
+        self.capture = QPushButton('Capture Response')
         # gray out and change text if current selected device seems to be invalid
-        layout.addWidget(self.play)
-        self.play_start_time = time()
-        def play_stimulus():
-            stimulus = generate_output_stimulus()
-            DeviceIO.play(stimulus, clp.project['output']['sample_rate'], clp.project['output']['device'], clp.project['output']['api'], active_callback=while_playing, finished_callback=when_play_finished)
-            self.play_start_time = time()
-            self.play.setEnabled(False)
-        self.play.clicked.connect(play_stimulus)
-        def while_playing():
-            self.play.setText('Playing: ' + str(round(time()-self.play_start_time, 2)) + ' / ' + self.output_length.value)
-        def when_play_finished():
-            self.play.setText('Play Stimulus')
-            self.play.setEnabled(True)
+        layout.addWidget(self.capture)
+        self.capture_start_time = time()
+        def capture_response():
+            DeviceIO.record(round(clp.project['input']['capture_length']*clp.project['input']['sample_rate']), clp.project['input']['sample_rate'], clp.project['input']['device'], clp.project['input']['api'], active_callback=while_capturing, finished_callback=self.capture_finished_signal)
+            self.capture_start_time = time()
+            self.capture.setEnabled(False) # todo: disable all input parameters
+        self.capture.clicked.connect(capture_response)
+        def while_capturing():
+            self.capture.setText('Capturing: ' + str(round(time()-self.capture_start_time, 2)) + ' / ' + str(self.capture_length.value))
+        self.capture_finished_signal = Signal(np.ndarray)
+        @Slot(np.ndarray)
+        def when_capture_finished(captured_response):
+            print(1)
+            self.capture.setText('Capture Response')
+            print(2)
+            self.capture.setEnabled(True)
+            print(3)
+            clp.IO['length_samples'] = len(captured_response)
+            clp.IO['sample_rate'] = clp.project['input']['sample_rate'] # todo: handle corner case where input sample rate changes while capturing. Probably just disable all input controls while capturing
+            clp.IO['channels'] = np.shape(captured_response)[1]
+            clp.IO['numtype'] = '32 float'
+            print(4)
+            clp.signals['raw_response'] = captured_response
+            print(5)
+            if clp.project['use_input_rate']:
+                    if clp.project['sample_rate'] != clp.IO['input']['sample_rate']:
+                        chirp_tab.update_sample_rate(new_rate=clp.IO['input']['sample_rate'])
+            print(6)
+            chirp_tab.analyze()
+            print(7)
+        self.when_capture_finished = when_capture_finished
+        
 
 
 class ResizableStackedWidget(QStackedWidget):

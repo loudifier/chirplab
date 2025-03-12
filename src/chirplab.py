@@ -4,7 +4,7 @@ from qtpy.QtCore import Qt
 import sys
 from pathlib import Path 
 from CLGui import MainWindow
-from CLAnalysis import check_sox, generate_stimulus, read_response, save_csv, FormatNotSupportedError
+from CLAnalysis import check_sox, read_audio_file, audio_file_info, generate_stimulus, read_response, save_csv, FormatNotSupportedError
 import argparse
 import numpy as np
 from CLMeasurements import init_measurements
@@ -65,14 +65,18 @@ def main():
         # get stimulus and response signals
         generate_stimulus()
         try:
+            clp.signals['raw_response'] = read_audio_file(clp.project['input']['file'])
+
+            file_info = audio_file_info(clp.project['input']['file'])
+            clp.IO['input']['length_samples'] = file_info['length_samples']
+            clp.IO['input']['sample_rate'] = file_info['sample_rate']
+            clp.IO['input']['channels'] = file_info['channels']
+            clp.IO['input']['numtype'] = file_info['numtype']
+
             read_response()
         except (FileNotFoundError, FormatNotSupportedError) as e:
             print(e)
-            if not clp.gui_mode:
-                sys.exit(1)
-            else:
-                clp.signals['response'] = np.zeros(len(clp.signals['stimulus']))
-                clp.signals['noise'] = []
+            sys.exit(1)
         for measurement in clp.measurements:
             measurement.measure()
             save_csv(measurement, '', Path(args.project).parent)

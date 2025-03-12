@@ -85,20 +85,21 @@ def generate_stimulus_file(out_path):
     
 
 def read_response():
-    # will need to be reworked when adding audio device in/out
+    # get the desired channel from the input signal, locate the chirp in the signal, and trim/pad to time align with the reference stimulus
+    # assumes input signal is already captured/loaded into clp.signals['raw_response'] and clp.signals['stimulus'] has been generated
     
-    # read input file
-    if clp.project['use_input_rate']:
-        sample_rate = 0
-    else:
-        sample_rate = clp.project['sample_rate']
-    clp.signals['raw_response'] = read_audio_file(clp.project['input']['file'], sample_rate)
-    
-    #  get only the desired channel
+    # get only the desired channel
     if clp.signals['raw_response'].ndim > 1: # multiple channels in input file
         response = clp.signals['raw_response'][:,clp.project['input']['channel']-1]
     else:
         response = clp.signals['raw_response']
+
+    # resample input if necessary
+    if clp.project['sample_rate'] != clp.IO['input']['sample_rate']:
+        if clp.project['use_input_rate']:
+            clp.project['sample_rate'] = clp.IO['input']['sample_rate'] # this should handle CLI settings, GUI should always update itself so sample rate display matches input rate
+        else:
+            response = resample(response, clp.IO['input']['sample_rate'], clp.project['sample_rate'])
         
     # determine the position of the captured chirp in the response signal
     response_delay = find_offset(response, clp.signals['stimulus'])
@@ -172,6 +173,25 @@ def write_audio_file(samples, out_path, sample_rate=48000, depth='24 int'):
                 # for writing a file with sox, assume the problem is a permissions error
                 soxerr = e.read()
                 raise PermissionError(soxerr)
+
+def resample(input_signal, input_sample_rate, output_sample_rate):
+    # resample using sox, essentially the same process as write_audio_file and read_audio_file smashed together
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir: # add delete=False if needed for debugging. ignore_cleanup_errors requires python 3.10+
+        temp_wav = Path(temp_dir) / 'input.wav'
+        wavfile.write(temp_wav, input_sample_rate, input_signal)
+
+        resampled_wav = Path(temp_dir) / 'resampled.wav'
+        result = subprocess.run([clp.sox_path, str(temp_wav), '-b', '32', '-e', 'floating-point', '-r', str(output_sample_rate), str(resampled_wav), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
+        sox_out = (Path(temp_dir) / 'soxerr.txt').read_text()
+        if result.returncode:
+            if 'No such file' in sox_out:
+                raise FileNotFoundError(sox_out)
+            if 'no handler' in sox_out:
+                raise FormatNotSupportedError(sox_out)
+            raise Exception(sox_out)
+        
+        rate, samples = wavfile.read(str(resampled_wav))
+        return samples
 
 def audio_file_info(file_path):
     # read audio file header using sox
