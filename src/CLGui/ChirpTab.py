@@ -239,20 +239,24 @@ class OutputParameters(QCollapsible):
         self.addWidget(self.mode_dropdown)
         self.mode_dropdown.addItems(['File','Device'])
         def update_output_mode(index):
-            # inelegant to recreate the panel each time the mode is updated, but FileOutput/DeviceOutput both change shared project and actually switching still feels fast in the GUI
+            # inelegant to recreate the panel each time the mode is updated, but FileOutput/DeviceOutput both change shared clp.project and actually switching still feels fast in the GUI
+            # todo: check for weird memory leaks or corner cases with .replaceWidget() and .close(). Searching for anything related to replacing/deleting widgets seems to show a lot of different approaches with differing results
+            current_widget = self.output_frame.layout().itemAt(0).widget()
             if index:
                 clp.project['output']['mode'] = 'device'
-                device_output = DeviceOutput(chirp_tab)
-                self.output_stack.addWidget(device_output)
+                self.device_output = DeviceOutput(chirp_tab)
+                self.output_frame.layout().replaceWidget(current_widget, self.device_output)
             else:
                 clp.project['output']['mode'] = 'file'
-                file_output = FileOutput(chirp_tab)
-                self.output_stack.addWidget(file_output)
-            self.output_stack.setCurrentIndex(index)
+                self.file_output = FileOutput(chirp_tab)
+                self.output_frame.layout().replaceWidget(current_widget, self.file_output)
+            current_widget.close()
         self.mode_dropdown.currentIndexChanged.connect(update_output_mode)
         
-        self.output_stack = ResizableStackedWidget()
-        self.addWidget(self.output_stack)
+        self.output_frame = QFrame()
+        QVBoxLayout(self.output_frame)
+        self.output_frame.layout().addWidget(QFrame())
+        self.addWidget(self.output_frame)
 
         if clp.project['output']['mode'] == 'file':
             update_output_mode(0)
@@ -696,13 +700,18 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             stimulus = generate_output_stimulus()
             DeviceIO.play(stimulus, clp.project['output']['sample_rate'], clp.project['output']['device'], clp.project['output']['api'], active_callback=while_playing, finished_callback=when_play_finished)
             self.play_start_time = time()
-            self.play.setEnabled(False) # todo: disable all output parameters
+            chirp_tab.output_params.setEnabled(False)
+            if clp.project['input']['mode'] == 'device':
+                chirp_tab.input_params.setEnabled(False)
         self.play.clicked.connect(play_stimulus)
+        self.play_stimulus = play_stimulus
         def while_playing():
             self.play.setText('Playing: ' + str(round(time()-self.play_start_time, 2)) + ' / ' + self.output_length.value)
         def when_play_finished():
             self.play.setText('Play Stimulus')
-            self.play.setEnabled(True)
+            chirp_tab.output_params.setEnabled(True)
+            if clp.project['input']['mode'] == 'device':
+                chirp_tab.input_params.setEnabled(True)
 
 
 class InputParameters(QCollapsible):
@@ -717,19 +726,23 @@ class InputParameters(QCollapsible):
             clp.IO['input']['sample_rate'] = 0
             clp.IO['input']['channels'] = 0
             clp.IO['input']['numtype'] = 0
+            
+            current_widget = self.input_frame.layout().itemAt(0).widget()
             if index:
                 clp.project['input']['mode'] = 'device'
-                device_input = DeviceInput(chirp_tab)
-                self.input_stack.addWidget(device_input)
+                self.device_input = DeviceInput(chirp_tab)
+                self.input_frame.layout().replaceWidget(current_widget, self.device_input)
             else:
                 clp.project['input']['mode'] = 'file'
-                file_input = FileInput(chirp_tab)
-                self.input_stack.addWidget(file_input)
-            self.input_stack.setCurrentIndex(index)
+                self.file_input = FileInput(chirp_tab)
+                self.input_frame.layout().replaceWidget(current_widget, self.file_input)
+            current_widget.close()
         self.mode_dropdown.currentIndexChanged.connect(update_input_mode)
-        
-        self.input_stack = ResizableStackedWidget()
-        self.addWidget(self.input_stack)
+
+        self.input_frame = QFrame()
+        QVBoxLayout(self.input_frame)
+        self.input_frame.layout().addWidget(QFrame())
+        self.addWidget(self.input_frame)
 
         if clp.project['input']['mode'] == 'file':
             update_input_mode(0)
@@ -1015,23 +1028,35 @@ class DeviceInput(QFrame):
         # todo: add button to save last capture (possible to add bit depth to file picker dialog?)
 
         # capture button - todo: is "record" or "acquire" more intuitive?
-        self.capture = QPushButton('Capture Response')
+        if clp.project['output']['mode'] == 'device':
+            button_text = 'Play and Capture'
+        else:
+            button_text = 'Capture Response'
+        self.capture = QPushButton(button_text)
+        
         # gray out and change text if current selected device seems to be invalid
         layout.addWidget(self.capture)
         self.capture_start_time = time()
         def capture_response():
             DeviceIO.record(round(clp.project['input']['capture_length']*clp.project['input']['sample_rate']), clp.project['input']['sample_rate'], clp.project['input']['device'], clp.project['input']['api'], active_callback=while_capturing, finished_callback=capture_receiver.capture_finished.emit)
             self.capture_start_time = time()
-            self.capture.setEnabled(False) # todo: disable all input parameters
+            chirp_tab.input_params.setEnabled(False)
+            if clp.project['output']['mode'] == 'device':
+                chirp_tab.output_params.device_output.play_stimulus()
         self.capture.clicked.connect(capture_response)
         def while_capturing():
             self.capture.setText('Capturing: ' + str(round(time()-self.capture_start_time, 2)) + ' / ' + str(self.capture_length.value))
         
         @Slot(np.ndarray)
         def when_capture_finished(captured_response):
-            self.capture.setText('Capture Response')
+            if clp.project['output']['mode'] == 'device':
+                self.capture.setText('Play and Capture')
+            else:
+                self.capture.setText('Capture Response')
 
-            self.capture.setEnabled(True)
+            chirp_tab.input_params.setEnabled(True) # todo: handle corner cases where capture length is significantly shorter than stimulus length
+            if clp.project['output']['mode'] == 'device':
+                chirp_tab.output_params.setEnabled(True)
 
             clp.IO['input']['length_samples'] = len(captured_response)
             clp.IO['input']['sample_rate'] = clp.project['input']['sample_rate'] # todo: handle corner case where input sample rate changes while capturing. Probably just disable all input controls while capturing
@@ -1052,25 +1077,3 @@ class DeviceInput(QFrame):
         capture_receiver = CaptureReceiver()
         capture_receiver.capture_finished.connect(when_capture_finished)
         
-        
-
-
-class ResizableStackedWidget(QStackedWidget):
-    def __init__(self):
-        super().__init__()
-
-        def onCurrentChanged(current_index):
-            for i in range(self.count()):
-                if i==current_index:
-                    self.widget(i).setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-                else:
-                    self.widget(i).setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
-                self.widget(i).adjustSize()
-            self.adjustSize()
-        self.currentChanged.connect(onCurrentChanged)
-
-    def addWidget(self, widget):
-        widget.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
-        super().addWidget(widget)
-
-    
