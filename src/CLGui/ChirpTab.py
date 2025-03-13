@@ -3,7 +3,7 @@ from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, 
 from CLAnalysis import generate_stimulus, read_audio_file, read_response, generate_output_stimulus, generate_stimulus_file, audio_file_info
 import numpy as np
 from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QStackedWidget, QVBoxLayout, QSizePolicy
-from qtpy.QtCore import Signal, Slot
+from qtpy.QtCore import Signal, Slot, QObject
 import pyqtgraph as pg
 from engineering_notation import EngNumber
 import DeviceIO
@@ -720,7 +720,6 @@ class InputParameters(QCollapsible):
             if index:
                 clp.project['input']['mode'] = 'device'
                 device_input = DeviceInput(chirp_tab)
-                device_input.capture_finished_signal.connect(device_input.when_capture_finished)
                 self.input_stack.addWidget(device_input)
             else:
                 clp.project['input']['mode'] = 'file'
@@ -1021,34 +1020,38 @@ class DeviceInput(QFrame):
         layout.addWidget(self.capture)
         self.capture_start_time = time()
         def capture_response():
-            DeviceIO.record(round(clp.project['input']['capture_length']*clp.project['input']['sample_rate']), clp.project['input']['sample_rate'], clp.project['input']['device'], clp.project['input']['api'], active_callback=while_capturing, finished_callback=self.capture_finished_signal)
+            DeviceIO.record(round(clp.project['input']['capture_length']*clp.project['input']['sample_rate']), clp.project['input']['sample_rate'], clp.project['input']['device'], clp.project['input']['api'], active_callback=while_capturing, finished_callback=capture_receiver.capture_finished.emit)
             self.capture_start_time = time()
             self.capture.setEnabled(False) # todo: disable all input parameters
         self.capture.clicked.connect(capture_response)
         def while_capturing():
             self.capture.setText('Capturing: ' + str(round(time()-self.capture_start_time, 2)) + ' / ' + str(self.capture_length.value))
-        self.capture_finished_signal = Signal(np.ndarray)
+        
         @Slot(np.ndarray)
         def when_capture_finished(captured_response):
-            print(1)
             self.capture.setText('Capture Response')
-            print(2)
+
             self.capture.setEnabled(True)
-            print(3)
-            clp.IO['length_samples'] = len(captured_response)
-            clp.IO['sample_rate'] = clp.project['input']['sample_rate'] # todo: handle corner case where input sample rate changes while capturing. Probably just disable all input controls while capturing
-            clp.IO['channels'] = np.shape(captured_response)[1]
-            clp.IO['numtype'] = '32 float'
-            print(4)
+
+            clp.IO['input']['length_samples'] = len(captured_response)
+            clp.IO['input']['sample_rate'] = clp.project['input']['sample_rate'] # todo: handle corner case where input sample rate changes while capturing. Probably just disable all input controls while capturing
+            clp.IO['input']['channels'] = np.shape(captured_response)[1]
+            clp.IO['input']['numtype'] = '32 float'
+
             clp.signals['raw_response'] = captured_response
-            print(5)
+
             if clp.project['use_input_rate']:
                     if clp.project['sample_rate'] != clp.IO['input']['sample_rate']:
                         chirp_tab.update_sample_rate(new_rate=clp.IO['input']['sample_rate'])
-            print(6)
             chirp_tab.analyze()
-            print(7)
-        self.when_capture_finished = when_capture_finished
+        
+        # need to go through signal and slot to actually get data from PyAudio thread back into Qt thread
+        # in order to work a signal must be a member of an instance of QObject. todo: figure out if there is a simpler/cleaner way (creating signal in DeviceInput.__init__() and calling .connect outside of DeviceInput doesn't seem to work)
+        class CaptureReceiver(QObject):
+            capture_finished = Signal(np.ndarray) 
+        capture_receiver = CaptureReceiver()
+        capture_receiver.capture_finished.connect(when_capture_finished)
+        
         
 
 
