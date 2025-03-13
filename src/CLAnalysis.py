@@ -126,10 +126,15 @@ def read_audio_file(audio_file, sample_rate=0):
     # if a sample rate is given, also resample the input file to the specified rate
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir: # add delete=False if needed for debugging. ignore_cleanup_errors requires python 3.10+
         temp_wav = Path(temp_dir) / 'response.wav'
+        command = [clp.sox_path, str(find_file(audio_file)), '-b', '32', '-e', 'floating-point']
+        print(' '.join(command))
         if sample_rate:
-            result = subprocess.run([clp.sox_path, str(find_file(audio_file)), '-b', '32', '-e', 'floating-point', '-r', str(sample_rate), str(temp_wav), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
+            command += ['-r', str(sample_rate)]
+        command += [str(temp_wav), '>', str(Path(temp_dir) / 'soxerr.txt'), '2>&1']
+        if sys.platform == 'win32':
+            result = subprocess.run(command, shell=True)
         else:
-            result = subprocess.run([clp.sox_path, str(find_file(audio_file)), '-b', '32', '-e', 'floating-point', str(temp_wav), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
+            result = subprocess.run([' '.join(command)], shell=True)
         sox_out = (Path(temp_dir) / 'soxerr.txt').read_text()
         if result.returncode:
             if 'No such file' in sox_out:
@@ -167,7 +172,11 @@ def write_audio_file(samples, out_path, sample_rate=48000, depth='24 int'):
         # sox output is really weird. All output is sent through a weird version of stderr and the only way access it is redirecting stderr *in the shell*.
         # Regardless of settings, result.stdout and result.stderr are always None, but returncode correlates to actual errors (warnings=0, errors=2)
         # subprocess.run() with shell=True is unsafe. Find or write a better audio file IO library at some point. #todo #security
-        result = subprocess.run([clp.sox_path, str(temp_wav), '-b', str(bits), '-e', numtype, str(out_path), '2>', str(Path(temp_dir) / 'soxerr.txt')], shell=True)
+        command = [clp.sox_path, str(temp_wav), '-b', str(bits), '-e', numtype, str(out_path), '2>', str(Path(temp_dir) / 'soxerr.txt')]
+        if sys.platform == 'win32':
+            result = subprocess.run(command, shell=True)
+        else:
+            result = subprocess.run([' '.join(command)], shell=True)
         if result.returncode:
             with open(Path(temp_dir) / 'soxerr.txt') as e:
                 # for writing a file with sox, assume the problem is a permissions error
@@ -181,7 +190,11 @@ def resample(input_signal, input_sample_rate, output_sample_rate):
         wavfile.write(temp_wav, input_sample_rate, input_signal)
 
         resampled_wav = Path(temp_dir) / 'resampled.wav'
-        result = subprocess.run([clp.sox_path, str(temp_wav), '-b', '32', '-e', 'floating-point', '-r', str(output_sample_rate), str(resampled_wav), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
+        command = [clp.sox_path, str(temp_wav), '-b', '32', '-e', 'floating-point', '-r', str(output_sample_rate), str(resampled_wav), '>', str(Path(temp_dir) / 'soxerr.txt'), '2>&1']
+        if sys.platform == 'win32':
+            result = subprocess.run(command, shell=True)
+        else:
+            result = subprocess.run([' '.join(command)], shell=True)
         sox_out = (Path(temp_dir) / 'soxerr.txt').read_text()
         if result.returncode:
             if 'No such file' in sox_out:
@@ -197,7 +210,11 @@ def audio_file_info(file_path):
     # read audio file header using sox
     # subprocess.run() with shell=True is unsafe. Find or write a better audio file IO library at some point. #todo #security
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
-        result = subprocess.run([clp.sox_path, '--i', str(find_file(file_path)), '>', Path(temp_dir) / 'soxerr.txt', '2>&1'], shell=True)
+        command = [clp.sox_path, '--i', str(find_file(file_path)), '>', str(Path(temp_dir) / 'soxerr.txt'), '2>&1']
+        if sys.platform == 'win32':
+            result = subprocess.run(command, shell=True)
+        else:
+            result = subprocess.run([' '.join(command)], shell=True)
         sox_out = (Path(temp_dir) / 'soxerr.txt').read_text()
         
         if result.returncode:

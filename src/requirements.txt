@@ -9,4 +9,4 @@ requests
 pandas
 pathvalidate
 pyyaml
-pyaudio
+pyaudio # requires apt install portaudio19-dev on linux
