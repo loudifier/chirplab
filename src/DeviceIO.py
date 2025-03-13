@@ -8,7 +8,7 @@ import numpy as np
 # DirectSound and WDM are older APIs. DirectSound provided high level resampling and other convenience features and WDM used to provide direct access to devices for low latency. Now they both go through WASAPI and exist mostly for backwards compatibility with older software targeting those APIs
 HOST_APIS = ['MME', 'Windows WASAPI'] # todo: update to use standard APIs on Linux/Mac
 
-pa = pyaudio.PyAudio() # if you can't open multiple streams with separate APIs, I think you can create a separate instance 
+pa = pyaudio.PyAudio()
 
 def restart_pyaudio():
     global pa
