@@ -1,6 +1,6 @@
 import CLProject as clp
 from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, QCollapsible, QHSeparator
-from CLAnalysis import generate_stimulus, read_audio_file, read_response, generate_output_stimulus, generate_stimulus_file, audio_file_info
+from CLAnalysis import generate_stimulus, read_audio_file, read_response, generate_output_stimulus, generate_stimulus_file, audio_file_info, write_audio_file
 import numpy as np
 from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QStackedWidget, QVBoxLayout, QSizePolicy
 from qtpy.QtCore import Signal, Slot, QObject
@@ -246,10 +246,14 @@ class OutputParameters(QCollapsible):
                 clp.project['output']['mode'] = 'device'
                 self.device_output = DeviceOutput(chirp_tab)
                 self.output_frame.layout().replaceWidget(current_widget, self.device_output)
+                if clp.project['input']['mode'] == 'device':
+                    chirp_tab.input_params.device_input.capture.setText('Play and Capture')
             else:
                 clp.project['output']['mode'] = 'file'
                 self.file_output = FileOutput(chirp_tab)
                 self.output_frame.layout().replaceWidget(current_widget, self.file_output)
+                if clp.project['input']['mode'] == 'device':
+                    chirp_tab.input_params.device_input.capture.setText('Capture Response')
             current_widget.close()
         self.mode_dropdown.currentIndexChanged.connect(update_output_mode)
         
@@ -922,6 +926,13 @@ class DeviceInput(QFrame):
             set_num_channels(DeviceIO.get_device_num_channels(clp.project['input']['device'], clp.project['input']['api']))
             update_channel(channel=clp.project['input']['channel'])
 
+            clp.IO['input']['length_samples'] = 0
+            clp.IO['input']['sample_rate'] = 0
+            clp.IO['input']['channels'] = 0
+            clp.IO['input']['numtype'] = 0
+            clp.signals['raw_response'] = []
+            self.save.setEnabled(False)
+
         self.device.update_callback = update_device
         
         # auto capture length checkbox
@@ -1021,20 +1032,19 @@ class DeviceInput(QFrame):
                     index=channel-1
                 self.channel.dropdown.setCurrentIndex(index)
             clp.project['input']['channel'] = index+1
-            # todo: reprocess last capture when changing inputs (make sure changing device clears last capture)
+            
+            if clp.IO['input']['length_samples']:
+                chirp_tab.analyze()
         self.channel.update_callback = update_channel
         update_channel(channel=clp.project['input']['channel'])
 
-        # todo: add button to save last capture (possible to add bit depth to file picker dialog?)
-
         # capture button - todo: is "record" or "acquire" more intuitive?
+        # todo: gray out and change text if current selected device seems to be invalid
         if clp.project['output']['mode'] == 'device':
             button_text = 'Play and Capture'
         else:
             button_text = 'Capture Response'
         self.capture = QPushButton(button_text)
-        
-        # gray out and change text if current selected device seems to be invalid
         layout.addWidget(self.capture)
         self.capture_start_time = time()
         def capture_response():
@@ -1059,7 +1069,7 @@ class DeviceInput(QFrame):
                 chirp_tab.output_params.setEnabled(True)
 
             clp.IO['input']['length_samples'] = len(captured_response)
-            clp.IO['input']['sample_rate'] = clp.project['input']['sample_rate'] # todo: handle corner case where input sample rate changes while capturing. Probably just disable all input controls while capturing
+            clp.IO['input']['sample_rate'] = clp.project['input']['sample_rate']
             clp.IO['input']['channels'] = np.shape(captured_response)[1]
             clp.IO['input']['numtype'] = '32 float'
 
@@ -1069,6 +1079,8 @@ class DeviceInput(QFrame):
                     if clp.project['sample_rate'] != clp.IO['input']['sample_rate']:
                         chirp_tab.update_sample_rate(new_rate=clp.IO['input']['sample_rate'])
             chirp_tab.analyze()
+
+            self.save.setEnabled(True)
         
         # need to go through signal and slot to actually get data from PyAudio thread back into Qt thread
         # in order to work a signal must be a member of an instance of QObject. todo: figure out if there is a simpler/cleaner way (creating signal in DeviceInput.__init__() and calling .connect outside of DeviceInput doesn't seem to work)
@@ -1077,3 +1089,36 @@ class DeviceInput(QFrame):
         capture_receiver = CaptureReceiver()
         capture_receiver.capture_finished.connect(when_capture_finished)
         
+        # save last capture button
+        self.save = QPushButton('Save Last Capture')
+        self.save.setEnabled(False)
+        layout.addWidget(self.save)
+        def save_capture():
+            if clp.IO['input']['length_samples']:
+                save_dialog = QFileDialog()
+                save_dialog.setWindowTitle('Save File')
+                save_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+                save_dialog.setViewMode(QFileDialog.ViewMode.Detail)
+                save_dialog.setNameFilters(['WAV audio (24-bit) (*.wav)', 'WAV audio (16-bit) (*.wav)', 'WAV audio (32-bit Int) (*.wav)', 'WAV audio (32-bit Float) (*.wav)', 'All files (*)']) # todo: this feels a little kludgy, see if there is a simple alternative without adding UI elements to DeviceInput or recreating QFileDialog from scratch...
+                save_dialog.setDefaultSuffix('wav')
+                bit_depth = '24 int'
+                def filterSelected(filter_string):
+                    nonlocal bit_depth
+                    if '16-bit' in filter_string:
+                        bit_depth = '16 int'
+                    elif '32-bit Int' in filter_string:
+                        bit_depth = '32 int'
+                    elif '32-bit Float' in filter_string:
+                        bit_depth = '32 float'
+                    else:
+                        bit_depth = '24 int'
+                    default_suffix = filter_string.split('(*')[1].split(')')[0]
+                    save_dialog.setDefaultSuffix(default_suffix)
+                save_dialog.filterSelected.connect(filterSelected)
+                
+                if save_dialog.exec():
+                    output_file_path = save_dialog.selectedFiles()[0]
+                    write_audio_file(clp.signals['raw_response'], output_file_path, clp.IO['input']['sample_rate'],bit_depth)
+            else:
+                self.save.setEnabled(False) # disable button if it is accidentally left enabled after raw response is cleared
+        self.save.clicked.connect(save_capture)
