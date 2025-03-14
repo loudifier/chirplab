@@ -127,7 +127,6 @@ def read_audio_file(audio_file, sample_rate=0):
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir: # add delete=False if needed for debugging. ignore_cleanup_errors requires python 3.10+
         temp_wav = Path(temp_dir) / 'response.wav'
         command = [clp.sox_path, str(find_file(audio_file)), '-b', '32', '-e', 'floating-point']
-        print(' '.join(command))
         if sample_rate:
             command += ['-r', str(sample_rate)]
         command += [str(temp_wav), '>', str(Path(temp_dir) / 'soxerr.txt'), '2>&1']
