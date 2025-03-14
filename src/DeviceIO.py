@@ -1,14 +1,25 @@
 import pyaudio
 import CLProject as clp
 import numpy as np
-
-# List of host APIs that are supported. By default only make use of MME and WASAPI
-# MME is the highest-level API, the one used by 99% of programs that don't need to know or care about the actual hardware being used. Limited to 2 channels, worst-case latency, automatic resampling, volume control can't be bypassed, etc.
-# WASAPI is the base audio API on Windows. All audio on Windows goes through WASAPI (except for stuff like ASIO that specifically bypasses WASAPI). Channels, sammple rates, and formats are RAW, no resampling. Latency can be competitive with ASIO (but it depends on a lot of factors)
-# DirectSound and WDM are older APIs. DirectSound provided high level resampling and other convenience features and WDM used to provide direct access to devices for low latency. Now they both go through WASAPI and exist mostly for backwards compatibility with older software targeting those APIs
-HOST_APIS = ['MME', 'Windows WASAPI'] # todo: update to use standard APIs on Linux/Mac
+import sys
 
 pa = pyaudio.PyAudio()
+
+# List of host APIs that are supported. By default only make use of MME and WASAPI
+if sys.platform == 'win32':
+    # MME is the highest-level Windows audio API, the one used by most programs that don't need to know or care about the actual hardware being used. Limited to 2 channels, worst-case latency, automatic resampling, volume control can't be bypassed, etc.
+    # WASAPI is the base audio API on Windows. All audio on Windows goes through WASAPI (except for stuff like ASIO that specifically bypasses WASAPI). Channels, sammple rates, and formats are RAW, no resampling. Latency can be competitive with ASIO (but it depends on a lot of factors)
+    # DirectSound and WDM are older APIs. DirectSound provides high level resampling and other convenience features, primarily for DirectX games. I believe it still has unique use-cases for games and media apps, but none which are particularly relevant to audio measurements. WDM used to provide direct access to devices for low latency. Now they DirectSound and WDM go through WASAPI for backwards compatibility with older software targeting those APIs
+    HOST_APIS = ['MME', 'Windows WASAPI']
+elif 'linux' in sys.platform:
+    # ALSA is the base auio API for most Linux distros, similar to WASAPI but with feature bloat over the years
+    # JACK is an audio processing server in the traditional Linux modular server-client model. It started as a compatibility layer to overcome some of the limitations of ALSA and has grown to be the de facto standard audio interface for serious audio in Linux. PipeAudio is theoretically backwards compatible with JACK, but documentation and examples are hard to find
+    HOST_APIS = ['ALSA']
+    if 'JACK' in get_api_names(): # todo: actually test this on a machine with Jack installed
+        HOST_APIS += ['JACK']
+else:
+    # Core Audio is the Mac audio API. Thinner and more expensive than other APIs. Incompatible with headphone jacks.
+    HOST_APIS = ['Core Audio']
 
 def restart_pyaudio():
     global pa
@@ -71,12 +82,10 @@ def get_default_output_device(api_name=''):
     device_index = pa.get_host_api_info_by_index(api_name_to_index(api_name))['defaultOutputDevice']
     return(win2utf8(pa.get_device_info_by_index(device_index)['name']))
 
-# todo: verify there are no issues with automatically determining input/output in is_sample_rate_valid, get_valid_standard_sample_rates, and get_device_num_channels
-# so far all devices I have seen have either input channels -or- output channels, so input/output can be automatically resolved
 def is_sample_rate_valid(sample_rate, device_name, api_name):
     device_index = device_name_to_index(device_name, api_name)
     device = pa.get_device_info_by_index(device_index)
-    if device['maxInputChannels'] > device['maxOutputChannels']:
+    if device['maxInputChannels'] > device['maxOutputChannels']: # theoretically, devices with both input and output channels support the same sample rates for input and output
         # input device
         try:
             return pa.is_format_supported(rate=sample_rate, input_device=device_index, input_channels=device['maxInputChannels'], input_format=pyaudio.paFloat32)
@@ -96,15 +105,15 @@ def get_valid_standard_sample_rates(device_name, api_name):
             valid_rates.append(rate)
     return valid_rates
 
-def get_device_num_channels(device_name, api_name):
+def get_num_input_channels(device_name, api_name):
     device_index = device_name_to_index(device_name, api_name)
     device = pa.get_device_info_by_index(device_index)
-    if device['maxInputChannels'] > device['maxOutputChannels']:
-        # input device
-        return device['maxInputChannels']
-    else:
-        # output device
-        return device['maxOutputChannels']
+    return device['maxInputChannels']
+
+def get_num_output_channels(device_name, api_name):
+    device_index = device_name_to_index(device_name, api_name)
+    device = pa.get_device_info_by_index(device_index)
+    return device['maxOutputChannels']
 
 def play(out_signal, sample_rate, device_name, api_name, active_callback=None, finished_callback=None):
     # assumes width of out_signal equals the number of output channels to play back

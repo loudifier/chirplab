@@ -515,7 +515,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             self.device.dropdown.setCurrentIndex(index)
         set_device_index(clp.project['output']['device'])
         clp.project['output']['device'] = self.device.dropdown.currentText()
-        clp.project['output']['num_channels'] = DeviceIO.get_device_num_channels(clp.project['output']['device'], clp.project['output']['api'])
+        clp.project['output']['num_channels'] = DeviceIO.get_num_output_channels(clp.project['output']['device'], clp.project['output']['api'])
         layout.addWidget(self.device)
         def update_device(index):
             set_device_index(self.device.dropdown.currentText())
@@ -527,7 +527,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             update_sample_rate(new_rate=clp.project['output']['sample_rate'])
             self.sample_rate.dropdown.blockSignals(False)
 
-            set_num_channels(DeviceIO.get_device_num_channels(clp.project['output']['device'], clp.project['output']['api']))
+            set_num_channels(DeviceIO.get_num_output_channels(clp.project['output']['device'], clp.project['output']['api']))
             update_channel(channel=clp.project['output']['channel'])
         self.device.update_callback = update_device
 
@@ -603,6 +603,8 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         def update_include_silence(checked):
             clp.project['output']['include_silence'] = bool(checked)
             update_output_length()
+            if clp.project['input']['mode'] == 'device' and clp.project['input']['use_output_length']:
+                chirp_tab.input_params.device_input.update_auto_length(True)
         self.include_silence.stateChanged.connect(update_include_silence)
         
         # total length text box (non-interactive) - s/sample dropdown
@@ -923,7 +925,7 @@ class DeviceInput(QFrame):
             update_sample_rate(new_rate=clp.project['input']['sample_rate'])
             self.sample_rate.dropdown.blockSignals(False)
 
-            set_num_channels(DeviceIO.get_device_num_channels(clp.project['input']['device'], clp.project['input']['api']))
+            set_num_channels(DeviceIO.get_num_input_channels(clp.project['input']['device'], clp.project['input']['api']))
             update_channel(channel=clp.project['input']['channel'])
 
             clp.IO['input']['length_samples'] = 0
@@ -977,6 +979,7 @@ class DeviceInput(QFrame):
                 self.capture_length.set_value(round(clp.project['input']['capture_length'] * clp.project['input']['sample_rate']))
         self.capture_length.units_update_callback = update_capture_length_units
         update_auto_length(clp.project['input']['use_output_length'])
+        self.update_auto_length = update_auto_length
         
         # sample rate
         self.sample_rate = CLParamDropdown('Sample Rate', [str(EngNumber(rate)) for rate in DeviceIO.get_valid_standard_sample_rates(clp.project['input']['device'], clp.project['input']['api'])], 'Hz', editable=True)
@@ -1022,7 +1025,7 @@ class DeviceInput(QFrame):
             self.channel.dropdown.clear()
             self.channel.dropdown.addItems([str(chan) for chan in range(1, num_channels+1)])
             self.channel.dropdown.blockSignals(False)
-        set_num_channels(DeviceIO.get_device_num_channels(clp.project['input']['device'], clp.project['input']['api']))
+        set_num_channels(DeviceIO.get_num_input_channels(clp.project['input']['device'], clp.project['input']['api']))
         layout.addWidget(self.channel)
         def update_channel(index=-1, channel=None):
             if index==-1:
