@@ -27,9 +27,9 @@ class PhaseResponse(CLMeasurement):
             # add new keys to existing dict instead of defining new one, so updates will propogate to full project dict and can be easily saved to a project file
             self.params['mode'] = 'excess' # options are 'excess' which attempts to find the effective phase assuming 0Hz phase is 0 or -180 degrees, and 'relative' which uses a loopback channel as the t=0 reference
             self.params['excess_method'] = 'linear_phase' # options are 'linear_phase' which aligns to a linear regression of the phase over the chirp, 'min_delay' which aligns phase to an estimate of the minimum group delay, and 'cross_correlation' which uses the time alignment determined by cross correlation when reading the input signal
-            # todo: add parameter to auto invert if DC is 180deg
             self.params['ref_channel'] = 2 # loopback input channel used as the phase reference in 'relative' mode. If there is no input channel ref_channel or ref_channel is the same as the project input channel the measurement will output -1 for all frequency points
-            self.params['unwrap'] = True # if true measurement will attempt to unwrap the phase to be continuous instead of the intermediary calculated values, which are bound to +/-180deg / +/-pi
+            self.params['unwrap'] = True # if true measurement will attempt to unwrap the phase to be continuous instead of the intermediary calculated values, which are bound to +/-180deg (+/-pi). Can easily skip full cycles at high frequencies and technically only absolute assuming receiver/mic is within 1 wavelength of source/speaker at starting chirp frequency.
+            self.params['auto_invert'] = False # automatically subtract 180 degrees from phase if lowest chirp frequency is within +/-45 degrees of 180 or -180 degrees
 
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
                 'unit': 'degrees',
@@ -54,14 +54,18 @@ class PhaseResponse(CLMeasurement):
         # trim to only positive frequencies
         freqs = freqs[1:round(len(freqs)/2)]
 
+        # find the minimum and maximum bins that cover the frequency range of the chirp, used for auto_invert, min_delay and linear_phase
+        min_bin = np.argmin(np.abs(freqs - clp.project['start_freq'])) + 1
+        max_bin = np.argmin(np.abs(freqs - clp.project['stop_freq'])) - 1
+
         # apply an aggressive window to the impulse response. Significantly reduces noise but does not impact low frequency phase accuracy as much as magnitude. Used for excess and relative phase modes. Might be overly smooth
-        # todo: window width determined empirically, experiment with other widths or exposing as a measurement parameter. Current implementation usually resolves phase at DC to nearest pi to phase at lowest chirp freq
+        # todo: window width determined empirically, experiment with other widths or exposing as a measurement parameter. Current implementation usually resolves phase at lowest chirp freq to nearest pi
         window_width = round(clp.project['sample_rate'] / clp.project['start_freq'])
         window = np.zeros(len(clp.signals['stimulus']))
         window[:window_width] = hann(window_width)
         window = np.roll(window, -round(window_width/2)) # hann window of width equal to lowest chirp wavelength, centered at t0.
 
-        if self.params['mode']=='excess':
+        if self.params['mode']=='excess': # estimate the minimum group delay and apply an offset to the phase
             # calculate raw impulse response
             impulse_response = ifft(fft(clp.signals['response']) / fft(clp.signals['stimulus']))
 
@@ -73,17 +77,12 @@ class PhaseResponse(CLMeasurement):
 
             phase_offset_deg = 0 # no group delay correction, used in the cross_correlation case
 
-            # find the minimum and maximum bins that cover the frequency range of the chirp, used for min_delay and linear_phase
-            min_bin = np.argmin(np.abs(freqs - clp.project['start_freq'])) + 1
-            max_bin = np.argmin(np.abs(freqs - clp.project['stop_freq'])) - 1
-
             if self.params['excess_method']=='linear_phase':
                 # perform a linear regression to determine the linear phase delay over the chirp range
                 result = linregress(freqs[min_bin:max_bin], np.rad2deg(np.unwrap(wrapped_phase_rad[min_bin:max_bin]))) # regression over linear frequency scale is weighted toward high frequencies, which works well for this method
                 phase_offset_deg = -freqs*result.slope
             
             elif self.params['excess_method']=='min_delay':
-                # estimate the minimum group delay and apply an offset to the phase
                 # start with unwrapped phase in degrees
                 unwrapped_phase_deg = np.rad2deg(np.unwrap(wrapped_phase_rad))
             
@@ -161,7 +160,11 @@ class PhaseResponse(CLMeasurement):
                 else:
                     phase = np.rad2deg(wrapped_phase_rad)
 
-
+        if self.params['auto_invert']:
+            if abs(phase[min_bin] - 180) < 45:
+                phase -= 180
+            elif abs(phase[min_bin] + 180) < 45:
+                phase += 180
 
             
 
@@ -224,31 +227,32 @@ class PhaseResponse(CLMeasurement):
         self.ref_channel.dropdown.setEnabled(self.params['mode'] == 'relative')
         self.param_section.addWidget(self.ref_channel)
         def update_ref_channel(index): # todo: still some corner cases that need to be worked out
-            if index == -1:
-                self.ref_channel.dropdown.setCurrentText(str(self.params['ref_channel']))
+            self.params['ref_channel'] = int(self.ref_channel.dropdown.currentText())
+            
+            if self.params['ref_channel'] == clp.project['input']['channel']:
                 self.ref_channel.dropdown.setStyleSheet('QComboBox { background-color: orange; }')
             else:
                 self.ref_channel.dropdown.setStyleSheet('')
-                self.params['ref_channel'] = int(self.ref_channel.dropdown.currentText())
-                if self.params['mode'] == 'reference':
-                    self.measure()
-                    self.plot()
+
+            if self.params['mode'] == 'relative':
+                self.measure()
+                self.plot()
         self.ref_channel.update_callback = update_ref_channel
         def update_num_channels(num_channels):
-            channel_list = []
-            for chan in range(1, num_channels+1):
-                if clp.project['input']['channel'] != chan:
-                    channel_list.append(str(chan))
+            channel_list = [str(chan) for chan in range(1, num_channels+1)]
+            # todo: figure out how to build list without reference channel. Introduces a lot of weird state management issues
 
             self.ref_channel.dropdown.blockSignals(True)
             self.ref_channel.dropdown.clear()
             self.ref_channel.dropdown.addItems(channel_list)
+            if self.params['ref_channel'] <= num_channels:
+                self.ref_channel.dropdown.setCurrentIndex(channel_list.index(str(self.params['ref_channel'])))
             self.ref_channel.dropdown.blockSignals(False)
             
-            if str(self.params['ref_channel']) in channel_list:
+            if self.params['ref_channel'] <= num_channels:
                 update_ref_channel(channel_list.index(str(self.params['ref_channel'])))
             else:
-                update_ref_channel(-1)
+                self.ref_channel.dropdown.setStyleSheet('QComboBox { background-color: orange; }')
         self.update_num_channels = update_num_channels
 
         # unwrap phase checkbox
@@ -260,6 +264,16 @@ class PhaseResponse(CLMeasurement):
             self.measure()
             self.plot()
         self.unwrap.stateChanged.connect(update_unwrap)
+
+        # auto invert checkbox
+        self.auto_invert = QCheckBox('Auto invert')
+        self.auto_invert.setChecked(self.params['auto_invert'])
+        self.param_section.addWidget(self.auto_invert)
+        def update_auto_invert(checked):
+            self.params['auto_invert'] = checked
+            self.measure()
+            self.plot()
+        self.auto_invert.stateChanged.connect(update_auto_invert)
 
 
         self.output_unit = CLParamDropdown('Units', [unit for unit in self.OUTPUT_UNITS], '')
