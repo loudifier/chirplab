@@ -8,7 +8,6 @@ from CLMeasurements import CLMeasurement
 from scipy.stats import linregress
 from qtpy.QtWidgets import QCheckBox
 
-import matplotlib.pyplot as plt # todo: for debugging, remove after initial implementation
 # good resource about phase and group delay: http://cjs-labs.com/sitebuildercontent/sitebuilderfiles/GroupDelay.pdf
 
 class PhaseResponse(CLMeasurement):
