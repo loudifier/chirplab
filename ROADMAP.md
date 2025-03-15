@@ -4,16 +4,15 @@ Features in each subheading are ordered roughly in order of prioritization. This
 
 ## Input and Output
 - [x] WAV file input and output
-- [ ] Audio interface/sound card input and output
-- Most likely implemented using the PyAudio PortAudio bindings
+- [x] Audio interface/sound card input and output
 - [ ] ASIO input and output
-- Open source software typically does not redistribute the Steinberg libraries needed to support ASIO interfaces. At minimum, the process to compile PyAudio or otherwise make ASIO interfaces available in Chirplab should be clearly documented
+    - Open source software typically does not include support for ASIO interfaces. From a cursory reading of the Steinberg, PyAudio, and PortAudio licenses, it should be safe to distribute Chirplab compiled with ASIO support, as long as the ASIO libraries themselves are not redistributed. Major OSS programs like Audacity don't distribute binaries with ASIO support due to being distributed under GPL, and GPL is incompatible with the Steinberg license. At minimum, the process to compile PyAudio or otherwise make ASIO interfaces available in Chirplab should be clearly documented.
 - [ ] Other audio file formats
-- Technically, any audio file format that SoX understands is already supported by manually entering the full filename and extension and/or using the 'All files' filter in the input file picker.
+    - Technically, any audio file format that SoX understands is already supported by manually entering the full filename and extension and/or using the 'All files' filter in the input file picker.
 - [ ] Native file I/O without using SoX as an intermediary
-- SoX is used as a robust, fast, lightweight, and readily available universal file conversion utility. This comes with the downside of needing a separate download and potentially introduces security issues to work around SoX's strange stderr output. The SciPy wavfile module works for 16 and 32 bit int and 32 bit floating point WAV files, but does not properly handle common 24 bit WAV files or any other formats, so the current solution is to use SoX to convert input files to a 32 bit floating point WAV (including any resampling) and read the WAV with wavfile (and vice versa for output files).
+    - SoX is used as a robust, fast, lightweight, and readily available universal file conversion utility. This comes with the downside of needing a separate download and potentially introduces security issues to work around SoX's strange stderr output. The SciPy wavfile module works for 16 and 32 bit int and 32 bit floating point WAV files, but does not properly handle common 24 bit WAV files or any other formats, so the current solution is to use SoX to convert input files to a 32 bit floating point WAV (including any resampling) and read the WAV with wavfile (and vice versa for output files).
 - [ ] Multi-channel/Multi-file/Multi-capture support
-- Analyzing additional signals is trivial on top of implementing the actual signal analysis in any given measurement, but managing the UI and how the user *expects* multi-channel analysis to work gets very complex very quickly. How multiple measurement inputs are selected, how outputs are displayed with or without measurement noise floor(s), storing measurement outputs and adding new measurement traces, and handling a geometrically expanding set of UI interactions can derail the development of other features and measurements.
+    - Analyzing additional signals is trivial on top of implementing the actual signal analysis in any given measurement, but managing the UI and how the user *expects* multi-channel analysis to work gets very complex very quickly. How multiple measurement inputs are selected, how outputs are displayed with or without measurement noise floor(s), storing measurement outputs and adding new measurement traces, and handling a geometrically expanding set of UI interactions can derail the development of other features and measurements.
 
 ## Measurements
 - [x] Frequency Response
@@ -23,9 +22,10 @@ Features in each subheading are ordered roughly in order of prioritization. This
 - [x] Harmonic Distortion
     - [ ] Option to set parameters of reference fundamental frequency response measurement parameters (e.g. use raw or fixed window for faster processing)
     - [ ] Experiment with adaptive windowing and/or add parameters for harmonic impulse windowing (likely very slow)
-- [ ] Phase Response
-    - [ ] Requires some experimentation to see how robustly t0 can be located. Absolute vs relative phase, and relative to what reference? Is a pilot tone required, and how do you compensate for significant phase shift of the pilot tone itself?
-    - [ ] How does noise impact phase response? Is a measurement noise floor calculation meaningful?
+- [x] Phase Response
+    - Could use more thorough validation of current methods and experiments with other methods. Does a pilot tone help, and how do you compensate for significant phase shift of the pilot tone itself?
+    - How does noise impact phase response? Is a measurement noise floor calculation meaningful?
+    - [ ] Group delay output option (or separate measurement that is mostly just a duplicate?)
 - [ ] Tracking Filter
     - [ ] Implement at least bandpass, highpass filters
     - [ ] Implement filter tracking, signal level metering (moving RMS and peak hold that are consistent across different chirp lengths, sweep rates)
@@ -34,17 +34,17 @@ Features in each subheading are ordered roughly in order of prioritization. This
 - [ ] Spectral Analysis
     - [ ] Experiment with builtin STFT options in SciPy/NumPy or roll a custom version that is easier to derive measurement data from
     - [ ] Parameters
-    - Component of the signal selected for data output - fundamental, harmonics, non-harmonic noise, THD+N, etc.
-        - Need to handle different unit outputs (and how fundamental reference is calculated for distortion metrics)
-    - Min/max analyzed harmonic
-    - Include noise below fundamental
+        - Component of the signal selected for data output - fundamental, harmonics, non-harmonic noise, THD+N, etc.
+            - Need to handle different unit outputs (and how fundamental reference is calculated for distortion metrics)
+        - Min/max analyzed harmonic
+        - Include noise below fundamental
     - [ ] Experiment with different ways to assign time-frequency bins to different parts of the signal.
-    - Integrating power of the lobe with the nearest peak and troughs on either side of a fundamental/harmonic frequency bin works, but is relatively slow and succeptible to noise in adjacent bins
-    - Generate a chirp of fundamental and each harmonic and multiply its STFT with the response STFT to get harmonic power. Apply tracking notch filters for fundamental and each harmonic and take the difference between that STFT and the full STFT for non-harmonic distortion.
-    - Option for non-normalized non-harmonic noise, to highlight narrowband noise/ringing that is triggered by the stimulus (see if that provides better separation of vertical bands on spectrogram than non-harmonic noise normalized to the stimulus fundamental)
+        - Integrating power of the lobe with the nearest peak and troughs on either side of a fundamental/harmonic frequency bin works, but is relatively slow and succeptible to noise in adjacent bins
+        - Generate a chirp of fundamental and each harmonic and multiply its STFT with the response STFT to get harmonic power. Apply tracking notch filters for fundamental and each harmonic and take the difference between that STFT and the full STFT for non-harmonic distortion.
+        - Option for non-normalized non-harmonic noise, to highlight narrowband noise/ringing that is triggered by the stimulus (see if that provides better separation of vertical bands on spectrogram than non-harmonic noise normalized to the stimulus fundamental)
     - [ ] Spectrogram plot
-    - Color coding for different components of the signal - fundamental, harmonics, noise
-    - Any way to clearly communicate measurement noise floor in spectrogram? Maybe something like how cameras show clipping with zerba overlay?
+        - Color coding for different components of the signal - fundamental, harmonics, noise
+        - Any way to clearly communicate measurement noise floor in spectrogram? Maybe something like how cameras show clipping with zerba overlay?
 - [ ] Impulse Response
     - [ ] Parameters
     - IR length, pre-post trimming
@@ -78,7 +78,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
         - [ ] I am not very familiar with screen readers, but I believe Qt should have good support natively
     - [ ] Proper scaling over a wide range of DPI
     - [ ] Speed up plotting, particularly chirp tab updating every time a chirp parameter spinbox is clicked
-    - [ ] Bundle Windows exe in such a way that GUI launches without console window and CLI/GUI both output to stdout. Currently bundled with console showing so error messages and CLI output goes to the console. https://pyinstaller.org/en/stable/feature-notes.html#automatic-hiding-and-minimization-of-console-window-under-windows
+    - [ ] Bundle Windows exe in such a way that GUI launches without console window and CLI/GUI both output to stdout. Current solution still flashes console window when launching GUI. https://pyinstaller.org/en/stable/feature-notes.html#automatic-hiding-and-minimization-of-console-window-under-windows
 - [ ] Undo/redo - a lot of work with many edge cases that need to be handled, but would be really nice to have
 
 ## Command Line Interface
@@ -87,18 +87,19 @@ Features in each subheading are ordered roughly in order of prioritization. This
 - [ ] Generate stimulus file from parameters or a project file
 - [ ] Measure calibration tone from a file and apply the calibration to a project file
 - [ ] Performance optimization to improve batch file processing
-- Compilation, caching, etc to improve Python startup time
-- Delaying GUI imports until needed to keep CLI from having to import Qt libraries. A bit of a pain in the early stages of development, can lead to circular imports and heisenbugs - revisit after major GUI efforts like device IO have been completed.
+    - [ ] Compilation, caching, etc to improve Python startup time. Numba seems like the lowest-friction option to try first.
+    - [ ] Delaying GUI imports until needed to keep CLI from having to import Qt libraries. A bit of a pain in the early stages of development, can lead to circular imports and heisenbugs
 
 ## Other
-- [ ] Build automation - just PyInstaller scripts or full blown GitHub Workflow stuff
-- [ ] Documentation...
+- [ ] Build automation
+    - PyInstaller .spec file created, look into GitHub Workflow automation
+- [ ] Documentation, probably using GitHub wiki
     - [ ] Quick Start guide
     - [ ] Project file format
     - [ ] Calibration guide (including clear explanation of 3dB RMS vs peak compensation)
     - [ ] Explanations of individual measurements. How they work, what the different parameters do, what the outputs mean, etc.
 - [ ] Testing
-- End-to-end tests of measurement outputs from different input signals, rather than typical TDD-style units tests
-- Ground truth comparisons to other measurement software
-- Synthetic signals that simulate different noise floors, direct harmonics, modeled speaker nonlinearities, etc.
-- Actual acoustic measurements with different speakers and microphones
+    - End-to-end tests of measurement outputs from different input signals, rather than typical TDD-style units tests
+    - Ground truth comparisons to other measurement software
+    - Synthetic signals that simulate different noise floors, direct harmonics, modeled speaker nonlinearities, etc.
+    - Actual acoustic measurements with different speakers and microphones
