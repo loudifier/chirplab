@@ -109,7 +109,7 @@ class CLMeasurement():
 
         
 # list of the class names of all measurement types that are available
-MEASUREMENT_TYPES = ['FrequencyResponse', 'HarmonicDistortion']
+MEASUREMENT_TYPES = ['FrequencyResponse', 'HarmonicDistortion', 'PhaseResponse']
 
 # imports in __init__.py make measurements available in other code via `from CLMeasurements import <measurement class>`, etc.
 for measurement in MEASUREMENT_TYPES:
