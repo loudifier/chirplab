@@ -1,7 +1,7 @@
 import CLProject as clp
 from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidget, QApplication, QFileDialog, QErrorMessage, QMessageBox, QDialog, QDialogButtonBox, QVBoxLayout
 from qtpy.QtGui import QAction, QIcon
-from CLGui.ChirpTab import ChirpTab, CLParamDropdown, CLParameter
+from CLGui import ChirpTab, CLParamDropdown, CLParameter
 from CLMeasurements import init_measurements, is_valid_measurement_name
 from CLAnalysis import generate_stimulus, save_csv
 from pathlib import Path

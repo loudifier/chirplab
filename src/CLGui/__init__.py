@@ -15,7 +15,7 @@ class EngAxisItem(pg.AxisItem):
         #self.textAngle = kwargs.get('textAngle', 0) # add option to rotate x axis tick strings like here: https://github.com/pyqtgraph/pyqtgraph/issues/322
     
     def logTickStrings(self, values, scale, spacing):
-        return [str(EngNumber(value*1)) for value in (10 ** np.array(values).astype(float) * np.array(scale))]
+        return [str(EngNumber(value*1)) for value in (10 ** np.array(values).astype(float) * np.array(scale))] # todo: only output numbers starting with 1, 2, or 5
     
     
     
@@ -29,4 +29,6 @@ class QHSeparator(QFrame):
 from CLGui.CLTab import CLTab
 from CLGui.CLParameter import CLParameter, CLParamNum, CLParamDropdown, CLParamFile, FreqPointsParams
 from CLGui.QCollapsible.QCollapsible import QCollapsible
+from CLGui.CalibrationDialog import CalibrationDialog
+from CLGui.ChirpTab import ChirpTab
 from CLGui.MainWindow import MainWindow
