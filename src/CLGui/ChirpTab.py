@@ -2,7 +2,7 @@ import CLProject as clp
 from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, QCollapsible, QHSeparator
 from CLAnalysis import generate_stimulus, read_audio_file, read_response, generate_output_stimulus, generate_stimulus_file, audio_file_info, write_audio_file
 import numpy as np
-from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QVBoxLayout, QDialog
+from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QVBoxLayout, QDialog, QHBoxLayout
 from qtpy.QtCore import Signal, Slot, QObject
 import pyqtgraph as pg
 from engineering_notation import EngNumber
@@ -760,7 +760,7 @@ class InputParameters(QCollapsible):
         self.cal_params = QCollapsible('Calibration')
         self.addWidget(self.cal_params)
 
-        self.FS_per_Pa = CLParamNum('Acoustic', clp.project['FS_per_Pa'], 'FS/Pa', numtype='float') # todo: set reasonable minimum
+        self.FS_per_Pa = CLParamNum('Acoustic', clp.project['FS_per_Pa'], 'FS/Pa', numtype='float') # todo: set reasonable minimum (also set in calibration dialog)
         self.FS_per_Pa.spin_box.setDecimals(6)
         self.cal_params.addWidget(self.FS_per_Pa)
         def update_FS_per_Pa(new_val):
@@ -1166,5 +1166,61 @@ class CalDialog(QDialog):
         
         # todo: figure out how to not have a window icon
 
+        tab = CLTab() # same overall structure as a measurement tab - parameter panel on the left with a gaph on the right
         layout = QVBoxLayout(self)
-        layout.addWidget(CLTab()) # same overall structure as a measurement tab - parameter panel on the left with a gaph on the right
+        layout.addWidget(tab) 
+
+        if clp.project['input']['mode'] == 'file':
+            file = CLParamFile('Calibration tone file', '')
+            file.mime_types = ['audio/wav', 'application/octet-stream']
+            tab.panel.addWidget(file)
+            def update_file(file_path):
+                print(file_path)
+            file.update_callback = update_file
+
+            skip = CLParamNum('Skip first', 0, 'Sec', 0, numtype='float')
+            tab.panel.addWidget(skip)
+
+        length = CLParamNum('Measurement length', 1, 'Sec', 0.1, numtype='float')
+        tab.panel.addWidget(length)
+
+        bandpass = QCheckBox('Bandpass filter')
+        auto = QCheckBox('Auto')
+        auto.setChecked(True)
+        checkboxes = QFrame()
+        checkbox_layout = QHBoxLayout(checkboxes)
+        checkbox_layout.addWidget(bandpass)
+        checkbox_layout.addWidget(auto)
+        tab.panel.addWidget(checkboxes)
+
+        frequency = CLParamNum('Frequency', 1000, 'Hz', 1, 20000, 'float')
+        frequency.spin_box.setEnabled(False)
+        tab.panel.addWidget(frequency)
+
+        tab.panel.addWidget(QHSeparator())
+
+        FS_per_Pa = CLParamNum('Acoustic calibration', clp.project['FS_per_Pa'], 'FS/Pa', numtype='float') # todo: set reasonable minimum
+        tab.panel.addWidget(FS_per_Pa)
+
+        acoustic_level = CLParamNum('Reference level', 1.0, ['Pa', 'dBSPL'], 0.00002, numtype='float')
+        tab.panel.addWidget(acoustic_level)
+        
+        tab.panel.addWidget(QHSeparator())
+
+        FS_per_V = CLParamNum('Electrical calibration', clp.project['FS_per_V'], 'FS/V', numtype='float') # todo: set reasonable minimum
+        tab.panel.addWidget(FS_per_V)
+
+        electrical_level = CLParamNum('Reference level', 1.0, ['V', 'dBV'], 0.000001, numtype='float')
+        tab.panel.addWidget(electrical_level)
+
+        tab.panel.addWidget(QHSeparator())
+
+        save = QPushButton('Save calibration')
+        cancel = QPushButton('Cancel')
+        buttons = QFrame()
+        buttons_layout = QHBoxLayout(buttons)
+        buttons_layout.addWidget(save)
+        buttons_layout.addWidget(cancel)
+        tab.panel.addWidget(buttons)
+
+
