@@ -35,7 +35,7 @@ sox_dl_url = 'https://sourceforge.net/projects/sox/files/sox/14.4.2/sox-14.4.2-w
 
 
 # when loading project files from older versions of chirplab, the project may be able to be upgraded for compatibility with current version
-CHIRPLAB_VERSION = 0.1
+CHIRPLAB_VERSION = 0.3
 
 
 # constants
@@ -93,6 +93,11 @@ def new_project():
         'sample_rate': 48000, # sample rate in Hz used for all analysis
         'use_input_rate': True, # get the sample rate of the input file or device and update sample_rate before performing and calculations
         
+        # calibration parameters
+        'FS_per_Pa': 1.0, # acoustic input level in Full Scale units per Pascal. e.g. for a 94dBSPL sensitivity of -37dBFS, FS_per_Pa = 0.0141
+        'FS_per_V': 1.0, # electrical input level in Full Scale units per Volt. e.g for a full scale input voltage of +16dBu, FS_per_V = 0.2045
+        # for an analog mic with -40dBV sensitivity and interface with +16dBu full scale input voltage (EMM-6 + Scarlett 2i2 at minimum gain), FS_per_V = 0.2045 and FS_per_Pa = 0.002045
+
         # parameters of stimulus file or audio output device
         'output': {
             'mode': 'file', # 'file' or 'device'

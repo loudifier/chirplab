@@ -1,5 +1,5 @@
 import CLProject as clp
-from CLAnalysis import freq_points, interpolate
+from CLAnalysis import freq_points, interpolate, FS_to_unit
 from CLGui import CLParamDropdown, QCollapsible, CLParamNum, FreqPointsParams
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
@@ -18,7 +18,7 @@ class FrequencyResponse(CLMeasurement):
     WINDOW_MODES = ['raw', 'windowed', 'adaptive']
     MAX_WINDOW_START = 1000 # fixed impulse response window can start up to 1s before t0
     MAX_WINDOW_END = 10000 # IR window can end up to 10s after t0
-    OUTPUT_UNITS = ['dBFS', 'FS'] # add more options when adding acoustic/electrical calibration
+    OUTPUT_UNITS = ['dBFS', 'dBSPL', 'dBV', 'FS', 'Pa', 'V']
     
     def __init__(self, name, params=None):
         if params is None:
@@ -65,16 +65,14 @@ class FrequencyResponse(CLMeasurement):
         self.out_points = interpolate(fr_freqs, fr, self.out_freqs, self.params['output']['spacing']=='linear') # todo: still may not be correct. Verify behavior for linear/log frequency scale *and* linear/log output units
         
         # convert output to desired units
-        if self.params['output']['unit'] == 'dBFS':
-            self.out_points = 20*np.log10(self.out_points)
+        self.out_points = FS_to_unit(self.out_points, self.params['output']['unit'])
         
         
         # check for noise sample and calculate noise floor
         if any(clp.signals['noise']):
             fr_freqs, noise_fr = self.calc_fr(clp.signals['noise'])
             self.out_noise = interpolate(fr_freqs, noise_fr, self.out_freqs, self.params['output']['spacing']=='linear')
-            if self.params['output']['unit'] == 'dBFS':
-                self.out_noise = 20*np.log10(self.out_noise)
+            self.out_noise = FS_to_unit(self.out_noise, self.params['output']['unit'])
         else:
             self.out_noise = np.zeros(0)
     

@@ -2,12 +2,12 @@ import CLProject as clp
 from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, QCollapsible, QHSeparator
 from CLAnalysis import generate_stimulus, read_audio_file, read_response, generate_output_stimulus, generate_stimulus_file, audio_file_info, write_audio_file
 import numpy as np
-from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QStackedWidget, QVBoxLayout, QSizePolicy
+from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QVBoxLayout, QDialog
 from qtpy.QtCore import Signal, Slot, QObject
 import pyqtgraph as pg
 from engineering_notation import EngNumber
 import DeviceIO
-from time import sleep, time
+from time import time
 
 
 # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
@@ -754,6 +754,37 @@ class InputParameters(QCollapsible):
             update_input_mode(0)
         else:
             update_input_mode(1)
+
+
+        # calibration parameters section
+        self.cal_params = QCollapsible('Calibration')
+        self.addWidget(self.cal_params)
+
+        self.FS_per_Pa = CLParamNum('Acoustic', clp.project['FS_per_Pa'], 'FS/Pa', numtype='float') # todo: set reasonable minimum
+        self.FS_per_Pa.spin_box.setDecimals(6)
+        self.cal_params.addWidget(self.FS_per_Pa)
+        def update_FS_per_Pa(new_val):
+            clp.project['FS_per_Pa'] = new_val
+            chirp_tab.analyze()
+        self.FS_per_Pa.update_callback = update_FS_per_Pa
+        
+        self.FS_per_V = CLParamNum('Electrical', clp.project['FS_per_V'], 'FS/V', numtype='float') # todo: set reasonable minimum
+        self.FS_per_V.spin_box.setDecimals(6)
+        self.cal_params.addWidget(self.FS_per_V)
+        def update_FS_per_V(new_val):
+            clp.project['FS_per_V'] = new_val
+            chirp_tab.analyze()
+        self.FS_per_V.update_callback = update_FS_per_V
+
+        self.cal_button = QPushButton('Calibrate...')
+        self.cal_params.addWidget(self.cal_button)
+        def open_cal_dialog():
+            cal_dialog = CalDialog(chirp_tab)
+            cal_dialog.exec()
+            chirp_tab.analyze()
+        self.cal_button.clicked.connect(open_cal_dialog)
+
+
         self.expand()
 
         
@@ -1125,3 +1156,15 @@ class DeviceInput(QFrame):
             else:
                 self.save.setEnabled(False) # disable button if it is accidentally left enabled after raw response is cleared
         self.save.clicked.connect(save_capture)
+
+
+class CalDialog(QDialog):
+    def __init__(self, chirp_tab):
+        super().__init__()
+
+        self.setWindowTitle('Input Calibration')
+        
+        # todo: figure out how to not have a window icon
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(CLTab()) # same overall structure as a measurement tab - parameter panel on the left with a gaph on the right

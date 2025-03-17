@@ -1,5 +1,5 @@
 import CLProject as clp
-from CLAnalysis import logchirp, chirp_freq_to_time, freq_points, interpolate
+from CLAnalysis import logchirp, chirp_freq_to_time, freq_points, interpolate, FS_to_unit
 from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
@@ -11,7 +11,7 @@ from CLMeasurements import CLMeasurement, FrequencyResponse
 class HarmonicDistortion(CLMeasurement):
     measurement_type_name = 'Harmonic Distortion'
     
-    OUTPUT_UNITS = ['dB', '%', '% (IEC method)', 'dBFS', 'FS']
+    OUTPUT_UNITS = ['dB', '%', '% (IEC method)', 'dBFS', 'dBSPL', 'dBV', 'FS', 'Pa', 'V']
     
     def __init__(self, name, params=None):
         if params is None:
@@ -75,10 +75,8 @@ class HarmonicDistortion(CLMeasurement):
                     return 100 * fs_points / ref_fr.out_points
                 case '% (IEC method)':
                     return 100 * fs_points / (ref_fr.out_points + fs_points)
-                case 'dBFS':
-                    return 20*np.log10(fs_points)
-                case _: # 'FS'
-                    return fs_points
+                case _:
+                    return FS_to_unit(fs_points, self.params['output']['unit'])
         self.out_points = convert_output_units(self.out_points)
         
         

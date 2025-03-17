@@ -354,6 +354,8 @@ class AddMeasurementDialog(QDialog):
         
         self.setWindowTitle('Add new measurement')
         
+        # todo: figure out how to not have a window icon
+
         layout = QVBoxLayout()
         
         measurement_type_names = []

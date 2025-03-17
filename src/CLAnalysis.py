@@ -83,7 +83,6 @@ def generate_stimulus_file(out_path):
             error_box.showMessage('Error writing stimulus file \n' + str(ex))
             error_box.exec()
     
-
 def read_response():
     # get the desired channel from the input signal, locate the chirp in the signal, and trim/pad to time align with the reference stimulus
     # assumes input signal is already captured/loaded into clp.signals['raw_response'] and clp.signals['stimulus'] has been generated
@@ -270,7 +269,7 @@ def save_csv(measurement, file_name='', out_dir=''):
         out_frame.to_csv(out_file, index=False)
 
 def save_xlsx(measurements, out_path):
-    # get measurement data from one or more measurements and save the output data in a single excel file
+    # todo: get measurement data from one or more measurements and save the output data in a single excel file
     pass
 
 def freq_points(start_freq, stop_freq, num_points, spacing='log', round_to_whole_freq=False):
@@ -293,6 +292,22 @@ def interpolate(x_input, y_input, x_output, linear=True):
     else:
         return np.interp(np.log(x_output), np.log(x_input), y_input)
     
+def FS_to_unit(input_FS, output_unit):
+    match output_unit:
+        case 'FS':
+            return input_FS
+        case 'dBFS':
+            return 20*np.log10(input_FS)
+        case 'dBSPL':
+            ninety_four_dBSPL = 20*np.log10(1/0.00002) # 0dBSPL = 20uPa
+            return 20*np.log10(input_FS / clp.project['FS_per_Pa']) + ninety_four_dBSPL
+        case 'dBV':
+            return 20*np.log10(input_FS / clp.project['FS_per_V'])
+        case 'Pa':
+            return input_FS / clp.project['FS_per_Pa']
+        case 'V':
+            return input_FS / clp.project['FS_per_V']
+
 def check_sox():
     if sys.platform == 'win32':
         # first check of sox is available on the PATH

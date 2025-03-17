@@ -42,7 +42,7 @@ Chirplab currently only supports Harmonic Distortion measurements (equivalent to
 ### Fine control over measurement parameters
 One of the disconnects between different measurement systems having measurements with the same name but different results is that they use very similar algorithms, but hide the parameters used for analysis. "THD" almost always start with the 2nd harmonic, but may include harmonics up to 7, 10, or 35, and *many measurement systems don't give the user any control over the range used*. Chirplab gives the user control over all of the critical analysis parameters for a particular measurement. Unfortunately, the user is still responsible for clearly communicating the context of the measurement and settings used when they share measurement results. 🙃
 
-At this time all major measurement parameters are exposed in the GUI, but in the future some measurements may hide parameters that are obscure or easy to misconfigure within the project file. If you are seeing results that do not align with your expectations or you don't see parameters that you expect to be able to control, please [raise an issue](https://github.com/loudifier/chirplab/issues).
+All major measurement parameters are exposed in the GUI. Some measurements parameters that are obscure or easy to misconfigure may not be exposed in the GUI, but they can still be manually set by editing the project file. If you are seeing results that do not align with your expectations or you don't see parameters that you expect to be able to control, please [raise an issue](https://github.com/loudifier/chirplab/issues).
 
 <br/>
 
