@@ -5,6 +5,9 @@ from CLAnalysis import audio_file_info, read_audio_file
 import numpy as np
 import pyqtgraph as pg
 from qtpy.QtCore import Qt
+from scipy.fftpack import fft, fftfreq
+from scipy.signal.windows import hann
+from Biquad import Biquad, bandpass_coeff
 
 class CalibrationDialog(QDialog):
     def __init__(self, chirp_tab):
@@ -51,7 +54,10 @@ class CalibrationDialog(QDialog):
                 measure()
             file.update_callback = update_file
 
-            def measure():
+            def measure(_=None):
+                if not len(self.samples):
+                    return
+                
                 self.times = np.arange(len(self.samples)) / self.file_info['sample_rate']
                 noise_pen = pg.mkPen(color=clp.NOISE_COLOR, width=clp.PLOT_PEN_WIDTH)
                 tab.graph.plot(self.times, self.samples, pen=noise_pen)
@@ -59,10 +65,18 @@ class CalibrationDialog(QDialog):
                 start_sample = round(skip.value * self.file_info['sample_rate'])
                 end_sample = min(start_sample + round(length.value * self.file_info['sample_rate']), len(self.samples)-1)
                 measure_samples = self.samples.copy()
-                measure_samples[:start_sample] = np.zeros(start_sample)
-                measure_samples[end_sample:] = np.zeros(len(measure_samples)-end_sample)
 
                 # apply filtering
+                if bandpass.isChecked():
+                    if auto.isChecked():
+                        spectrum = fft(measure_samples * hann(len(measure_samples)))
+                        freqs = fftfreq(len(measure_samples), 1/self.file_info['sample_rate'])
+                        spectrum *= freqs # correct for noise spectrum likely having 1/f shape. Helps avoid detecting very low rumble when cal tone level is relatively low. todo: look into tone prominence ratio or something more sophisticated at some point.
+                        frequency.set_value(freqs[np.argmax(np.abs(spectrum))])
+
+                    b, a = bandpass_coeff(frequency.value, 2, self.file_info['sample_rate']) # Q=10 results in 24dB sidetone rejection at +/-1 octave
+                    filt = Biquad(b, a)
+                    measure_samples = filt.process(measure_samples)
 
                 measure_pen = pg.mkPen(color=clp.PLOT_COLORS[0], width=clp.PLOT_PEN_WIDTH)
                 tab.graph.plot(self.times[start_sample:end_sample], measure_samples[start_sample:end_sample], pen=measure_pen)
@@ -78,21 +92,20 @@ class CalibrationDialog(QDialog):
 
             skip = CLParamNum('Skip first', 0, 'Sec', 0, numtype='float')
             tab.panel.addWidget(skip)
-            def update_skip(new_val):
-                if any(self.samples):
-                    measure()
-            skip.update_callback = update_skip
+            skip.update_callback = measure
 
         length = CLParamNum('Measurement length', 1, 'Sec', 0.1, numtype='float')
         tab.panel.addWidget(length)
-        def update_length(new_val):
-            if any(self.samples):
-                measure()
-        length.update_callback = update_length
+        length.update_callback = measure
 
         bandpass = QCheckBox('Bandpass filter')
+        bandpass.stateChanged.connect(measure)
         auto = QCheckBox('Auto')
         auto.setChecked(True)
+        def update_auto(checked):
+            frequency.spin_box.setEnabled(not checked)
+            measure()
+        auto.stateChanged.connect(update_auto)
         checkboxes = QFrame()
         checkbox_layout = QHBoxLayout(checkboxes)
         checkbox_layout.addWidget(bandpass)
@@ -102,6 +115,7 @@ class CalibrationDialog(QDialog):
         frequency = CLParamNum('Frequency', 1000, 'Hz', 1, 20000, 'float')
         frequency.spin_box.setEnabled(False)
         tab.panel.addWidget(frequency)
+        frequency.update_callback = measure
 
         tab.panel.addWidget(QHSeparator())
 
@@ -117,6 +131,15 @@ class CalibrationDialog(QDialog):
 
         acoustic_level = CLParamNum('Reference level', 1.0, ['Pa', 'dBSPL'], 0.00002, numtype='float') # 0dBSPL minimum
         tab.panel.addWidget(acoustic_level)
+        def update_acoustic_units(index):
+            ninety_four_dBSPL = 20*np.log10(1/0.00002) # 0dBSPL = 20uPa
+            if index:
+                acoustic_level.min = 0
+                acoustic_level.set_value(20*np.log10(acoustic_level.value) + ninety_four_dBSPL)
+            else:
+                acoustic_level.min = 0.00002
+                acoustic_level.set_value(10**((acoustic_level.value - ninety_four_dBSPL)/20))
+        acoustic_level.units_update_callback = update_acoustic_units
 
         set_acoustic = QPushButton('Set acoustic calibration')
         tab.panel.addWidget(set_acoustic)
@@ -142,6 +165,14 @@ class CalibrationDialog(QDialog):
 
         electrical_level = CLParamNum('Reference level', 1.0, ['V', 'dBV'], 0.000001, numtype='float') # 1uV minimum
         tab.panel.addWidget(electrical_level)
+        def update_electrical_units(index):
+            if index:
+                electrical_level.min = 20*np.log10(0.000001)
+                electrical_level.set_value(20*np.log10(electrical_level.value))
+            else:
+                electrical_level.min = 0.000001
+                electrical_level.set_value(10**(electrical_level.value/20))
+        electrical_level.units_update_callback = update_electrical_units
 
         set_electrical = QPushButton('Set electical calibration')
         tab.panel.addWidget(set_electrical)

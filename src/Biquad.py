@@ -6,8 +6,8 @@ import numpy as np
 class Biquad():
     # filter object that keeps track of coefficients and signal state.
     # uses 6 coefficients b[0-2] and a[0-2]
-    # if only two a coefficients are given, coefficients are assumed to be normalized such that a[0]=1
-    def __init__(self, b=[1,0,0], a=[0,0]):
+    # if only two a coefficients are given, a and b coefficients are assumed to be normalized such that a[0]=1 and input parameter a[0] is intended to be used as filter a[1], input a[1] as filter a[2]
+    def __init__(self, b=[1,0,0], a=[1,0,0]):
         self.b = b
         if len(a)<3:
             self.a = [1,a[0],a[1]]
