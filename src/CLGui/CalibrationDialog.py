@@ -20,6 +20,8 @@ class CalibrationDialog(QDialog):
         tab_sizes = tab.sizes()
         tab.setSizes([350, tab_sizes[1] + tab_sizes[0] - 350])
 
+        tab.graph.scene().removeItem(tab.graph.legend)
+
         self.samples = []
 
         if clp.project['input']['mode'] == 'file':
@@ -103,13 +105,14 @@ class CalibrationDialog(QDialog):
 
         tab.panel.addWidget(QHSeparator())
 
-        tone_level = CLParameter('Measured tone level', str(0), ['dBFS', 'FS'])
+        tone_level = CLParameter('Measured tone level', '0', ['dBFS', 'FS'])
         tone_level.text_box.setEnabled(False)
         tab.panel.addWidget(tone_level)
 
         tab.panel.addWidget(QHSeparator())
 
         FS_per_Pa = CLParamNum('Acoustic calibration', clp.project['FS_per_Pa'], 'FS/Pa', numtype='float') # todo: set reasonable minimum
+        FS_per_Pa.spin_box.setDecimals(6)
         tab.panel.addWidget(FS_per_Pa)
 
         acoustic_level = CLParamNum('Reference level', 1.0, ['Pa', 'dBSPL'], 0.00002, numtype='float') # 0dBSPL minimum
@@ -117,10 +120,24 @@ class CalibrationDialog(QDialog):
 
         set_acoustic = QPushButton('Set acoustic calibration')
         tab.panel.addWidget(set_acoustic)
+        def set_FS_per_Pa():
+            if float(tone_level.value) != 0:
+                if tone_level.units.currentIndex():
+                    FS = float(tone_level.value)
+                else:
+                    FS = 10**(float(tone_level.value)/20)
+                if acoustic_level.units.currentIndex():
+                    Pa = 10**(acoustic_level.value/20)
+                else:
+                    Pa = acoustic_level.value
+                FS_per_Pa.set_value(FS / Pa)
+                update_V_per_Pa()
+        set_acoustic.clicked.connect(set_FS_per_Pa)
         
         tab.panel.addWidget(QHSeparator())
 
         FS_per_V = CLParamNum('Electrical calibration', clp.project['FS_per_V'], 'FS/V', numtype='float') # todo: set reasonable minimum
+        FS_per_V.spin_box.setDecimals(6)
         tab.panel.addWidget(FS_per_V)
 
         electrical_level = CLParamNum('Reference level', 1.0, ['V', 'dBV'], 0.000001, numtype='float') # 1uV minimum
@@ -128,20 +145,46 @@ class CalibrationDialog(QDialog):
 
         set_electrical = QPushButton('Set electical calibration')
         tab.panel.addWidget(set_electrical)
+        def set_FS_per_V():
+            if float(tone_level.value) != 0:
+                if tone_level.units.currentIndex():
+                    FS = float(tone_level.value)
+                else:
+                    FS = 10**(float(tone_level.value)/20)
+                if electrical_level.units.currentIndex():
+                    V = 10**(electrical_level.value/20)
+                else:
+                    V = electrical_level.value
+                FS_per_V.set_value(FS / V)
+                update_V_per_Pa()
+        set_electrical.clicked.connect(set_FS_per_V)
 
         tab.panel.addWidget(QHSeparator())
 
         V_per_Pa = CLParameter('Electroacoustic sensitivity', str(0), 'V/Pa')
         V_per_Pa.text_box.setEnabled(False)
         tab.panel.addWidget(V_per_Pa)
+        def update_V_per_Pa(_=None):
+            V_per_Pa.set_value(str(round((1/FS_per_V.value) / (1/FS_per_Pa.value), 4)))
+        update_V_per_Pa()
+        FS_per_Pa.update_callback = update_V_per_Pa
+        FS_per_V.update_callback = update_V_per_Pa
 
         tab.panel.addWidget(QHSeparator())
 
-        self.save = QPushButton('Save calibration')
+        save = QPushButton('Save calibration')
+        def save_cal():
+            clp.project['FS_per_Pa'] = FS_per_Pa.value
+            chirp_tab.input_params.FS_per_Pa.set_value(FS_per_Pa.value)
+            clp.project['FS_per_V'] = FS_per_V.value
+            chirp_tab.input_params.FS_per_V.set_value(FS_per_V.value)
+            self.accept()
+        save.clicked.connect(save_cal)
         cancel = QPushButton('Cancel')
+        cancel.clicked.connect(self.reject)
         buttons = QFrame()
         buttons_layout = QHBoxLayout(buttons)
-        buttons_layout.addWidget(self.save)
+        buttons_layout.addWidget(save)
         buttons_layout.addWidget(cancel)
         tab.panel.addWidget(buttons)
 

@@ -20,7 +20,7 @@ class CLTab(QSplitter): # base widget is a splitter
         # graph area setup
         self.graph = pg.PlotWidget(axisItems={'bottom':EngAxisItem('bottom')})
         self.graph.showGrid(True, True, 0.25)
-        self.graph.addLegend(brush=pg.mkBrush(255,255,255,192))
+        self.graph.legend = self.graph.addLegend(brush=pg.mkBrush(255,255,255,192))
         graph_layout = QVBoxLayout()
         graph_layout.addWidget(self.graph)
         graph_area = QWidget()
@@ -31,5 +31,5 @@ class CLTab(QSplitter): # base widget is a splitter
         self.addWidget(graph_area)
         
         # set initial panel width
-        panel_width = 200 # todo: reasonable initial value on my machine. Panel size/scaling will need a lot of work #DPI
+        panel_width = 235 # todo: reasonable initial value on my machine. Panel size/scaling will need a lot of work #DPI
         self.setSizes([panel_width, self.window().width()-panel_width])

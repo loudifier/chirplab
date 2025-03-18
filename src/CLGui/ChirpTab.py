@@ -780,8 +780,8 @@ class InputParameters(QCollapsible):
         self.cal_params.addWidget(self.cal_button)
         def open_cal_dialog():
             cal_dialog = CalibrationDialog(chirp_tab)
-            cal_dialog.exec()
-            chirp_tab.analyze()
+            if cal_dialog.exec():
+                chirp_tab.analyze()
         self.cal_button.clicked.connect(open_cal_dialog)
 
 
