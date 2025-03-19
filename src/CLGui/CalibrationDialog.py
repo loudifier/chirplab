@@ -1,7 +1,7 @@
 import CLProject as clp
 from qtpy.QtWidgets import QDialog, QVBoxLayout, QMessageBox, QCheckBox, QHBoxLayout, QFrame, QPushButton
 from CLGui import CLTab, CLParamFile, CLParamNum, CLParameter, QHSeparator
-from CLAnalysis import audio_file_info, read_audio_file
+from CLAnalysis import audio_file_info, read_audio_file, decimate_preserve_magnitude
 import numpy as np
 import pyqtgraph as pg
 from qtpy.QtCore import Qt
@@ -58,9 +58,17 @@ class CalibrationDialog(QDialog):
                 if not len(self.samples):
                     return
                 
+                tab.graph.clear()
+
+                plot_points = tab.graph.size().width()*2
+
                 self.times = np.arange(len(self.samples)) / self.file_info['sample_rate']
                 noise_pen = pg.mkPen(color=clp.NOISE_COLOR, width=clp.PLOT_PEN_WIDTH)
-                tab.graph.plot(self.times, self.samples, pen=noise_pen)
+                if plot_points < len(self.samples):
+                    plot_times, plot_samples = decimate_preserve_magnitude(self.times, self.samples, plot_points)
+                    tab.graph.plot(plot_times, plot_samples)
+                else:
+                    tab.graph.plot(self.times, self.samples, pen=noise_pen)
 
                 start_sample = round(skip.value * self.file_info['sample_rate'])
                 end_sample = min(start_sample + round(length.value * self.file_info['sample_rate']), len(self.samples)-1)
@@ -79,7 +87,11 @@ class CalibrationDialog(QDialog):
                     measure_samples = filt.process(measure_samples)
 
                 measure_pen = pg.mkPen(color=clp.PLOT_COLORS[0], width=clp.PLOT_PEN_WIDTH)
-                tab.graph.plot(self.times[start_sample:end_sample], measure_samples[start_sample:end_sample], pen=measure_pen)
+                if plot_points<(end_sample - start_sample):
+                    plot_times, plot_samples = decimate_preserve_magnitude(self.times[start_sample:end_sample], measure_samples[start_sample:end_sample], plot_points)
+                    tab.graph.plot(plot_times, plot_samples, pen=measure_pen)
+                else:
+                    tab.graph.plot(self.times[start_sample:end_sample], measure_samples[start_sample:end_sample], pen=measure_pen)
 
                 # measure signal
                 rms = np.sqrt(np.mean(measure_samples[start_sample:end_sample]**2))

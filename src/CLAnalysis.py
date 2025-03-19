@@ -308,6 +308,35 @@ def FS_to_unit(input_FS, output_unit):
         case 'V':
             return input_FS / clp.project['FS_per_V']
 
+def decimate_preserve_magnitude(x, y, num_points):
+    # reduce the density of X/Y data to num_points while maintaining the minimum and maximum values in each decimation period
+    # creates a sawtooth-like output of length 2*num_points, minimum X/Y values in each decimation period followed by maximum X/Y values in each decimation period
+    # as long as num_points is greater than the width of the graph in pixels the overall appearance will be very similar to plotting at full resolution
+    # x and y must be the same length
+    ratio = int(np.ceil(len(x) / num_points))
+
+    # pad x and y so they can be reshaped
+    x = np.pad(x, (0, num_points*ratio - len(x)), 'edge')
+    y = np.pad(y, (0, num_points*ratio - len(y)), 'edge')
+
+    x = x.reshape(-1, ratio)
+    y = y.reshape(-1, ratio)
+
+    x_min = np.min(x, axis=1)
+    x_max = np.max(x, axis=1)
+    y_min = np.min(y, axis=1)
+    y_max = np.max(y, axis=1)
+
+    x_dec = np.empty([num_points*2,], dtype=x.dtype)
+    x_dec[0::2] = x_min
+    x_dec[1::2] = x_max
+    y_dec = np.empty([num_points*2], dtype=y.dtype)
+    y_dec[0::2] = y_min
+    y_dec[1::2] = y_max
+
+    return x_dec, y_dec
+
+
 def check_sox():
     if sys.platform == 'win32':
         # first check of sox is available on the PATH
