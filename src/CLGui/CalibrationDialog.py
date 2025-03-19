@@ -4,12 +4,18 @@ from CLGui import CLTab, CLParamFile, CLParamNum, CLParameter, QHSeparator
 from CLAnalysis import audio_file_info, read_audio_file, decimate_preserve_magnitude
 import numpy as np
 import pyqtgraph as pg
-from qtpy.QtCore import Qt
+from qtpy.QtCore import Qt, Signal, Slot, QObject
 from scipy.fftpack import fft, fftfreq
 from scipy.signal.windows import hann
 from Biquad import Biquad, bandpass_coeff
+import DeviceIO
 
 class CalibrationDialog(QDialog):
+    # set up signal/slot to transfer device input data from PyAudio thread to Qt thread
+    class StreamReceiver(QObject):
+        frame_received = Signal(np.ndarray)
+    stream_receiver = StreamReceiver()
+
     def __init__(self, chirp_tab):
         super().__init__()
 
@@ -105,6 +111,24 @@ class CalibrationDialog(QDialog):
             skip = CLParamNum('Skip first', 0, 'Sec', 0, numtype='float')
             tab.panel.addWidget(skip)
             skip.update_callback = measure
+
+        else: # device input
+            self.samples = []
+
+            @Slot(np.ndarray)
+            def stream_callback(input_samples):
+                if input_samples.ndim > 1:
+                    input_samples = input_samples[:,clp.project['input']['channel']-1]
+                tab.graph.clear()
+                tab.graph.plot(input_samples)
+            self.stream_receiver.frame_received.connect(stream_callback)
+
+            self.input_stream = DeviceIO.stream_input(clp.project['input']['sample_rate'], clp.project['input']['device'], clp.project['input']['api'], self.stream_receiver.frame_received.emit)
+
+
+            def measure():
+                pass
+            
 
         length = CLParamNum('Measurement length', 1, 'Sec', 0.1, numtype='float')
         tab.panel.addWidget(length)
@@ -235,3 +259,9 @@ class CalibrationDialog(QDialog):
         # keep QDialog from just pushing the first button it finds when the user hits Enter
         if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
             return
+
+    def done(self, result):
+        # close input stream when calibration dialog is closed
+        if clp.project['input']['mode'] == 'device':
+            self.input_stream.stop_stream()
+        return super().done(result)
