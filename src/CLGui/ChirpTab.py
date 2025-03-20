@@ -14,10 +14,11 @@ from time import time
 class ChirpTab(CLTab):
     def __init__(self):
         super().__init__()
-        #self.graph.axes.set_title('Stimulus Signal / Captured Response')
         self.graph.setTitle('Stimulus Signal / Captured Response') 
         self.graph.setLabel('left', 'Amplitude (FS)') # option to display units in V or Pa?
-        
+        self.graph.getPlotItem().setDownsampling(True, True, 'peak')
+        self.graph.getPlotItem().setClipToView(True)
+
         
         # Chirp parameters section
         self.chirp_params = ChirpParameters(self)
@@ -79,14 +80,14 @@ class ChirpTab(CLTab):
             times = np.arange(len(clp.signals['stimulus'])) - round(clp.project['pre_sweep']*clp.project['sample_rate'])
             self.graph.setLabel('bottom', 'Time (samples)')
         
-        signal_pen = pg.mkPen(color=clp.PLOT_COLORS[0], width = clp.PLOT_PEN_WIDTH)
+        signal_pen = pg.mkPen(color=clp.PLOT_COLORS[0])#, width = clp.PLOT_PEN_WIDTH)
         self.graph.plot(times, clp.signals['stimulus'], name='stimulus', pen=signal_pen)
         
-        response_pen = pg.mkPen(color=clp.PLOT_COLORS[1], width = clp.PLOT_PEN_WIDTH)
+        response_pen = pg.mkPen(color=clp.PLOT_COLORS[1])#, width = clp.PLOT_PEN_WIDTH)
         self.graph.plot(times, clp.signals['response'], name='response', pen=response_pen)
         
         if any(clp.signals['noise']):
-            noise_pen = pg.mkPen(color=clp.NOISE_COLOR, width = clp.PLOT_PEN_WIDTH)
+            noise_pen = pg.mkPen(color=clp.NOISE_COLOR)#, width = clp.PLOT_PEN_WIDTH)
             self.graph.plot(times, clp.signals['noise'], name='noise sample', pen=noise_pen)
 
 

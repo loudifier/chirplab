@@ -62,7 +62,7 @@ PLOT_COLORS = [ # default color order used by MATLAB
     '#4DBEEE', # light blue
     '#A2142F'] # red
 NOISE_COLOR = '#808080'
-PLOT_PEN_WIDTH = 3
+PLOT_PEN_WIDTH = 3 # some high density plots force the pen width to 1, which is much faster
 
 
 # default project parameters
