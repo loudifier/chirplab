@@ -51,7 +51,7 @@ class CalibrationDialog(QDialog):
                     message = QMessageBox()
                     message.setIcon(QMessageBox.Information) # todo: figure out how to not show the window icon
                     message.setWindowTitle('Channel mismatch')
-                    message.setText('Channel ' + str(clp.project['input']['channel']) + ' selected but calibration tone file only contains ' + str(file_info['channels']) + ' channel' + 's'*int(file_info['channels']>1) + '. Measuring signal in channel 1 instead.')
+                    message.setText('Channel ' + str(clp.project['input']['channel']) + ' selected but calibration tone file only contains ' + str(self.file_info['channels']) + ' channel' + 's'*int(self.file_info['channels']>1) + '. Measuring signal in channel 1 instead.')
                     message.exec()
 
                     channel = 1
