@@ -170,7 +170,7 @@ def record(record_length_samples, sample_rate, device_name, api_name, active_cal
 
     stream = pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, input=True, input_device_index=device_index, stream_callback=record_callback)
 
-def stream_input(sample_rate, device_name, api_name, stream_callback):
+def stream_input(sample_rate, device_name, api_name, stream_callback, samples_per_chunk=None):
     device_index = device_name_to_index(device_name, api_name)
     num_channels = pa.get_device_info_by_index(device_index)['maxInputChannels']
 
@@ -179,7 +179,10 @@ def stream_input(sample_rate, device_name, api_name, stream_callback):
         return (None, pyaudio.paContinue)
 
     # return handle to stream object. Will continue streaming to callback indefinitely until <stream>.close_stream() is called
-    return pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, input=True, input_device_index=device_index, stream_callback=callback)
+    if samples_per_chunk is None:
+        return pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, input=True, input_device_index=device_index, stream_callback=callback)
+    else:
+        return pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, input=True, input_device_index=device_index, stream_callback=callback, frames_per_buffer=samples_per_chunk)
 
 
 # run directly to print out APIs and devices for debugging purposes

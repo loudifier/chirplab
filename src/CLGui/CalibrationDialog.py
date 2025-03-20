@@ -1,7 +1,7 @@
 import CLProject as clp
 from qtpy.QtWidgets import QDialog, QVBoxLayout, QMessageBox, QCheckBox, QHBoxLayout, QFrame, QPushButton
 from CLGui import CLTab, CLParamFile, CLParamNum, CLParameter, QHSeparator
-from CLAnalysis import audio_file_info, read_audio_file, decimate_preserve_magnitude
+from CLAnalysis import audio_file_info, read_audio_file
 import numpy as np
 import pyqtgraph as pg
 from qtpy.QtCore import Qt, Signal, Slot, QObject
@@ -10,6 +10,7 @@ from scipy.signal.windows import hann
 from Biquad import Biquad, bandpass_coeff
 import DeviceIO
 
+# todo: this whole class is kind of messy. Could be cleaned up and probably also optimized for faster plotting
 class CalibrationDialog(QDialog):
     # set up signal/slot to transfer device input data from PyAudio thread to Qt thread
     class StreamReceiver(QObject):
@@ -30,8 +31,15 @@ class CalibrationDialog(QDialog):
         tab.setSizes([350, tab_sizes[1] + tab_sizes[0] - 350])
 
         tab.graph.scene().removeItem(tab.graph.legend)
+        tab.graph.getPlotItem().setDownsampling(True, True, 'peak')
+        tab.graph.getPlotItem().setClipToView(True)
+        noise_pen = pg.mkPen(color=clp.NOISE_COLOR)#, width=clp.PLOT_PEN_WIDTH)
+        measure_pen = pg.mkPen(color=clp.PLOT_COLORS[0])#, width=clp.PLOT_PEN_WIDTH)
 
         self.samples = []
+
+        # UI initialization is a little scrambled to get everything started in one pass, have slightly different behavior in file vs device mode
+        length = CLParamNum('Measurement length', 1, 'Sec', 0.1, numtype='float')
 
         if clp.project['input']['mode'] == 'file':
             file = CLParamFile('Calibration tone file', '')
@@ -66,15 +74,8 @@ class CalibrationDialog(QDialog):
                 
                 tab.graph.clear()
 
-                plot_points = tab.graph.size().width()*2
-
-                self.times = np.arange(len(self.samples)) / self.file_info['sample_rate']
-                noise_pen = pg.mkPen(color=clp.NOISE_COLOR, width=clp.PLOT_PEN_WIDTH)
-                if plot_points < len(self.samples):
-                    plot_times, plot_samples = decimate_preserve_magnitude(self.times, self.samples, plot_points)
-                    tab.graph.plot(plot_times, plot_samples)
-                else:
-                    tab.graph.plot(self.times, self.samples, pen=noise_pen)
+                times = np.arange(len(self.samples)) / self.file_info['sample_rate']
+                tab.graph.plot(times, self.samples, pen=noise_pen)
 
                 start_sample = round(skip.value * self.file_info['sample_rate'])
                 end_sample = min(start_sample + round(length.value * self.file_info['sample_rate']), len(self.samples)-1)
@@ -83,7 +84,7 @@ class CalibrationDialog(QDialog):
                 # apply filtering
                 if bandpass.isChecked():
                     if auto.isChecked():
-                        spectrum = fft(measure_samples * hann(len(measure_samples)))
+                        spectrum = fft(measure_samples * hann(len(measure_samples))) # todo: potentially zero-pad to some minimum length to ensure reasonable frequency resolution
                         freqs = fftfreq(len(measure_samples), 1/self.file_info['sample_rate'])
                         spectrum *= freqs # correct for noise spectrum likely having 1/f shape. Helps avoid detecting very low rumble when cal tone level is relatively low. todo: look into tone prominence ratio or something more sophisticated at some point.
                         frequency.set_value(freqs[np.argmax(np.abs(spectrum))])
@@ -92,12 +93,7 @@ class CalibrationDialog(QDialog):
                     filt = Biquad(b, a)
                     measure_samples = filt.process(measure_samples)
 
-                measure_pen = pg.mkPen(color=clp.PLOT_COLORS[0], width=clp.PLOT_PEN_WIDTH)
-                if plot_points<(end_sample - start_sample):
-                    plot_times, plot_samples = decimate_preserve_magnitude(self.times[start_sample:end_sample], measure_samples[start_sample:end_sample], plot_points)
-                    tab.graph.plot(plot_times, plot_samples, pen=measure_pen)
-                else:
-                    tab.graph.plot(self.times[start_sample:end_sample], measure_samples[start_sample:end_sample], pen=measure_pen)
+                tab.graph.plot(times[start_sample:end_sample], measure_samples[start_sample:end_sample], pen=measure_pen)
 
                 # measure signal
                 rms = np.sqrt(np.mean(measure_samples[start_sample:end_sample]**2))
@@ -113,24 +109,70 @@ class CalibrationDialog(QDialog):
             skip.update_callback = measure
 
         else: # device input
-            self.samples = []
+            # todo: several things calculated on every loop that could be rearranged
+            self.measure_samples = []
+            self.filt = Biquad() # initialize in bypass mode
 
             @Slot(np.ndarray)
             def stream_callback(input_samples):
+                self.target_length = round(length.value * 1.2 * clp.project['input']['sample_rate'])
+
                 if input_samples.ndim > 1:
                     input_samples = input_samples[:,clp.project['input']['channel']-1]
+
+                self.samples = np.hstack([self.samples, input_samples])
+                self.measure_samples = np.hstack([self.measure_samples, self.filt.process(input_samples)])
+                if len(self.samples) > self.target_length:
+                    self.samples = np.roll(self.samples, -(len(self.samples) - self.target_length))[:self.target_length]
+                    self.measure_samples = np.roll(self.measure_samples, -(len(self.measure_samples) - self.target_length))[:self.target_length]
+
+                times = np.arange(len(self.samples)) / clp.project['input']['sample_rate']
+
                 tab.graph.clear()
-                tab.graph.plot(input_samples)
+                tab.graph.plot(times, self.samples, pen=noise_pen)
+
+                start_sample = round(length.value * 0.1 * clp.project['input']['sample_rate'])
+                end_sample = min(round(length.value * 1.1 * clp.project['input']['sample_rate']), len(self.samples)-1)
+
+                # apply filtering
+                if bandpass.isChecked():
+                    if auto.isChecked():
+                        spectrum = fft(np.hstack([input_samples * hann(len(input_samples)), np.zeros(len(input_samples)*11)])) # pad to increase frequency resolution to 2.5Hz, 0.01dB error for bandpass filter with Q of 10
+                        freqs = fftfreq(len(input_samples)*12, 1/clp.project['input']['sample_rate'])
+                        spectrum *= freqs # correct for noise spectrum likely having 1/f shape. Helps avoid detecting very low rumble when cal tone level is relatively low. todo: look into tone prominence ratio or something more sophisticated at some point.
+                        frequency.set_value(freqs[np.argmax(np.abs(spectrum))])
+                    b, a = bandpass_coeff(frequency.value, 2, clp.project['input']['sample_rate']) # Q=10 results in 24dB sidetone rejection at +/-1 octave
+                    self.filt.b = b
+                    self.filt.a = a # doesn't actually apply until the next frame
+                else:
+                    # set filter to bypass the next frame
+                    self.filt.b = [1,0,0]
+                    self.filt.a = [1,0,0]
+
+                tab.graph.plot(times[start_sample:end_sample], self.measure_samples[start_sample:end_sample], pen=measure_pen)
+
+                # measure signal
+                rms = np.sqrt(np.mean(self.measure_samples[start_sample:end_sample]**2))
+                rms *= np.sqrt(2) # apply 3dB sine wave correction
+                if tone_level.units.currentIndex():
+                    tone_level.set_value(str(rms))
+                else:
+                    tone_level.set_value(str(20*np.log10(rms)))
+
+                
             self.stream_receiver.frame_received.connect(stream_callback)
 
-            self.input_stream = DeviceIO.stream_input(clp.project['input']['sample_rate'], clp.project['input']['device'], clp.project['input']['api'], self.stream_receiver.frame_received.emit)
+            frame_size = round(clp.project['input']['sample_rate'] / 30) # update 30 times per second (compromising between update rate and processing speed)
+            self.input_stream = DeviceIO.stream_input(clp.project['input']['sample_rate'], clp.project['input']['device'], clp.project['input']['api'], self.stream_receiver.frame_received.emit, frame_size)
 
 
-            def measure():
+            def measure(_=None):
+                # measurement will be automatically updated on next stream_callback().
+                # this is just a stub for anything that calls measure() in file mode, and updates anything that should be updated for next stream_callback()
                 pass
             
 
-        length = CLParamNum('Measurement length', 1, 'Sec', 0.1, numtype='float')
+        
         tab.panel.addWidget(length)
         length.update_callback = measure
 
