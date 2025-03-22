@@ -53,6 +53,54 @@ class Biquad():
 # Collection of functions to calculate 2nd order filter coefficients
 # Most calculations are originally from RBJ cookbook, using https://github.com/loudifier/Biquad-Cookbook as a reference to verify output accuracy
 
+def lowpass_coeff(F0, Q, Fs):
+    # 2nd order lowpass filter
+    w0 = 2*np.pi*F0/Fs
+    alpha = np.sin(w0)/(2*Q)
+
+    # calculate raw coefficients
+    a = [1 + alpha,
+         -2 * np.cos(w0),
+         1 - alpha]
+    
+    b = [(1 - np.cos(w0))/2,
+         1 - np.cos(w0),
+         (1 - np.cos(w0))/2]
+    
+    # normalize such that a0=1
+    a[1] /= a[0]
+    a[2] /= a[0]
+    b[0] /= a[0]
+    b[1] /= a[0]
+    b[2] /= a[0]
+    a[0] = 1
+
+    return b, a
+
+def highpass_coeff(F0, Q, Fs):
+    # 2nd order highpass filter
+    w0 = 2*np.pi*F0/Fs
+    alpha = np.sin(w0)/(2*Q)
+
+    # calculate raw coefficients
+    a = [1 + alpha,
+         -2 * np.cos(w0),
+         1 - alpha]
+    
+    b = [(1 + np.cos(w0))/2,
+         -(1 + np.cos(w0)),
+         (1 + np.cos(w0))/2]
+    
+    # normalize such that a0=1
+    a[1] /= a[0]
+    a[2] /= a[0]
+    b[0] /= a[0]
+    b[1] /= a[0]
+    b[2] /= a[0]
+    a[0] = 1
+
+    return b, a
+
 def bandpass_coeff(F0, Q, Fs):
     # constant peak bandpass filter, peaking at 0dB
     w0 = 2*np.pi*F0/Fs
@@ -71,6 +119,30 @@ def bandpass_coeff(F0, Q, Fs):
     a[1] /= a[0]
     a[2] /= a[0]
     b[0] /= a[0]
+    b[2] /= a[0]
+    a[0] = 1
+
+    return b, a
+
+def notch_coeff(F0, Q, Fs):
+    # notch filter
+    w0 = 2*np.pi*F0/Fs
+    alpha = np.sin(w0)/(2*Q)
+
+    # calculate raw coefficients
+    a = [1 + alpha,
+         -2 * np.cos(w0),
+         1 - alpha]
+    
+    b = [1,
+         -2 * np.cos(w0),
+         1]
+    
+    # normalize such that a0=1
+    a[1] /= a[0]
+    a[2] /= a[0]
+    b[0] /= a[0]
+    b[1] /= a[0]
     b[2] /= a[0]
     a[0] = 1
 
