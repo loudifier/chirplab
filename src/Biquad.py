@@ -73,7 +73,7 @@ def lowpass_coeff(F0, Q, Fs):
     b[0] /= a[0]
     b[1] /= a[0]
     b[2] /= a[0]
-    a[0] = 1
+    a[0] /= a[0]
 
     return b, a
 
@@ -97,7 +97,7 @@ def highpass_coeff(F0, Q, Fs):
     b[0] /= a[0]
     b[1] /= a[0]
     b[2] /= a[0]
-    a[0] = 1
+    a[0] /= a[0]
 
     return b, a
 
@@ -120,7 +120,10 @@ def bandpass_coeff(F0, Q, Fs):
     a[2] /= a[0]
     b[0] /= a[0]
     b[2] /= a[0]
-    a[0] = 1
+    a[0] /= a[0]
+
+    if np.ndim(F0):
+        b[1] = np.zeros(len(F0))
 
     return b, a
 
@@ -144,6 +147,6 @@ def notch_coeff(F0, Q, Fs):
     b[0] /= a[0]
     b[1] /= a[0]
     b[2] /= a[0]
-    a[0] = 1
+    a[0] /= a[0]
 
     return b, a
