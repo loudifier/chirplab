@@ -153,7 +153,7 @@ class FrequencyResponse(CLMeasurement):
     def init_tab(self):
         super().init_tab()
 
-        self.window_mode = CLParamDropdown('Windowing mode', [mode for mode in self.WINDOW_MODES], '')
+        self.window_mode = CLParamDropdown('Windowing mode', self.WINDOW_MODES, '')
         window_mode_index = self.window_mode.dropdown.findText(self.params['window_mode'])
         if window_mode_index==-1:
             self.params['window_mode'] = 'adaptive'
