@@ -1,12 +1,13 @@
 import CLProject as clp
-from CLAnalysis import chirp_time_to_freq, freq_points, interpolate, FS_to_unit
+from CLAnalysis import chirp_time_to_freq, chirp_freq_to_time, freq_points, interpolate, FS_to_unit
 from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams
 import numpy as np
 from CLMeasurements import CLMeasurement
 from Biquad import Biquad, lowpass_coeff, highpass_coeff, bandpass_coeff, notch_coeff
+import pandas as pd
 
 # tracking filter implementation to perform measurements roughly equivalent to Audio Precision's Rub and Buzz Peak Ratio and Crest Factor. https://www.ap.com/fileadmin-ap/technical-library/appnote-rub-buzz.pdf
-# for a Peak Ratio-style measurement, apply a highpass filter at 5-30x the fundamental and measure the 'filtered peak' signal relative to the 'fundamental' or 'raw' signal
+# for a Peak Ratio-style measurement, apply a highpass filter at 5-30x the fundamental and measure the 'filtered peak' signal relative to the 'fundamental RS' or 'unfiltered RMS' signal
 # for a Crest Factor-style measurement, apply a highpass filter at 5-30x the fundamental and measure the 'filtered peak' signal relative to the 'filtered RMS' signal
 # additional filters available as an alternative to impulse response-based frequency response or harmonic distortion measurements. e.g. bandpass filter at 1x fundamental frequency for frequency response or 2x for second harmonic, notch at 1x fundamental for a rough THD+N approximation, etc.
 
@@ -17,10 +18,10 @@ class TrackingFilter(CLMeasurement):
     RELATIVE_OUTPUT_UNITS = ['dB', '%', '% (IEC method)']
     
     # set of response signals that can be selected for measurement output or as a reference for relative measurements
-    SIGNALS = ['raw',           # unfiltered response
-               'fundamental',   # bandpass filtered response, 1x fundamental frequency, Q=10
-               'filtered peak', # peak level of the response signal filtered using the set of filters given in params['filters']. Peak is the max level in the interval of samples around each output frequency point
-               'filtered RMS']  # RMS level of the filtered response signal
+    SIGNALS = ['unfiltered RMS',  # RMS of unfiltered response
+               'fundamental RMS', # RMS of bandpass filtered response, 1x fundamental frequency, Q=10
+               'filtered peak',   # peak level of the response signal filtered using the set of filters given in params['filters']. Peak is the max level in the interval of samples around each output frequency point
+               'filtered RMS']    # RMS level of the filtered response signal
     
     def __init__(self, name, params=None):
         if params is None:
@@ -39,7 +40,7 @@ class TrackingFilter(CLMeasurement):
                 # todo: add an option to define elliptical or higher order filters usng scipy.signal.iirdesign() or similar? Would make it easier for poeple to specify very sharp cutoffs, 8+ order Butterworth, etc. Actual filter processing would be pretty similar to biquad calculations by using 'sos' conversion
             self.params['mode'] = 'relative' # output the filtered response amplitude 'relative' to a reference signal or 'absolute'
             self.params['measured_signal'] = 'filtered peak' # 'filtered peak' relative to 'fundamental' is roughly equivalent to AP's Rub and Buzz Peak Ratio measurement
-            self.params['reference_signal'] = 'fundamental'
+            self.params['reference_signal'] = 'fundamental RMS'
             self.params['rms_unit'] = 'octaves' # method of specifying the amount of time to apply a moving RMS calculation over the measured and/or filtered response signals. Either 'octaves' to specify a frequency range determined by the chirp sweep rate, or 'seconds' for a fixed amount of time independent of the sweep rate
             self.params['rms_time'] = 1/3 # rms_unit='octaves' and rms_time=1/3 for a 1s chirp from 20-20kHz (9.97 octaves) results in a sliding RMS calculation window of 33.4ms
 
@@ -67,67 +68,139 @@ class TrackingFilter(CLMeasurement):
         response_times = (np.arange(len(clp.signals['response'])) - chirp_start_sample) / clp.project['sample_rate']
         response_freqs = chirp_time_to_freq(clp.project['start_freq'], clp.project['stop_freq'], clp.project['chirp_length'], response_times)
 
-        def multi_filter(x, b, a):
-            # apply multiple biquad filter stages, each with coefficients that are updated for each sample of the input signal, x
-            num_filters = len(b)
-            num_samples = len(x)
-            y = x.copy()
+        # generate array of output frequency points
+        self.out_freqs = freq_points(self.params['output']['min_freq'], 
+                                     self.params['output']['max_freq'],
+                                     self.params['output']['num_points'],
+                                     self.params['output']['spacing'],
+                                     self.params['output']['round_points'])
 
-            # initialize bank of filters, which keep track of previous samples for intermediary filter stages
-            biquads = [Biquad()] * num_filters
+        def calc_tracking_filter(response, selected_signal):
 
-            # loop through samples
-            for n in range(num_samples):
-                # loop through each filter for each sample
+            def multi_filter(x, b, a):
+                # apply multiple biquad filter stages, each with coefficients that are updated for each sample of the input signal, x
+                num_filters = len(b)
+                num_samples = len(x)
+                y = x.copy()
+
+                # loop through each filter
                 for f in range(num_filters):
-                    # set filter coefficients for this sample and apply filter
-                    biquads[f].b[0] = b[f][0][n] # there is a probably a clever slice that does this in one step, but the array outputs from Biquad.<filter>_coeff() are not in a slice-friendly shape
-                    biquads[f].b[1] = b[f][1][n]
-                    biquads[f].b[2] = b[f][2][n]
-                    biquads[f].a[1] = a[f][1][n]
-                    biquads[f].a[2] = a[f][2][n]
-                    y[n] = biquads[f].process(y[n])
+                    biquad = Biquad()
 
-            return y
+                    # loop through samples
+                    for n in range(num_samples):
+                        # set filter coefficients for this sample and apply filter
+                        biquad.b[0] = b[f][0][n] # there is a probably a clever slice that does this in one step, but the array outputs from Biquad.<filter>_coeff() are not in a slice-friendly shape
+                        biquad.b[1] = b[f][1][n]
+                        biquad.b[2] = b[f][2][n]
+                        biquad.a[1] = a[f][1][n]
+                        biquad.a[2] = a[f][2][n]
+                        y[n] = biquad.process(y[n])
+
+                return y
+
+            # calculate filter coefficients for each filter and sample, and filter response signals
+            if selected_signal == 'fundamental RMS':
+                fund_b = [[]]
+                fund_a = [[]]
+                fund_b[0], fund_a[0] = bandpass_coeff(response_freqs, 10, clp.project['sample_rate'])
+                response = multi_filter(response, fund_b, fund_a)
+            
+            if selected_signal=='filtered peak' or selected_signal=='filtered RMS':
+                num_filters = len(self.params['filters'])
+                filt_b = [[]] * num_filters
+                filt_a = [[]] * num_filters
+                for i in range(num_filters):
+                    filt_freqs = np.minimum(0.95 * clp.project['sample_rate'] / 2, response_freqs * self.params['filters'][i]['multiplier'])
+                    match self.params['filters'][i]['type']:
+                        case 'lowpass':
+                            filt_b[i], filt_a[i] = lowpass_coeff(filt_freqs, self.params['filters'][i]['Q'], clp.project['sample_rate'])
+                        case 'highpass':
+                            filt_b[i], filt_a[i] = highpass_coeff(filt_freqs, self.params['filters'][i]['Q'], clp.project['sample_rate'])
+                        case 'bandpass':
+                            filt_b[i], filt_a[i] = bandpass_coeff(filt_freqs, self.params['filters'][i]['Q'], clp.project['sample_rate'])
+                        case 'notch':
+                            filt_b[i], filt_a[i] = notch_coeff(filt_freqs, self.params['filters'][i]['Q'], clp.project['sample_rate'])
+                
+                response = multi_filter(response, filt_b, filt_a)
+
+            # else 'unfiltered RMS': don't apply a filter
+
+            if selected_signal == 'filtered peak':
+                # instantaneous peak level of filtered response
+                signal_level = np.zeros(len(self.out_freqs))
+                
+                # loop through response_freqs to find the maximum in the intervals around each self.out_freqs. Ugly and brute force approach, but handles a lot of corner cases that would be difficult to get right with a .rolling() solution
+                j = 0 # keep track of which out_freq is being calculated
+                for i in range(len(response_freqs)):
+
+                    # skip everything below the lowest out_freq (but still initialize min_sample)
+                    if response_freqs[i] < self.out_freqs[0]:
+                        min_sample = i
+                        continue
+                    
+                    # find the dividing line between the current frequency and the next frequency (this block could/probably should be moved outside of the loop)
+                    if j == len(self.out_freqs) - 1: # skip everything above the highest out_freq
+                        freq_boundary = self.out_freqs[-1]
+                    else:
+                        if self.params['output']['spacing'] == 'linear':
+                            freq_boundary = (self.out_freqs[j] + self.out_freqs[j+1]) / 2
+                        else:
+                            freq_boundary = np.exp((np.log(self.out_freqs[j]) + np.log(self.out_freqs[j+1])) / 2)
+                    
+                    # find the last sample for the current out_freq
+                    if response_freqs[i] < freq_boundary:
+                        continue
+                    signal_level[j] = max(abs(response[min_sample:i]))
+                    min_sample = i
+                    j += 1
+                    if j == len(self.out_freqs):
+                        break
+
+            else:
+                # calculate moving RMS length
+                if self.params['rms_unit'] == 'octaves':
+                    rms_time = (clp.project['chirp_length'] / np.log2(clp.project['stop_freq']/clp.project['start_freq'])) * self.params['rms_time']
+                else:
+                    rms_time = self.params['rms_time']
+                rms_samples = round(rms_time * clp.project['sample_rate'])
+
+                # calculate moving RMS
+                signal_level = np.sqrt(pd.DataFrame(response*response).rolling(rms_samples, center=True, min_periods=1).mean())
+
+                # interpolate signal_level at self.out_freqs
+                signal_level = interpolate(response_freqs, np.array(signal_level)[:,0], self.out_freqs)
+
+            return signal_level
 
 
-        # calculate filter coefficients for each filter and sample, and filter response signals
-        if self.params['measured_signal'] == 'fundamental' or (self.params['mode'] == 'relative' and self.params['reference_signal'] == 'fundamental'):
-            fund_b = [[]]
-            fund_a = [[]]
-            fund_b[0], fund_a[0] = bandpass_coeff(response_freqs, 10, clp.project['sample_rate'])
-            fund_response = multi_filter(clp.signals['response'], fund_b, fund_a)
-            if any(clp.signals['noise']):
-                fund_noise = multi_filter(clp.signals['noise'], fund_b, fund_a)
+        # convert output to desired units
+        def convert_output_units(fs_points, ref_points=None):
+            match self.params['output']['unit']:
+                case 'dB':
+                    return 20*np.log10(fs_points / ref_points)
+                case '%':
+                    return 100 * fs_points / ref_points
+                case '% (IEC method)':
+                    return 100 * fs_points / (ref_points + fs_points)
+                case _:
+                    return FS_to_unit(fs_points, self.params['output']['unit'])
+
+        # todo: a lot of opportunity to optimize, avoid applying the same filters multiple times
+        measured_level = calc_tracking_filter(clp.signals['response'], self.params['measured_signal'])
+        if any(clp.signals['noise']):
+            measured_noise = calc_tracking_filter(clp.signals['noise'], self.params['measured_signal'])
         
-        if 'filtered' in self.params['measured_signal'] or (self.params['mode'] == 'relative' and 'filtered' in self.params['reference_signal']):
-            num_filters = len(self.params['filters'])
-            filt_b = [[]] * num_filters
-            filt_a = [[]] * num_filters
-            for i in range(num_filters):
-                filt_freqs = np.minimum(0.95 * clp.project['sample_rate'] / 2, response_freqs * self.params['filters'][i]['multiplier'])
-                match self.params['filters'][i]['type']:
-                    case 'lowpass':
-                        filt_b[i], filt_a[i] = lowpass_coeff(filt_freqs, self.params['filters'][i]['Q'], clp.project['sample_rate'])
-                    case 'highpass':
-                        filt_b[i], filt_a[i] = highpass_coeff(filt_freqs, self.params['filters'][i]['Q'], clp.project['sample_rate'])
-                    case 'bandpass':
-                        filt_b[i], filt_a[i] = bandpass_coeff(filt_freqs, self.params['filters'][i]['Q'], clp.project['sample_rate'])
-                    case 'notch':
-                        filt_b[i], filt_a[i] = notch_coeff(filt_freqs, self.params['filters'][i]['Q'], clp.project['sample_rate'])
-            
-            filt_response = multi_filter(clp.signals['response'], filt_b, filt_a)
+        if self.params['mode'] == 'absolute':
+            self.out_points = convert_output_units(measured_level)
             if any(clp.signals['noise']):
-                filt_noise = multi_filter(clp.signals['noise'], filt_b, filt_a)
+                self.out_noise = convert_output_units(measured_noise)
+            return
 
-            
-
-
-
-
-        self.out_freqs = [clp.project['start_freq'], clp.project['stop_freq']]
-        self.out_points = [0,0]
-    
+        ref_level = calc_tracking_filter(clp.signals['response'], self.params['reference_signal'])
+        self.out_points = convert_output_units(measured_level, ref_level)
+        if any(clp.signals['noise']):
+            self.out_noise = convert_output_units(measured_noise, ref_level)
     
         
     def init_tab(self):
