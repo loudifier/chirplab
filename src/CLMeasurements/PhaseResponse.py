@@ -275,7 +275,7 @@ class PhaseResponse(CLMeasurement):
         self.auto_invert.stateChanged.connect(update_auto_invert)
 
 
-        self.output_unit = CLParamDropdown('Units', [unit for unit in self.OUTPUT_UNITS], '')
+        self.output_unit = CLParamDropdown('Units', self.OUTPUT_UNITS, '')
         output_unit_index = self.output_unit.dropdown.findText(self.params['output']['unit'])
         if output_unit_index != -1:
             self.output_unit.dropdown.setCurrentIndex(output_unit_index)
