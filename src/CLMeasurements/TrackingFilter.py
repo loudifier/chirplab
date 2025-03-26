@@ -273,9 +273,11 @@ class TrackingFilter(CLMeasurement):
             sweep_rate = clp.project['chirp_length'] / np.log2(clp.project['stop_freq'] / clp.project['start_freq'])
             if index:
                 self.params['rms_unit'] = 'octaves'
+                self.rms_time.min = 1/48
                 self.params['rms_time'] /= sweep_rate
             else:
                 self.params['rms_unit'] = 'seconds'
+                self.rms_time.min = 0.001
                 self.params['rms_time'] *= sweep_rate
             self.rms_time.set_value(self.params['rms_time'])
         self.rms_time.units_update_callback = update_rms_time_unit
