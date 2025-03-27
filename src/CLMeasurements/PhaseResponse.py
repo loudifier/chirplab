@@ -253,6 +253,7 @@ class PhaseResponse(CLMeasurement):
             else:
                 self.ref_channel.dropdown.setStyleSheet('QComboBox { background-color: orange; }')
         self.update_num_channels = update_num_channels
+        self.update_num_channels(clp.IO['input']['channels'])
 
         # unwrap phase checkbox
         self.unwrap = QCheckBox('Unwrap phase')
