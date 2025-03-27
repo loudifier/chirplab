@@ -9,6 +9,7 @@ import CLMeasurements
 from copy import deepcopy
 import pyqtgraph as pg
 import pyqtgraph.exporters # just calling pg.exporters... doesn't work unless pyqtgraph.exporters is manually imported
+import yaml
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -160,6 +161,17 @@ class MainWindow(QMainWindow):
             if AddMeasurementDialog(self).exec():
                 remove_measurement.setEnabled(True) # if measurement is added its tab will be activated
         add_measurement.triggered.connect(add_measurement_dialog)
+        def add_new_measurement(measurement_type, name, params=None):
+            type_index = CLMeasurements.MEASUREMENT_TYPES.index(measurement_type)
+            clp.measurements.append(getattr(CLMeasurements, CLMeasurements.MEASUREMENT_TYPES[type_index])(name, params))
+            clp.project['measurements'].append(clp.measurements[-1].params)
+            clp.measurements[-1].init_tab() 
+            clp.measurements[-1].format_graph()
+            clp.measurements[-1].measure()
+            clp.measurements[-1].plot()
+            self.tabs.insertTab(self.tabs.count()-1, clp.measurements[-1].tab, name)
+            self.tabs.setCurrentIndex(self.tabs.count()-2)
+        self.add_new_measurement = add_new_measurement
         
         remove_measurement = QAction('&Remove Current Measurement', self)
         remove_measurement.setEnabled(False)
@@ -184,6 +196,58 @@ class MainWindow(QMainWindow):
             return button
         remove_measurement.triggered.connect(remove_measurement_prompt)
         
+        measurement_menu.addSeparator()
+
+        load_preset = QAction('Add Measurement From Preset', self)
+        measurement_menu.addAction(load_preset)
+        def load_measurement_preset(checked):
+            file_dialog = QFileDialog()
+            file_dialog.setWindowTitle('Load Measurement Preset')
+            file_dialog.setFileMode(QFileDialog.ExistingFile)
+            file_dialog.setViewMode(QFileDialog.ViewMode.Detail)
+            file_dialog.setNameFilters(['Chirplab measurement preset (*.clm)', 'All files (*)'])
+            file_dialog.setDirectory(clp.working_directory)
+            
+            if file_dialog.exec():
+                file_path = file_dialog.selectedFiles()[0]
+                with open(file_path) as in_file:
+                    params = yaml.safe_load(in_file)
+                    params.pop('chirplab_version')
+                    self.add_new_measurement(params['type'], params['name'], params)
+        load_preset.triggered.connect(load_measurement_preset)
+
+        save_preset = QAction('Save Measurement Preset', self)
+        measurement_menu.addAction(save_preset)
+        def save_measurement_preset(checked):
+            tab_index = self.tabs.currentIndex()
+            file_dialog = QFileDialog()
+            file_dialog.setWindowTitle('Save Measurement Preset')
+            file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+            file_dialog.setViewMode(QFileDialog.ViewMode.Detail)
+            file_dialog.selectFile(clp.measurements[tab_index-1].params['name'] + '.clm')
+            file_dialog.setNameFilters(['Chirplab measurement preset (*.clm)',  'All files (*)'])
+            file_dialog.setDirectory(clp.working_directory)
+            def filterSelected(filter_string):
+                default_suffix = filter_string.split('(*')[1].split(')')[0].split(' ')[0].split(',')[0].split(';')[0] # try to get the first actual file type suffix from the type string
+                file_dialog.setDefaultSuffix(default_suffix)
+            file_dialog.filterSelected.connect(filterSelected)
+            
+            saved = file_dialog.exec()
+            if saved:
+                file_path = file_dialog.selectedFiles()[0]
+                clp.working_directory = str(Path(file_path).parent)
+                try:
+                    with open(file_path, 'w') as out_file:
+                        params = deepcopy(clp.measurements[tab_index-1].params)
+                        params['chirplab_version'] = clp.CHIRPLAB_VERSION # insert chirplab version to allow handling breaking changes between versions
+                        out_file.write(yaml.dump(params))
+                except PermissionError as ex:
+                    error_box = QErrorMessage()
+                    error_box.showMessage('Error writing measurement data \n' + str(ex))
+                    error_box.exec()
+            return saved
+        save_preset.triggered.connect(save_measurement_preset)
+
         measurement_menu.addSeparator()
         
         analyze = QAction('Analyze Input File', self)
@@ -384,15 +448,8 @@ class AddMeasurementDialog(QDialog):
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         layout.addWidget(button_box)
         def add_new_measurement():
-            type_index = type_dropdown.dropdown.currentIndex()
-            clp.measurements.append(getattr(CLMeasurements, CLMeasurements.MEASUREMENT_TYPES[type_index])(measurement_name.value))
-            clp.project['measurements'].append(clp.measurements[-1].params)
-            clp.measurements[-1].init_tab() 
-            clp.measurements[-1].format_graph()
-            clp.measurements[-1].measure()
-            clp.measurements[-1].plot()
-            main_window.tabs.insertTab(main_window.tabs.count()-1, clp.measurements[-1].tab, measurement_name.value)
-            main_window.tabs.setCurrentIndex(main_window.tabs.count()-2)
+            measurement_type = CLMeasurements.MEASUREMENT_TYPES[type_dropdown.dropdown.currentIndex()]
+            main_window.add_new_measurement(measurement_type, measurement_name.value)
             self.accept()
         button_box.accepted.connect(add_new_measurement)
         button_box.rejected.connect(self.reject)
