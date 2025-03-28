@@ -22,15 +22,22 @@ Features in each subheading are ordered roughly in order of prioritization. This
 - [x] Harmonic Distortion
     - [ ] Option to set parameters of reference fundamental frequency response measurement parameters (e.g. use raw or fixed window for faster processing)
     - [ ] Experiment with adaptive windowing and/or add parameters for harmonic impulse windowing (likely very slow)
-- [x] Phase Response
+    - [ ] Experiment with loudness frequency weighting to to see if a hearing model approach can produce better estimates for distortion audibility
+- [x] Phase Response and Group Delay
     - Could use more thorough validation of current methods and experiments with other methods. Does a pilot tone help, and how do you compensate for significant phase shift of the pilot tone itself?
     - How does noise impact phase response? Is a measurement noise floor calculation meaningful?
-    - [ ] Group delay output option (or separate measurement that is mostly just a duplicate?)
-- [ ] Tracking Filter
-    - [ ] Implement at least bandpass, highpass filters
-    - [ ] Implement filter tracking, signal level metering (moving RMS and peak hold that are consistent across different chirp lengths, sweep rates)
-    - [ ] Implement crest factor output option
-    - [ ] Come up with a better name that communicates this can be used for fundamental frequency response, rub and buzz, or even harmonic analysis. Maybe leave as-is but implement measurement presets with more descriptive names (e.g. "THD+N", "Rub and Buzz Crest Factor")
+    - Group delay is a separate measurement, but is mostly just a wrapper for phase response with output in ms
+- [x] Tracking Filter
+    - [x] Include highpass, bandpass, notch, and lowpass
+        - Do any other biquads make sense?
+        - Consider adding more brick wall-style filters, elliptical, etc.
+    - [x] Implement filter tracking, signal level metering (moving RMS and peak metering that are consistent across different chirp lengths, sweep rates)
+    - [x] Implement crest factor output option (implemented as a general purpose relative measurement where the measured and reference signal can be selected)
+    - [ ] Come up with a better name that communicates this can be used for fundamental frequency response, rub and buzz, or even harmonic analysis. Maybe leave as-is and rely on measurement presets with more descriptive names (e.g. "THD+N", "Rub and Buzz Crest Factor")
+    - [ ] Look at different ways to estimate noise floor, since filtered response could unintentionally leave some residual of the direct response that isn't present in the noise signal
+- [ ] Instantaneous Distortion
+    - [ ] Implement a speaker model that includes major nonlinearities. Probably a simple impulse response that includes the main tail of the IR (adjustable based on ETC decay, defaulting to T60?), with the window start adjustable to include the desired number of harmonics
+    - [ ] Do some experiments to compare Klippel-style Rub and Buzz measurements (speaker model that includes major nonlinearities) against AP-style Rub and Buzz measurements (high pass tracking filter)
 - [ ] Spectral Analysis
     - [ ] Experiment with builtin STFT options in SciPy/NumPy or roll a custom version that is easier to derive measurement data from
     - [ ] Parameters
@@ -38,7 +45,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
             - Need to handle different unit outputs (and how fundamental reference is calculated for distortion metrics)
         - Min/max analyzed harmonic
         - Include noise below fundamental
-    - [ ] Experiment with different ways to assign time-frequency bins to different parts of the signal.
+    - [ ] Experiment with different ways to assign time-frequency bins to different parts of the signal
         - Integrating power of the lobe with the nearest peak and troughs on either side of a fundamental/harmonic frequency bin works, but is relatively slow and succeptible to noise in adjacent bins
         - Generate a chirp of fundamental and each harmonic and multiply its STFT with the response STFT to get harmonic power. Apply tracking notch filters for fundamental and each harmonic and take the difference between that STFT and the full STFT for non-harmonic distortion.
         - Option for non-normalized non-harmonic noise, to highlight narrowband noise/ringing that is triggered by the stimulus (see if that provides better separation of vertical bands on spectrogram than non-harmonic noise normalized to the stimulus fundamental)
@@ -47,10 +54,10 @@ Features in each subheading are ordered roughly in order of prioritization. This
         - Any way to clearly communicate measurement noise floor in spectrogram? Maybe something like how cameras show clipping with zerba overlay?
 - [ ] Impulse Response
     - [ ] Parameters
-    - IR length, pre-post trimming
-    - Windowing fade in/out
-    - Wrapped with time aligned to t0 or shifted/rolled to the right
-    - Normalized or raw - may need to specify floating point if outputting to WAV (verify SoX/wavfile behavior with floating point values greater than 1.0)
+        - IR length, pre-post trimming
+        - Windowing fade in/out
+        - Wrapped with time aligned to t0 or shifted/rolled to the right
+        - Normalized or raw - may need to specify floating point if outputting to WAV (verify SoX/wavfile behavior with floating point values greater than 1.0)
     - [ ] Option to output and/or plot as Energy Time Curve, T60 (or generic Tn value)
     - [ ] Measurement noise floor output off by default when outputting IR waveforms, but could be very useful for qualitative comparison in IR and ETC plots
 - [ ] Waterfall
@@ -58,11 +65,13 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] 3D plotting, figure out how to communicate measurement noise floor without making it too busy
 
 ## General features
-- [ ] Real units calibration - some sort of 'Pa per FS' and 'Volts per FS' conversion factors so output units can be expressed in real units
-    - [ ] Automatic calibration using a reference tone
-    - [ ] General unit conversion function (or class? interface?) in CLAnalysis to convert raw measurement outputs in FS to common units
+- [x] Real units calibration - some sort of 'Pa per FS' and 'Volts per FS' conversion factors so output units can be expressed in real units
+    - [x] Automatic calibration using a reference tone
+    - [x] General unit conversion function in CLAnalysis to convert raw measurement outputs in FS to common units
+    - [ ] Calibration interface could be improved to make it more clear how to set calibration values from known sensitivity
+    - [ ] Possibly add save/load of calibration values (.clc file?), so a hardware setup preset could be used across different projects
 - [ ] Pilot tone. Required by some commercial audio software, need to investigate to determine what measurements actually require precise timing that can't be determined by cross correlation
-- [ ] Input and/or output EQ. Similar to multi-channel/multi-file analysis, this is heavily dependant on interface, but with added complications of how filtering is implemented (direct amplitude vs time, FIR filtering, biquad sum-of-sections, how an EQ table is interpolated, etc...)
+- [ ] Input and/or output EQ. Similar to multi-channel/multi-file analysis, this is heavily dependant on interface, but with added complications of how filtering is implemented (direct amplitude vs time, FIR filtering, biquad sum-of-sections, how an EQ table is interpolated, etc... Some interesting methods (and extra analysis of Farina method) in http://winmls.com/2004/swen-muller-aes-swp-english.pdf)
 
 ## Graphical User Interface
 - [x] Chirp settings, input and output tab
@@ -70,7 +79,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Ability to plot stimulus response against frequency X axis
 - [x] Project file save/load
     - [ ] (As things evolve and breaking changes are made) Implement project version upgrading. At the very least a warning message that project files that don't match the current Chirplab version may fail in interesting ways
-    - [ ] Some sort of measurement preset save/load? E.g. .clm files that are a subset of the full project .clp file. Extend new measurement dialog to be able to load a measurement preset, etc.
+    - [x] Measurement preset save/load. .clm files that are a subset of the full project .clp file
 - [ ] Overall look and feel
     - [ ] Any accessibility issues will be prioritized. Please raise an issue if you identify UI elements with poor contrast or color contrast, excessive flashing, etc.
         - [x] Graph colors are blue/orange by default, avoid red/green
@@ -78,6 +87,9 @@ Features in each subheading are ordered roughly in order of prioritization. This
         - [ ] I am not very familiar with screen readers, but I believe Qt should have good support natively
     - [ ] Proper scaling over a wide range of DPI
     - [ ] Speed up plotting, particularly chirp tab updating every time a chirp parameter spinbox is clicked
+        - pyqtgraph downsampling and setting pen width to 1 helps a lot. Also try the skip finite check
+        - see if there is a good way to pause the graph updating, plot all of the data, then draw at once. Might be able to avoid a triple redraw when updating stimulus, response, and noise together. Seems like the bottleneck is .drawLines(), so it might not be any faster (probably also not much faster to .setData())
+        - maybe add a short delay of ~1s before recalculating to allow spamming a spin box and recalculating with whatever value the user lands on
     - [ ] Bundle Windows exe in such a way that GUI launches without console window and CLI/GUI both output to stdout. Current solution still flashes console window when launching GUI. https://pyinstaller.org/en/stable/feature-notes.html#automatic-hiding-and-minimization-of-console-window-under-windows
 - [ ] Undo/redo - a lot of work with many edge cases that need to be handled, but would be really nice to have
 
@@ -87,7 +99,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
 - [ ] Generate stimulus file from parameters or a project file
 - [ ] Measure calibration tone from a file and apply the calibration to a project file
 - [ ] Performance optimization to improve batch file processing
-    - [ ] Compilation, caching, etc to improve Python startup time. Numba seems like the lowest-friction option to try first.
+    - [ ] Compilation, caching, etc to improve Python startup time. Numba seems like the lowest-friction option to try first
     - [ ] Delaying GUI imports until needed to keep CLI from having to import Qt libraries. A bit of a pain in the early stages of development, can lead to circular imports and heisenbugs
 
 ## Other
