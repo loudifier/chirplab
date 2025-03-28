@@ -1,0 +1,24 @@
+chirplab_version: 0.3
+filters:
+- Q: 0.707
+  multiplier: 10
+  type: highpass
+- Q: 0.707
+  multiplier: 10
+  type: highpass
+measured_signal: filtered peak
+mode: relative
+name: Rub and Buzz Peak Ratio
+output:
+  max_auto: true
+  max_freq: 20000
+  min_auto: true
+  min_freq: 100
+  num_points: 12
+  round_points: false
+  spacing: octave
+  unit: dB
+reference_signal: fundamental RMS
+rms_time: 0.3333333333333333
+rms_unit: octaves
+type: TrackingFilter
