@@ -144,6 +144,17 @@ class PhaseResponse(CLMeasurement):
                 response = response[response_delay:response_delay + len(clp.signals['stimulus'])] # get only the part of the raw response signal where the chirp was detected
                 reference = reference[response_delay:response_delay + len(clp.signals['stimulus'])]
 
+                # find and keep track of the gross offset between the signals
+                reference_delay = find_offset(response, reference)
+
+                # align response against reference
+                response = np.roll(response, -reference_delay)
+                # zero out any portion that wrapped around (in case of very long delays outside of expected pre/post sweep)
+                if reference_delay>0:
+                    response[:reference_delay] = np.zeros(reference_delay)
+                elif reference_delay<0:
+                    response[reference_delay:] = np.zeros(-reference_delay)
+
                 # calculate the impulse response between the input channel and reference channel
                 impulse_response = ifft(fft(response) / fft(reference))
 
@@ -158,6 +169,13 @@ class PhaseResponse(CLMeasurement):
                     phase = np.rad2deg(np.unwrap(wrapped_phase_rad))
                 else:
                     phase = np.rad2deg(wrapped_phase_rad)
+
+                # add gross delay to phase result
+                phase -= freqs * (reference_delay / clp.project['sample_rate']) * 360
+
+                # wrap phase again after adding gross delay
+                if not self.params['unwrap']:
+                    phase = (phase + 180) % - 180
 
         if self.params['auto_invert']:
             if abs(phase[min_bin] - 180) < 45:
