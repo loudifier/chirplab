@@ -426,9 +426,11 @@ class FileOutput(QFrame):
                 channel_index = clp.project['output']['channel']
             
             # rebuild channel dropdown list (updates trigger callback, which resets output channel to 0/'all')
+            self.channel.dropdown.blockSignals(True)
             self.channel.dropdown.clear()
             self.channel.dropdown.addItem('all')
             self.channel.dropdown.addItems([str(chan) for chan in range(1, clp.project['output']['num_channels']+1)])
+            self.channel.dropdown.blockSignals(False)
             
             # set correct output channel
             self.channel.dropdown.setCurrentIndex(channel_index)            
