@@ -15,7 +15,13 @@ class EngAxisItem(pg.AxisItem):
         #self.textAngle = kwargs.get('textAngle', 0) # add option to rotate x axis tick strings like here: https://github.com/pyqtgraph/pyqtgraph/issues/322
     
     def logTickStrings(self, values, scale, spacing):
-        return [str(EngNumber(value*1)) for value in (10 ** np.array(values).astype(float) * np.array(scale))] # todo: only output numbers starting with 1, 2, or 5
+        tick_strings = [str(EngNumber(value*1)) for value in (10 ** np.array(values).astype(float) * np.array(scale))]
+        if (EngNumber(tick_strings[-1]) / EngNumber(tick_strings[0])) > 10:
+            # for any plots that show more than 1 decade of data, only show numbers starting with 1, 2, or 5
+            tick_strings = [tick if (tick[0] in ['1', '2', '5']) else '' for tick in tick_strings]
+        return tick_strings
+    
+    # todo: also handle linear ticks
     
     
     
