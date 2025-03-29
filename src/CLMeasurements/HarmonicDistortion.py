@@ -28,7 +28,7 @@ class HarmonicDistortion(CLMeasurement):
             self.params['fade_out'] = 0.5     # window_start + window_end should be <1 to avoid overlap between harmonic impulse windows
             
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
-                'unit': 'dB', # options are 'dB' or '%' relative to fundamental
+                'unit': 'dB',
                 'min_freq': 20,
                 'min_auto': True, # min_freq ignored and updated if True
                 'max_freq': 10000,

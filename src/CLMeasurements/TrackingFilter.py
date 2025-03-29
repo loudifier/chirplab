@@ -53,7 +53,7 @@ class TrackingFilter(CLMeasurement):
 
             
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
-                'unit': 'dB', # options are 'dB' or '%' relative to fundamental
+                'unit': 'dB',
                 'min_freq': 20,
                 'min_auto': True, # min_freq ignored and updated if True
                 'max_freq': 20000,
