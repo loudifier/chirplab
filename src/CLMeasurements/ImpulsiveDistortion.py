@@ -1,59 +1,49 @@
 import CLProject as clp
-from CLAnalysis import chirp_time_to_freq, chirp_freq_to_time, freq_points, interpolate, FS_to_unit
-from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams, QCollapsible, QHSeparator
+from CLAnalysis import chirp_time_to_freq, freq_points, interpolate, FS_to_unit
+from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams
 import numpy as np
 from CLMeasurements import CLMeasurement
-from Biquad import Biquad, lowpass_coeff, highpass_coeff, bandpass_coeff, notch_coeff
 import pandas as pd
-from qtpy.QtWidgets import QFrame, QVBoxLayout, QAbstractSpinBox, QPushButton
+from scipy.fftpack import fft, ifft, fftfreq
+from scipy.signal.windows import hann
+from CLMeasurements.HarmonicDistortion import harmonic_impulse_time
+from scipy.signal import fftconvolve
 
-# tracking filter implementation to perform measurements roughly equivalent to Audio Precision's Rub and Buzz Peak Ratio and Crest Factor. https://www.ap.com/fileadmin-ap/technical-library/appnote-rub-buzz.pdf
-# for a Peak Ratio-style measurement, apply a highpass filter at 5-30x the fundamental and measure the 'filtered peak' signal relative to the 'fundamental RS' or 'unfiltered RMS' signal
-# for a Crest Factor-style measurement, apply a highpass filter at 5-30x the fundamental and measure the 'filtered peak' signal relative to the 'filtered RMS' signal
-# additional filters available as an alternative to impulse response-based frequency response or harmonic distortion measurements. e.g. bandpass filter at 1x fundamental frequency for frequency response or 2x for second harmonic, notch at 1x fundamental for a rough THD+N approximation, etc.
+# method for measuring distortion in the time domain, roughly equivalent to Klippel methods https://www.klippel.de/fileadmin/klippel/Files/Know_How/Literature/Papers/Measurement_of_Rub_and_Buzz_03.pdf
+# idealized response is modeled by windowing the fundamental and n harmonic impulses from the impulse response, and instantaneous distortion is the residual after subtracting the modeled response from the raw response
+# Klippel likely models speaker directly from LPM/LSI measurements, impulse response method may not be as accurate.
 
 class ImpulsiveDistortion(CLMeasurement):
     measurement_type_name = 'Impulsive Distortion'
     
-    ABSOLUTE_OUTPUT_UNITS = ['dBFS', 'dBSPL', 'dBV', 'FS', 'Pa', 'V']
-    RELATIVE_OUTPUT_UNITS = ['dB', '%', '% (IEC method)']
+    OUTPUT_UNITS = ['dB', '%', '% (IEC method)', 'dBFS', 'dBSPL', 'dBV', 'FS', 'Pa', 'V'] # relative units are the selected distortion measure relative to the RMS of the raw response signal
+    CREST_FACTOR_UNITS = ['dB', '%'] # for the special case of the crest factor analysis, the output is the peak residual value in each interval relative to the RMS of the residual
     
-    # set of response signals that can be selected for measurement output or as a reference for relative measurements
-    SIGNALS = ['unfiltered RMS',  # RMS of unfiltered response
-               'fundamental RMS', # RMS of bandpass filtered response, 1x fundamental frequency, Q=10
-               'filtered peak',   # peak level of the response signal filtered using the set of filters given in params['filters']. Peak is the max level in the interval of samples around each output frequency point
-               'filtered RMS']    # RMS level of the filtered response signal
-    
-    # set of filter types that can be selected
-    FILTER_TYPES = ['lowpass',  # 2nd order lowpass
-                    'highpass', # 2nd order highpass
-                    'bandpass', # constant peak (0dB at center frequency)
-                    'notch']    # notch with infinite depth (within limits of numerical precision and time/phase alignment)
+    # set of analysis modes that can be selected for how residual distortion is measured
+    MODES = ['residual RMS',  # RMS of the residual signal after subtracting the modeled response from the raw response
+             'residual peak', # max value of the residual distortion in each output frequency interval
+             'crest factor']  # peak relative to RMS
 
     def __init__(self, name, params=None):
         if params is None:
             params = {}
         super().__init__(name, params)
-        self.params['type'] = 'TrackingFilter'
+        self.params['type'] = 'ImpulsiveDistortion'
 
         if len(params)<3: # default measurement parameters
-            self.params['filters'] = [ # bank of 2nd order filters to apply to the response signal
-                {'multiplier': 10,     # the corner or center frequency of the filter ("wherever it's happenin', man") as a ratio of the instantaneous chirp frequency. e.g. for a multiplier of 10, when the chirp frequency is 1kHz the filter frequency will be 10kHz. Very high filter frequencies will be limited to 0.95*Nyquist
-                 'type': 'highpass',   # options are 'lowpass', 'highpass', 'bandpass', and 'notch'
-                 'Q': 0.707},            # Q of the filter
-                {'multiplier': 10,
-                 'type': 'highpass',   # default filters results in a 4th order highpass with Q=0.5 at 10x chirp frequency
-                 'Q': 0.707}]
-                # todo: add an option to define elliptical or higher order filters usng scipy.signal.iirdesign() or similar? Would make it easier for poeple to specify very sharp cutoffs, 8+ order Butterworth, etc. Actual filter processing would be pretty similar to biquad calculations by using 'sos' conversion
-            self.params['mode'] = 'relative' # output the filtered response amplitude 'relative' to a reference signal or 'absolute'
-            self.params['measured_signal'] = 'filtered peak' # 'filtered peak' relative to 'fundamental' is roughly equivalent to AP's Rub and Buzz Peak Ratio measurement
-            self.params['reference_signal'] = 'fundamental RMS'
-            self.params['rms_unit'] = 'octaves' # method of specifying the amount of time to apply a moving RMS calculation over the measured and/or filtered response signals. Either 'octaves' to specify a frequency range determined by the chirp sweep rate, or 'seconds' for a fixed amount of time independent of the sweep rate
+            self.params['mode'] = 'peak' # which analysis mode is used. Either 'rms', 'peak', or 'crestfactor'
+            self.params['rms_unit'] = 'octaves' # method of specifying the amount of time to apply a moving RMS calculation over the residual and/or raw response signals. Either 'octaves' to specify a frequency range determined by the chirp sweep rate, or 'seconds' for a fixed amount of time independent of the sweep rate
             self.params['rms_time'] = 1/3 # rms_unit='octaves' and rms_time=1/3 for a 1s chirp from 20-20kHz (9.97 octaves) results in a sliding RMS calculation window of 33.4ms
-
+            self.params['max_harmonic'] = 2 # the transfer function model will include the fundamental response up to max_harmonic to model the linear and major nonlinearities of the transfer function. Set to 1 to only model the fundamental response, resulting in a rough THD+N measurement
             
+            # harmonic window parameters copied from HarmonicDistortion. Maybe expose these in GUI or refine this process in the future if HarmonicDistortion is updated
+            self.params['harmonic_window_start'] = 0.1 # windowing parameters similar to frequency response windowing, but windows are centered on harmonic impulses, numbers are expressed in proportion of time to previous/next harmonic impulse
+            self.params['harmonic_fade_in'] = 0.1      # e.g. for H2 impulse arriving 10ms after H3 impulse, fade_in=0.1 results in harmonic window starting 1ms before H2 harmonic impulse
+            self.params['harmonic_window_end'] = 0.9   # fade_in/out must be <= window_start/end, respectively
+            self.params['harmonic_fade_out'] = 0.5     # window_start + window_end should be <1 to avoid overlap between harmonic impulse windows
+
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
-                'unit': 'dB', # options are 'dB' or '%' relative to fundamental
+                'unit': 'dB',
                 'min_freq': 20,
                 'min_auto': True, # min_freq ignored and updated if True
                 'max_freq': 20000,
@@ -82,56 +72,58 @@ class ImpulsiveDistortion(CLMeasurement):
                                      self.params['output']['spacing'],
                                      self.params['output']['round_points'])
 
-        def calc_tracking_filter(response, selected_signal):
+        def calc_residual(response):
+            # calculate raw impulse response
+            impulse_response = ifft(fft(response) / fft(clp.signals['stimulus']))
 
-            def multi_filter(x, b, a):
-                # apply multiple biquad filter stages, each with coefficients that are updated for each sample of the input signal, x
-                num_filters = len(b)
-                num_samples = len(x)
-                y = x.copy()
+            # generate window for fundamental and harmonic range, drawing from FrequencyResponse and HarmonicDistortion methods
+            # generate window using adaptive FrequencyResponse method for lowest frequency
+            max_wavelength_samples = round(clp.project['sample_rate'] / self.out_freqs[0])
+            window_start = max_wavelength_samples
+            fade_in = max_wavelength_samples
+            window_end = 2*max_wavelength_samples
+            fade_out = max_wavelength_samples
 
-                # loop through each filter
-                for f in range(num_filters):
-                    biquad = Biquad()
+            window = np.zeros(len(impulse_response))
+            window[:fade_in] = hann(fade_in*2)[:fade_in]
+            window[fade_in:window_start+window_end-fade_out] = np.ones(window_start-fade_in+window_end-fade_out)
+            window[window_start+window_end-fade_out:window_start+window_end] = hann(fade_out*2)[fade_out:]
+            window = np.roll(window, -window_start)
 
-                    # loop through samples
-                    for n in range(num_samples):
-                        # set filter coefficients for this sample and apply filter
-                        biquad.b[0] = b[f][0][n] # there is a probably a clever slice that does this in one step, but the array outputs from Biquad.<filter>_coeff() are not in a slice-friendly shape
-                        biquad.b[1] = b[f][1][n]
-                        biquad.b[2] = b[f][2][n]
-                        biquad.a[1] = a[f][1][n]
-                        biquad.a[2] = a[f][2][n]
-                        y[n] = biquad.process(y[n])
+            modeled_response = fftconvolve(clp.signals['stimulus'], impulse_response * window)
 
-                return y
+            # generate series of harmonic impulse windows using HarmonicDistortion method
+            if self.params['max_harmonic'] > 1:
+                for harmonic in range(2, self.params['max_harmonic']+1):
+                    # generate harmonic window
+                    harmonic_time = harmonic_impulse_time(clp.project['chirp_length'], clp.project['start_freq'], clp.project['stop_freq'], harmonic)
+                    prev_harmonic_time = harmonic_impulse_time(clp.project['chirp_length'], clp.project['start_freq'], clp.project['stop_freq'], harmonic+1) # next harmonic *number*, previous in terms of *arrival time*. Used to calculate window_start
+                    next_harmonic_time = harmonic_impulse_time(clp.project['chirp_length'], clp.project['start_freq'], clp.project['stop_freq'], harmonic-1)
 
-            # calculate filter coefficients for each filter and sample, and filter response signals
-            if selected_signal == 'fundamental RMS':
-                fund_b = [[]]
-                fund_a = [[]]
-                fund_b[0], fund_a[0] = bandpass_coeff(response_freqs, 10, clp.project['sample_rate'])
-                response = multi_filter(response, fund_b, fund_a)
-            
-            if selected_signal=='filtered peak' or selected_signal=='filtered RMS':
-                num_filters = len(self.params['filters'])
-                filt_b = [[]] * num_filters
-                filt_a = [[]] * num_filters
-                for i in range(num_filters):
-                    filt_freqs = np.minimum(0.95 * clp.project['sample_rate'] / 2, response_freqs * self.params['filters'][i]['multiplier'])
-                    match self.params['filters'][i]['type']:
-                        case 'lowpass':
-                            filt_b[i], filt_a[i] = lowpass_coeff(filt_freqs, self.params['filters'][i]['Q'], clp.project['sample_rate'])
-                        case 'highpass':
-                            filt_b[i], filt_a[i] = highpass_coeff(filt_freqs, self.params['filters'][i]['Q'], clp.project['sample_rate'])
-                        case 'bandpass':
-                            filt_b[i], filt_a[i] = bandpass_coeff(filt_freqs, self.params['filters'][i]['Q'], clp.project['sample_rate'])
-                        case 'notch':
-                            filt_b[i], filt_a[i] = notch_coeff(filt_freqs, self.params['filters'][i]['Q'], clp.project['sample_rate'])
-                
-                response = multi_filter(response, filt_b, filt_a)
+                    fade_in = round(self.params['harmonic_fade_in']*(harmonic_time-prev_harmonic_time)*clp.project['sample_rate'])
+                    window_start = round(self.params['harmonic_window_start']*(harmonic_time-prev_harmonic_time)*clp.project['sample_rate'])
+                    fade_out = round(self.params['harmonic_fade_out']*(next_harmonic_time-harmonic_time)*clp.project['sample_rate'])
+                    window_end = round(self.params['harmonic_window_end']*(next_harmonic_time-harmonic_time)*clp.project['sample_rate'])
+                    
+                    harmonic_window = np.zeros(len(impulse_response))
+                    harmonic_window[:fade_in] = hann(fade_in*2)[:fade_in]
+                    harmonic_window[fade_in:window_start+window_end-fade_out] = np.ones(window_start-fade_in+window_end-fade_out)
+                    harmonic_window[window_start+window_end-fade_out:window_start+window_end] = hann(fade_out*2)[fade_out:]
+                    harmonic_window = np.roll(harmonic_window, -window_start) # align harmonic impulse to t=0
+                    
+                    # apply harmonic window to impulse response (aligned to t=0)
+                    harmonic_impulse = np.roll(impulse_response, -round(harmonic_time*clp.project['sample_rate'])) * harmonic_window
+                    
+                    # generate harmonic stimulus signal
+                     
+                    
+                    # calculate modeled harmonic response
+                    harmonic_response = fftconvolve(clp.signals['stimulus'], harmonic_impulse)
 
-            # else 'unfiltered RMS': don't apply a filter
+                    # add harmonic response to total modeled response
+                    modeled_response += harmonic_response
+
+            return
 
             if selected_signal == 'filtered peak':
                 # instantaneous peak level of filtered response
@@ -180,6 +172,11 @@ class ImpulsiveDistortion(CLMeasurement):
 
             return signal_level
 
+        def harmonic_chirp(harmonic):
+            pass
+
+        calc_residual(clp.signals['response'])
+        return
 
         # convert output to desired units
         def convert_output_units(fs_points, ref_points=None):
@@ -213,47 +210,24 @@ class ImpulsiveDistortion(CLMeasurement):
     def init_tab(self):
         super().init_tab()
 
-        # dropdown to select measured signal
-        self.measured_signal = CLParamDropdown('Measured signal', self.SIGNALS)
-        signal_index = self.measured_signal.dropdown.findText(self.params['measured_signal'])
-        self.measured_signal.dropdown.setCurrentIndex(signal_index)
-        self.param_section.addWidget(self.measured_signal)
-        def update_measured_signal(index):
-            self.params['measured_signal'] = self.SIGNALS[index]
-            self.measure()
-            self.plot()
-        self.measured_signal.update_callback = update_measured_signal
-
-        # dropdown to select relative or absolute mode
-        self.mode = CLParamDropdown('Measurement mode', ['relative', 'absolute'])
-        if self.params['mode'] == 'absolute':
+        # dropdown to select analysis mode
+        self.mode = CLParamDropdown('Analysis mode', self.MODES)
+        if self.params['mode'] == 'peak':
             self.mode.dropdown.setCurrentIndex(1)
+        if self.params['mode'] == 'crestfactor':
+            self.mode.dropdown.setCurrentIndex(2)
         self.param_section.addWidget(self.mode)
         def update_mode(index):
-            self.output_unit.dropdown.blockSignals(True)
-            self.output_unit.dropdown.clear()
-            if index:
-                self.params['mode'] = 'absolute'
-                self.reference_signal.dropdown.setEnabled(False)
-                self.output_unit.dropdown.addItems(self.ABSOLUTE_OUTPUT_UNITS)
-            else:
-                self.params['mode'] = 'relative'
-                self.reference_signal.dropdown.setEnabled(True)
-                self.output_unit.dropdown.addItems(self.RELATIVE_OUTPUT_UNITS)
-            self.output_unit.dropdown.blockSignals(False)
-            update_output_unit(0) # sets relative to 'dB', sets absolute to 'dBFS'
-        self.mode.update_callback = update_mode
-
-        # dropdown to set reference signal for relative mode
-        self.reference_signal = CLParamDropdown('Reference signal', self.SIGNALS)
-        signal_index = self.reference_signal.dropdown.findText(self.params['reference_signal'])
-        self.reference_signal.dropdown.setCurrentIndex(signal_index)
-        self.param_section.addWidget(self.reference_signal)
-        def update_reference_signal(index):
-            self.params['reference_signal'] = self.SIGNALS[index]
+            match index:
+                case 0:
+                    self.params['mode'] = 'rms'
+                case 1:
+                    self.params['mode'] = 'peak'
+                case 2:
+                    self.params['mode'] = 'crestfactor'
             self.measure()
             self.plot()
-        self.reference_signal.update_callback = update_reference_signal
+        self.mode.update_callback = update_mode
 
         # RMS averaging time
         self.rms_time = CLParamNum('RMS time', self.params['rms_time'], ['seconds', 'octaves'])
@@ -288,10 +262,10 @@ class ImpulsiveDistortion(CLMeasurement):
 
 
         # output parameters
-        if self.params['mode'] == 'absolute':
-            self.output_unit = CLParamDropdown('Units', self.ABSOLUTE_OUTPUT_UNITS, '')
+        if self.params['mode'] == 'crestfactor':
+            self.output_unit = CLParamDropdown('Units', self.CREST_FACTOR_UNITS, '')
         else:
-            self.output_unit = CLParamDropdown('Units', self.RELATIVE_OUTPUT_UNITS, '')
+            self.output_unit = CLParamDropdown('Units', self.OUTPUT_UNITS, '')
         output_unit_index = self.output_unit.dropdown.findText(self.params['output']['unit'])
         if output_unit_index != -1:
             self.output_unit.dropdown.setCurrentIndex(output_unit_index)
