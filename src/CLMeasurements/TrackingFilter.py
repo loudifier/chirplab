@@ -1,5 +1,5 @@
 import CLProject as clp
-from CLAnalysis import chirp_time_to_freq, chirp_freq_to_time, freq_points, interpolate, FS_to_unit
+from CLAnalysis import chirp_time_to_freq, freq_points, interpolate, FS_to_unit, max_in_intervals
 from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams, QCollapsible, QHSeparator
 import numpy as np
 from CLMeasurements import CLMeasurement
@@ -135,34 +135,7 @@ class TrackingFilter(CLMeasurement):
 
             if selected_signal == 'filtered peak':
                 # instantaneous peak level of filtered response
-                signal_level = np.zeros(len(self.out_freqs))
-                
-                # loop through response_freqs to find the maximum in the intervals around each self.out_freqs. Ugly and brute force approach, but handles a lot of corner cases that would be difficult to get right with a .rolling() solution
-                j = 0 # keep track of which out_freq is being calculated
-                for i in range(len(response_freqs)):
-
-                    # skip everything below the lowest out_freq (but still initialize min_sample)
-                    if response_freqs[i] < self.out_freqs[0]:
-                        min_sample = i
-                        continue
-                    
-                    # find the dividing line between the current frequency and the next frequency (this block could/probably should be moved outside of the loop)
-                    if j == len(self.out_freqs) - 1: # skip everything above the highest out_freq
-                        freq_boundary = self.out_freqs[-1]
-                    else:
-                        if self.params['output']['spacing'] == 'linear':
-                            freq_boundary = (self.out_freqs[j] + self.out_freqs[j+1]) / 2
-                        else:
-                            freq_boundary = np.exp((np.log(self.out_freqs[j]) + np.log(self.out_freqs[j+1])) / 2)
-                    
-                    # find the last sample for the current out_freq
-                    if response_freqs[i] < freq_boundary:
-                        continue
-                    signal_level[j] = max(abs(response[min_sample:i]))
-                    min_sample = i
-                    j += 1
-                    if j == len(self.out_freqs):
-                        break
+                signal_level = max_in_intervals(response_freqs, response, self.out_freqs)
 
             else:
                 # calculate moving RMS length
