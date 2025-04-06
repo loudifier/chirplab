@@ -101,8 +101,9 @@ Features in each subheading are ordered roughly in order of prioritization. This
 
 ## Command Line Interface
 - [x] Run all measurements in a project file and output measurement data
-    - [ ] Switches to override individual project parameters. Analyze different input files/channels from the same project file, change data output directory, output file names, etc.
-- [ ] Generate stimulus file from parameters or a project file
+    - [x] Switches to override individual project parameters for input file, input channel, output directory
+    - [ ] Additional overrides?
+- [x] Generate stimulus file from project file settings
 - [ ] Measure calibration tone from a file and apply the calibration to a project file
 
 ## Other

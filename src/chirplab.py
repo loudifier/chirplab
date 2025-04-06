@@ -4,7 +4,7 @@ from qtpy.QtCore import Qt
 import sys
 from pathlib import Path 
 from CLGui import MainWindow
-from CLAnalysis import check_sox, read_audio_file, audio_file_info, generate_stimulus, read_response, save_csv, FormatNotSupportedError
+from CLAnalysis import check_sox, read_audio_file, audio_file_info, generate_stimulus, read_response, save_csv, FormatNotSupportedError, generate_stimulus_file
 import argparse
 import numpy as np
 from CLMeasurements import init_measurements
@@ -12,14 +12,18 @@ from CLMeasurements import init_measurements
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('project', nargs='?', help='path to ChirpLab project file to open or process (required for command-line mode)')
-    parser.add_argument('-c', action='store_true', help='process input project file and output data in command-line mode')
-    parser.add_argument('-i', '--input', help='override input file when running in command line mode')
-    args = parser.parse_args()
+    parser.add_argument('-s', '--stimulus', help='generate a stimulus file using the output settings of the given project file')
+    parser.add_argument('-c', action='store_true', help='process input project file and output data in command-line mode. Additional arguments override project parameters when running in command-line mode')
+    parser.add_argument('-i', '--input', help='override input file')
+    parser.add_argument('--channel', help='override which channel from input file is analyzed')
+    parser.add_argument('-o', '--output', help='override measurement data output directory')
+    args = parser.parse_args() # todo: clean up help print formatting
 
-    if args.c:
+    if args.c or args.stimulus:
         if not args.project:
             print('please specify ChirpLab project file for command-line processing')
             sys.exit(1)
+
     else:
         clp.gui_mode = True
 
@@ -59,8 +63,21 @@ def main():
     
     # if running in command-line mode, process measurements and output measurement data
     if not clp.gui_mode:
+        if args.stimulus:
+            generate_stimulus_file(args.stimulus)
+            sys.exit()
+
+        # process command-line overrides
         if args.input:
             clp.project['input']['file'] = args.input
+
+        if args.output:
+            out_dir = args.output
+        else:
+            out_dir = Path(args.project).parent
+
+        if args.channel:
+            clp.project['input']['channel'] = int(args.channel)
         
         # initialize measurements from project
         init_measurements()
@@ -82,7 +99,7 @@ def main():
             sys.exit(1)
         for measurement in clp.measurements:
             measurement.measure()
-            save_csv(measurement, '', Path(args.project).parent)
+            save_csv(measurement, '', out_dir)
             # todo: throw a warning that some output files will be overwritten if multiple measurements have the same name
         
         # exit before launching GUI
