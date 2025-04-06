@@ -72,6 +72,10 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [x] General unit conversion function in CLAnalysis to convert raw measurement outputs in FS to common units
     - [ ] Calibration interface could be improved to make it more clear how to set calibration values from known sensitivity
     - [ ] Possibly add save/load of calibration values (.clc file?), so a hardware setup preset could be used across different projects
+- [ ] Performance optimization to improve batch file processing
+    - [ ] Compilation, caching, etc to improve Python startup and processing time. Numba seems like the lowest-friction option to try first
+    - [ ] Delay GUI imports until needed to keep CLI from having to import Qt libraries
+    - [ ] Look into alternatives to or just rolling simplified versions of stuff from Pandas? CSV export is dead simple, there is probably a lighter weight option for XLS(X), and there may be a faster (if slightly more complex) way to implement DataFrame.rolling() with NumPy. Double check import time, installation size, execution speed first, may not be worth the effort
 - [ ] Pilot tone. Required by some commercial audio software, need to investigate to determine what measurements actually require precise timing that can't be determined by cross correlation
 - [ ] Input and/or output EQ. Similar to multi-channel/multi-file analysis, this is heavily dependant on interface, but with added complications of how filtering is implemented (direct amplitude vs time, FIR filtering, biquad sum-of-sections, how an EQ table is interpolated, etc... Some interesting methods (and extra analysis of Farina method) in http://winmls.com/2004/swen-muller-aes-swp-english.pdf)
 
@@ -100,9 +104,6 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Switches to override individual project parameters. Analyze different input files/channels from the same project file, change data output directory, output file names, etc.
 - [ ] Generate stimulus file from parameters or a project file
 - [ ] Measure calibration tone from a file and apply the calibration to a project file
-- [ ] Performance optimization to improve batch file processing
-    - [ ] Compilation, caching, etc to improve Python startup time. Numba seems like the lowest-friction option to try first
-    - [ ] Delaying GUI imports until needed to keep CLI from having to import Qt libraries. A bit of a pain in the early stages of development, can lead to circular imports and heisenbugs
 
 ## Other
 - [ ] Build automation
