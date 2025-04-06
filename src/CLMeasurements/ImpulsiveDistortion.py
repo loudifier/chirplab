@@ -1,13 +1,12 @@
 import CLProject as clp
-from CLAnalysis import chirp_time_to_freq, freq_points, interpolate, FS_to_unit
+from CLAnalysis import chirp_time_to_freq, freq_points, interpolate, FS_to_unit, fftconv, max_in_intervals
 from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams
 import numpy as np
 from CLMeasurements import CLMeasurement
 import pandas as pd
-from scipy.fftpack import fft, ifft, fftfreq
+from scipy.fftpack import fft, ifft
 from scipy.signal.windows import hann
 from CLMeasurements.HarmonicDistortion import harmonic_impulse_time
-from scipy.signal import fftconvolve
 
 # method for measuring distortion in the time domain, roughly equivalent to Klippel methods https://www.klippel.de/fileadmin/klippel/Files/Know_How/Literature/Papers/Measurement_of_Rub_and_Buzz_03.pdf
 # idealized response is modeled by windowing the fundamental and n harmonic impulses from the impulse response, and instantaneous distortion is the residual after subtracting the modeled response from the raw response
@@ -22,7 +21,7 @@ class ImpulsiveDistortion(CLMeasurement):
     # set of analysis modes that can be selected for how residual distortion is measured
     MODES = ['residual RMS',  # RMS of the residual signal after subtracting the modeled response from the raw response
              'residual peak', # max value of the residual distortion in each output frequency interval
-             'crest factor']  # peak relative to RMS
+             'crest factor']  # residual peak relative to residual RMS
 
     def __init__(self, name, params=None):
         if params is None:
@@ -34,7 +33,7 @@ class ImpulsiveDistortion(CLMeasurement):
             self.params['mode'] = 'peak' # which analysis mode is used. Either 'rms', 'peak', or 'crestfactor'
             self.params['rms_unit'] = 'octaves' # method of specifying the amount of time to apply a moving RMS calculation over the residual and/or raw response signals. Either 'octaves' to specify a frequency range determined by the chirp sweep rate, or 'seconds' for a fixed amount of time independent of the sweep rate
             self.params['rms_time'] = 1/3 # rms_unit='octaves' and rms_time=1/3 for a 1s chirp from 20-20kHz (9.97 octaves) results in a sliding RMS calculation window of 33.4ms
-            self.params['max_harmonic'] = 2 # the transfer function model will include the fundamental response up to max_harmonic to model the linear and major nonlinearities of the transfer function. Set to 1 to only model the fundamental response, resulting in a rough THD+N measurement
+            self.params['max_harmonic'] = 3 # the transfer function model will include the fundamental response up to max_harmonic to model the linear and major nonlinearities of the transfer function. Set to 1 to only model the fundamental response, resulting in a rough THD+N measurement
             
             # harmonic window parameters copied from HarmonicDistortion. Maybe expose these in GUI or refine this process in the future if HarmonicDistortion is updated
             self.params['harmonic_window_start'] = 0.1 # windowing parameters similar to frequency response windowing, but windows are centered on harmonic impulses, numbers are expressed in proportion of time to previous/next harmonic impulse
@@ -72,6 +71,7 @@ class ImpulsiveDistortion(CLMeasurement):
                                      self.params['output']['spacing'],
                                      self.params['output']['round_points'])
 
+        # generate an idealized version of the response that includes fundamental and low-order harmonics, and subtract it from the actual response
         def calc_residual(response):
             # calculate raw impulse response
             impulse_response = ifft(fft(response) / fft(clp.signals['stimulus']))
@@ -90,8 +90,6 @@ class ImpulsiveDistortion(CLMeasurement):
             window[window_start+window_end-fade_out:window_start+window_end] = hann(fade_out*2)[fade_out:]
             window = np.roll(window, -window_start)
 
-            modeled_response = fftconvolve(clp.signals['stimulus'], impulse_response * window)
-
             # generate series of harmonic impulse windows using HarmonicDistortion method
             if self.params['max_harmonic'] > 1:
                 for harmonic in range(2, self.params['max_harmonic']+1):
@@ -109,74 +107,47 @@ class ImpulsiveDistortion(CLMeasurement):
                     harmonic_window[:fade_in] = hann(fade_in*2)[:fade_in]
                     harmonic_window[fade_in:window_start+window_end-fade_out] = np.ones(window_start-fade_in+window_end-fade_out)
                     harmonic_window[window_start+window_end-fade_out:window_start+window_end] = hann(fade_out*2)[fade_out:]
-                    harmonic_window = np.roll(harmonic_window, -window_start) # align harmonic impulse to t=0
-                    
-                    # apply harmonic window to impulse response (aligned to t=0)
-                    harmonic_impulse = np.roll(impulse_response, -round(harmonic_time*clp.project['sample_rate'])) * harmonic_window
-                    
-                    # generate harmonic stimulus signal
-                     
-                    
-                    # calculate modeled harmonic response
-                    harmonic_response = fftconvolve(clp.signals['stimulus'], harmonic_impulse)
+                    harmonic_window = np.roll(harmonic_window, round(harmonic_time*clp.project['sample_rate']) - window_start)
 
-                    # add harmonic response to total modeled response
-                    modeled_response += harmonic_response
+                    # add harmonic window to total window
+                    window += harmonic_window
 
-            return
+            # apply impulse response with fundamental and harmonic windows to stimulus to model the transfer function without high order harmonics and reduced system noise
+            modeled_response = fftconv(clp.signals['stimulus'], impulse_response*window).real
 
-            if selected_signal == 'filtered peak':
-                # instantaneous peak level of filtered response
-                signal_level = np.zeros(len(self.out_freqs))
-                
-                # loop through response_freqs to find the maximum in the intervals around each self.out_freqs. Ugly and brute force approach, but handles a lot of corner cases that would be difficult to get right with a .rolling() solution
-                j = 0 # keep track of which out_freq is being calculated
-                for i in range(len(response_freqs)):
+            # get the difference between the actual response and modeled response
+            residual = response - modeled_response
 
-                    # skip everything below the lowest out_freq (but still initialize min_sample)
-                    if response_freqs[i] < self.out_freqs[0]:
-                        min_sample = i
-                        continue
-                    
-                    # find the dividing line between the current frequency and the next frequency (this block could/probably should be moved outside of the loop)
-                    if j == len(self.out_freqs) - 1: # skip everything above the highest out_freq
-                        freq_boundary = self.out_freqs[-1]
-                    else:
-                        if self.params['output']['spacing'] == 'linear':
-                            freq_boundary = (self.out_freqs[j] + self.out_freqs[j+1]) / 2
-                        else:
-                            freq_boundary = np.exp((np.log(self.out_freqs[j]) + np.log(self.out_freqs[j+1])) / 2)
-                    
-                    # find the last sample for the current out_freq
-                    if response_freqs[i] < freq_boundary:
-                        continue
-                    signal_level[j] = max(abs(response[min_sample:i]))
-                    min_sample = i
-                    j += 1
-                    if j == len(self.out_freqs):
-                        break
+            return residual
 
-            else:
-                # calculate moving RMS length
-                if self.params['rms_unit'] == 'octaves':
-                    rms_time = (clp.project['chirp_length'] / np.log2(clp.project['stop_freq']/clp.project['start_freq'])) * self.params['rms_time']
-                else:
-                    rms_time = self.params['rms_time']
-                rms_samples = round(rms_time * clp.project['sample_rate'])
+        residual = calc_residual(clp.signals['response'])
+        if any(clp.signals['noise']):
+            noise_residual = calc_residual(clp.signals['noise'])
 
-                # calculate moving RMS
-                signal_level = np.sqrt(pd.DataFrame(response*response).rolling(rms_samples, center=True, min_periods=1).mean())
+        if self.params['mode'] != 'rms': # peak levels used for 'peak' and 'crestfactor' modes
+            # instantaneous peak level of the residual distortion
+            residual_peak = max_in_intervals(response_freqs, abs(residual), self.out_freqs, linear=self.params['output']['spacing']=='linear')
+            if any(clp.signals['noise']):
+                noise_peak = max_in_intervals(response_freqs, abs(noise_residual), self.out_freqs, linear=self.params['output']['spacing']=='linear')
 
-                # interpolate signal_level at self.out_freqs
-                signal_level = interpolate(response_freqs, np.array(signal_level)[:,0], self.out_freqs)
+         # calculate moving RMS length (not used in every case, but in most situations)
+        if self.params['rms_unit'] == 'octaves':
+            rms_time = (clp.project['chirp_length'] / np.log2(clp.project['stop_freq']/clp.project['start_freq'])) * self.params['rms_time']
+        else:
+            rms_time = self.params['rms_time']
+        rms_samples = round(rms_time * clp.project['sample_rate'])
 
-            return signal_level
+        if self.params['mode'] != 'peak': # rms levels used for 'rms' and 'crestfactor' modes
+            # calculate moving RMS
+            residual_rms = np.sqrt(pd.DataFrame(residual*residual).rolling(rms_samples, center=True, min_periods=1).mean())
 
-        def harmonic_chirp(harmonic):
-            pass
+            # interpolate residual_level at self.out_freqs
+            residual_rms = interpolate(response_freqs, np.array(residual_rms)[:,0], self.out_freqs)
 
-        calc_residual(clp.signals['response'])
-        return
+            if any(clp.signals['noise']):
+                noise_rms = np.sqrt(pd.DataFrame(noise_residual*noise_residual).rolling(rms_samples, center=True, min_periods=1).mean())
+                noise_rms = interpolate(response_freqs, np.array(noise_rms)[:,0], self.out_freqs)
+
 
         # convert output to desired units
         def convert_output_units(fs_points, ref_points=None):
@@ -190,21 +161,28 @@ class ImpulsiveDistortion(CLMeasurement):
                 case _:
                     return FS_to_unit(fs_points, self.params['output']['unit'])
 
-        # todo: a lot of opportunity to optimize, avoid applying the same filters multiple times
-        measured_level = calc_tracking_filter(clp.signals['response'], self.params['measured_signal'])
-        if any(clp.signals['noise']):
-            measured_noise = calc_tracking_filter(clp.signals['noise'], self.params['measured_signal'])
-        
-        if self.params['mode'] == 'absolute':
-            self.out_points = convert_output_units(measured_level)
-            if any(clp.signals['noise']):
-                self.out_noise = convert_output_units(measured_noise)
-            return
+        # if necessary, calculate moving RMS of raw response signal
+        if self.params['mode'] != 'crestfactor':
+            if self.params['output']['unit'] in ['dB', '%', '% (IEC method)']: # if peak or rms modes and output is a relative unit
+                ref_points = np.sqrt(pd.DataFrame(clp.signals['response']*clp.signals['response']).rolling(rms_samples, center=True, min_periods=1).mean())
+                ref_points = interpolate(response_freqs, np.array(ref_points)[:,0], self.out_freqs)
+            else:
+                ref_points = None
 
-        ref_level = calc_tracking_filter(clp.signals['response'], self.params['reference_signal'])
-        self.out_points = convert_output_units(measured_level, ref_level)
-        if any(clp.signals['noise']):
-            self.out_noise = convert_output_units(measured_noise, ref_level)
+        if self.params['mode'] == 'peak':
+            self.out_points = convert_output_units(residual_peak, ref_points)
+            if any(clp.signals['noise']):
+                self.out_noise = convert_output_units(noise_peak, ref_points)
+        
+        if self.params['mode'] == 'rms':
+            self.out_points = convert_output_units(residual_rms, ref_points)
+            if any(clp.signals['noise']):
+                self.out_noise = convert_output_units(noise_rms, ref_points)
+
+        if self.params['mode'] == 'crestfactor':
+            self.out_points = convert_output_units(residual_peak, residual_rms)
+            if any(clp.signals['noise']):
+                self.out_noise = convert_output_units(noise_peak, noise_rms) # does it make sense to calculate a measurement noise floor for crest factor?
     
         
     def init_tab(self):
@@ -296,3 +274,5 @@ class ImpulsiveDistortion(CLMeasurement):
     
     def calc_auto_max_freq(self):
         return clp.project['stop_freq']
+
+
