@@ -97,7 +97,7 @@ class MainWindow(QMainWindow):
                 file_path = file_dialog.selectedFiles()[0]
                 
                 # todo: test file loading corner cases, wrap in try/except, etc.
-                clp.load_project_file(file_path) # sets working directory # todo: figure out why Input section of chirp tab initializes as collapsed when loading a project file
+                clp.load_project_file(file_path) # sets working directory
                 load_project()
         open_project.triggered.connect(open_project_file)
         
@@ -171,6 +171,7 @@ class MainWindow(QMainWindow):
             clp.measurements[-1].plot()
             self.tabs.insertTab(self.tabs.count()-1, clp.measurements[-1].tab, name)
             self.tabs.setCurrentIndex(self.tabs.count()-2)
+            clp.measurements[-1].param_section.expand() # todo: figure out why measurement params sections do not actually expand in .init_tab(). Works fine for some measurements but not others, and there are only problems when adding a new measurment to the current project, not when opening/initializing a project.
         self.add_new_measurement = add_new_measurement
         
         remove_measurement = QAction('&Remove Current Measurement', self)
