@@ -33,7 +33,7 @@ class ImpulsiveDistortion(CLMeasurement):
             self.params['mode'] = 'peak' # which analysis mode is used. Either 'rms', 'peak', or 'crestfactor'
             self.params['rms_unit'] = 'octaves' # method of specifying the amount of time to apply a moving RMS calculation over the residual and/or raw response signals. Either 'octaves' to specify a frequency range determined by the chirp sweep rate, or 'seconds' for a fixed amount of time independent of the sweep rate
             self.params['rms_time'] = 1/3 # rms_unit='octaves' and rms_time=1/3 for a 1s chirp from 20-20kHz (9.97 octaves) results in a sliding RMS calculation window of 33.4ms
-            self.params['max_harmonic'] = 3 # the transfer function model will include the fundamental response up to max_harmonic to model the linear and major nonlinearities of the transfer function. Set to 1 to only model the fundamental response, resulting in a rough THD+N measurement
+            self.params['max_harmonic'] = 7 # the transfer function model will include the fundamental response up to max_harmonic to model the linear and major nonlinearities of the transfer function. Set to 1 to only model the fundamental response, resulting in a rough THD+N measurement
             
             # harmonic window parameters copied from HarmonicDistortion. Maybe expose these in GUI or refine this process in the future if HarmonicDistortion is updated
             self.params['harmonic_window_start'] = 0.1 # windowing parameters similar to frequency response windowing, but windows are centered on harmonic impulses, numbers are expressed in proportion of time to previous/next harmonic impulse
@@ -196,6 +196,27 @@ class ImpulsiveDistortion(CLMeasurement):
             self.mode.dropdown.setCurrentIndex(2)
         self.param_section.addWidget(self.mode)
         def update_mode(index):
+            # first, update output units if necessary
+            if (index < 2) and (self.params['mode'] == 'crestfactor'): # if changing from crest factor to peak or RMS
+                self.output_unit.dropdown.blockSignals(True)
+                self.output_unit.dropdown.clear()
+                self.output_unit.dropdown.addItems(self.OUTPUT_UNITS)
+                output_unit_index = self.output_unit.dropdown.findText(self.params['output']['unit'])
+                self.output_unit.dropdown.setCurrentIndex(output_unit_index) # OUTPUT_UNITS is a superset of CREST_FACTOR_UNITS so index should never be -1
+                self.output_unit.dropdown.blockSignals(False)
+            if (index == 2) and (self.params['mode'] != 'crestfactor'): # if changing from peak or RMS to crest factor
+                self.output_unit.dropdown.blockSignals(True)
+                self.output_unit.dropdown.clear()
+                self.output_unit.dropdown.addItems(self.CREST_FACTOR_UNITS)
+                output_unit_index = self.output_unit.dropdown.findText(self.params['output']['unit'])
+                if output_unit_index != -1:
+                    self.output_unit.dropdown.setCurrentIndex(output_unit_index)
+                else:
+                    self.params['output']['unit'] = 'dB'
+                self.output_unit.dropdown.blockSignals(False)
+            # peak and RMS have the same output units, no need to handle the case when switching between the two
+
+            # actually update the mode and recalculate
             match index:
                 case 0:
                     self.params['mode'] = 'rms'
@@ -234,9 +255,26 @@ class ImpulsiveDistortion(CLMeasurement):
             self.rms_time.set_value(self.params['rms_time'])
         self.rms_time.units_update_callback = update_rms_time_unit
 
-        # control to model transfer function
-        self.harmonic_range = CLParamNum('Model transfer function up to', 7, 'th harmonic', 1, 20, 'int')
+        # set maximum harmonic to include in transfer function model
+        self.harmonic_range = CLParamNum('Model transfer function up to', self.params['max_harmonic'], 'th harmonic', 1, 20, 'int')
         self.param_section.addWidget(self.harmonic_range)
+        def harmonic_suffix(harmonic):
+            match harmonic:
+                case 1:
+                    return 'st harmonic (only fundamental)'
+                case 2:
+                    return 'nd harmonic'
+                case 3:
+                    return 'rd harmonic'
+                case _:
+                    return 'th harmonic'
+        self.harmonic_range.unit.setText(harmonic_suffix(self.params['max_harmonic']))
+        def update_harmonic_range(new_val):
+            self.params['max_harmonic'] = new_val
+            self.harmonic_range.unit.setText(harmonic_suffix(new_val))
+            self.measure()
+            self.plot()
+        self.harmonic_range.update_callback = update_harmonic_range
 
 
         # output parameters
