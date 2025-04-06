@@ -14,7 +14,7 @@ working_directory = '.' # directory to start any browse dialogs in, updated base
 # signals updated from chirp tab and used for analysis in measurements. Stimulus, response, impulse response, etc.
 signals = {}
 
-# information to keep track of input and output file or device - will change a lot when implementing device IO
+# information to keep track of input and output file or device. For now only keeping track of input file or device information, project output parameters are sufficient for outputting to files or sound cards. May need to use IO['output'] at some point if outputting to some other interface.
 IO = {'input':{'length_samples':0,
                'sample_rate':0,
                'channels':0,
