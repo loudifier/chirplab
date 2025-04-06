@@ -12,8 +12,8 @@ from CLMeasurements.HarmonicDistortion import harmonic_impulse_time
 # idealized response is modeled by windowing the fundamental and n harmonic impulses from the impulse response, and instantaneous distortion is the residual after subtracting the modeled response from the raw response
 # Klippel likely models speaker directly from LPM/LSI measurements, impulse response method may not be as accurate.
 
-class ImpulsiveDistortion(CLMeasurement):
-    measurement_type_name = 'Impulsive Distortion'
+class ResidualDistortion(CLMeasurement):
+    measurement_type_name = 'Residual Distortion'
     
     OUTPUT_UNITS = ['dB', '%', '% (IEC method)', 'dBFS', 'dBSPL', 'dBV', 'FS', 'Pa', 'V'] # relative units are the selected distortion measure relative to the RMS of the raw response signal
     CREST_FACTOR_UNITS = ['dB', '%'] # for the special case of the crest factor analysis, the output is the peak residual value in each interval relative to the RMS of the residual
@@ -27,7 +27,7 @@ class ImpulsiveDistortion(CLMeasurement):
         if params is None:
             params = {}
         super().__init__(name, params)
-        self.params['type'] = 'ImpulsiveDistortion'
+        self.params['type'] = 'ResidualDistortion'
 
         if len(params)<3: # default measurement parameters
             self.params['mode'] = 'peak' # which analysis mode is used. Either 'rms', 'peak', or 'crestfactor'
