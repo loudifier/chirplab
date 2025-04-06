@@ -135,7 +135,7 @@ class TrackingFilter(CLMeasurement):
 
             if selected_signal == 'filtered peak':
                 # instantaneous peak level of filtered response
-                signal_level = max_in_intervals(response_freqs, response, self.out_freqs)
+                signal_level = max_in_intervals(response_freqs, abs(response), self.out_freqs)
 
             else:
                 # calculate moving RMS length
