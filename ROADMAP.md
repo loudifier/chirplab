@@ -35,9 +35,11 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [x] Implement crest factor output option (implemented as a general purpose relative measurement where the measured and reference signal can be selected)
     - [ ] Come up with a better name that communicates this can be used for fundamental frequency response, rub and buzz, or even harmonic analysis. Maybe leave as-is and rely on measurement presets with more descriptive names (e.g. "THD+N", "Rub and Buzz Crest Factor")
     - [ ] Look at different ways to estimate noise floor, since filtered response could unintentionally leave some residual of the direct response that isn't present in the noise signal
-- [ ] Instantaneous Distortion
-    - [ ] Implement a speaker model that includes major nonlinearities. Probably a simple impulse response that includes the main tail of the IR (adjustable based on ETC decay, defaulting to T60?), with the window start adjustable to include the desired number of harmonics
-    - [ ] Do some experiments to compare Klippel-style Rub and Buzz measurements (speaker model that includes major nonlinearities) against AP-style Rub and Buzz measurements (high pass tracking filter)
+- [x] Residual Distortion
+    - [x] Implement a speaker model that includes major nonlinearities. Using impulse response with default windowing parameters used in adaptive frequency response and harmonic distortion measurements. Seems to work fairly well in practice
+    - [x] Do some experiments to compare Klippel-style Rub and Buzz measurements (speaker model that includes major nonlinearities) against AP-style Rub and Buzz measurements (high pass tracking filter)
+    - [ ] Come up with a more descriptive name, something that makes it more clear that you can analyze distortions from rub and buzz to THD+N. "Residual" feels better than "Instantaneous" or "Impulsive", but isn't great
+    - [ ] Look into plotting distortion value against signal level. Chirplab doesn't have access to excursion information, so maybe try plotting against a reference channel from displacement sensor or driving voltage? Derivative of voltage might be a close enough correlation to excursion to be meaningful. Trying to model an actual speaker response might be a bit outside the scope of the measurement and Chirplab in general
 - [ ] Spectral Analysis
     - [ ] Experiment with builtin STFT options in SciPy/NumPy or roll a custom version that is easier to derive measurement data from
     - [ ] Parameters

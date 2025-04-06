@@ -11,6 +11,7 @@ from qtpy.QtWidgets import QErrorMessage, QMessageBox
 import sys
 import requests
 from zipfile import ZipFile
+from scipy.fftpack import fft, ifft
 
 
 # module with helper functions for chirp analysis, mostly math stuff
@@ -49,6 +50,7 @@ def generate_stimulus():
         np.zeros(round(clp.project['pre_sweep']*clp.project['sample_rate'])),
         logchirp(clp.project['start_freq'], clp.project['stop_freq'], clp.project['chirp_length'], clp.project['sample_rate']),
         np.zeros(round(clp.project['post_sweep']*clp.project['sample_rate']))])
+    # if this is updated at some point probably refactor and also update harmonic_chirp() in ImpulsiveDistortion.measure()
 
 def generate_output_stimulus():
     # generate a multi-channel stimulus signal using the project output parameters
@@ -307,6 +309,56 @@ def FS_to_unit(input_FS, output_unit):
             return input_FS / clp.project['FS_per_Pa']
         case 'V':
             return input_FS / clp.project['FS_per_V']
+
+def fftconv(signal, kernel):
+    # scipy/numpy (de)convolution doesn't produce the expected results, seemingly due to how they handle array lengths/shapes.
+    # this plays nicely with Chirplab managing array lengths on its own and using impulse responses deconvolved through a simple division of stimulus and response spectrums
+    
+    # ensure signal and kernel to the same length
+    max_length = max(len(signal), len(kernel))
+    sig_pad = np.concatenate([signal, np.zeros(max_length - len(signal))])
+    kern_pad = np.concatenate([kernel, np.zeros(max_length - len(kernel))])
+    
+    # apply kernel to the signal in the frequency domain and convert back to the time domain
+    return ifft(fft(sig_pad) * fft(kern_pad))
+
+def max_in_intervals(x_input, y_input, x_output, linear=True):
+    # similar application to interpolate(), but returns the maximum value in y_input for each interval around x_output points. Assumes x_input and x_output are in ascending order
+
+    y_output = np.zeros(len(x_output))
+
+    # loop through input points to find the maximum in the intervals around each output point. Ugly and brute force approach, but handles a lot of corner cases that would be difficult to get right with a solution that uses pandas .rolling()
+    j = 0 # keep track of which output point is being calculated
+    for i in range(len(x_input)):
+
+        # skip everything below the lowest output point (but still initialize min_point)
+        if x_input[i] < x_output[0]:
+            min_point = i
+            continue
+        
+        # find the dividing line between the current point and the next point
+        if j == len(x_output) - 1: # skip everything above the highest output point
+            boundary = x_output[-1]
+        else:
+            if linear:
+                boundary = (x_output[j] + x_output[j+1]) / 2
+            else:
+                boundary = np.exp((np.log(x_output[j]) + np.log(x_output[j+1])) / 2)
+        
+        # find the last input point for the current output point
+        if x_input[i] < boundary:
+            continue
+
+        # get the max value in the interval around the current output point
+        y_output[j] = max(abs(y_input[min_point:i]))
+
+        # set up to find the boundaries for the next output point
+        min_point = i
+        j += 1
+        if j == len(x_output):
+            break
+
+    return y_output
 
 def check_sox():
     if sys.platform == 'win32':

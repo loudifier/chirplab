@@ -1,0 +1,20 @@
+chirplab_version: 0.3
+harmonic_fade_in: 0.1
+harmonic_fade_out: 0.5
+harmonic_window_end: 0.9
+harmonic_window_start: 0.1
+max_harmonic: 1
+mode: rms
+name: THD+N
+output:
+  max_auto: true
+  max_freq: 20000
+  min_auto: true
+  min_freq: 100
+  num_points: 12
+  round_points: false
+  spacing: octave
+  unit: dB
+rms_time: 0.3333333333333333
+rms_unit: octaves
+type: ResidualDistortion
