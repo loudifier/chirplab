@@ -1,5 +1,7 @@
 chirp_length: 1.0
-chirplab_version: 0.1
+chirplab_version: 0.3
+FS_per_Pa: 1.0
+FS_per_V: 1.0
 input:
   channel: 1
   file: speaker-response.wav
