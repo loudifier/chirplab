@@ -1,0 +1,18 @@
+chirplab_version: 0.3
+fade_in: 0.1
+fade_out: 0.5
+name: High Order Harmonic Distortion
+output:
+  max_auto: true
+  max_freq: 2160.0
+  min_auto: true
+  min_freq: 100
+  num_points: 12
+  round_points: false
+  spacing: octave
+  unit: dB
+start_harmonic: 10
+stop_harmonic: 35
+type: HarmonicDistortion
+window_end: 0.9
+window_start: 0.1

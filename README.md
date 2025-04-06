@@ -6,7 +6,7 @@ Chirplab is an audio and acoutics measurement suite based on fast open-loop log-
 Chirplab is built on Python, NumPy/SciPy, Qt, and other open source software and is released under the [MIT license](LICENSE)
 
 ## Overview
-Chirplab can be used as a standalone GUI for interactively examining measurement data and experimenting with different project parameter settings, or entirely via a command line interface using plaintext project file input and measurement data output. This allows a seamless transision between R&D and automated or manufacturing workflows, and even allows custom Chirplab measurements to be incorporated into other audio test software that can call external programs as part of a measurement sequence. Chirplab is early in development, but will eventually support a wide variety of standard and specialized audio measurements.
+Chirplab can be used as a standalone GUI for interactively examining measurement data and experimenting with different project parameter settings, or entirely via a command line interface using plaintext project file input and measurement data output. This allows a seamless transision between R&D and automated or manufacturing workflows, and even allows custom Chirplab measurements to be incorporated into other audio test software that can call external programs as part of a measurement sequence.
 
 <picture><img alt="GUI stimulus/response tab" src="img/gui_chirp-tab.png"></picture>
 
@@ -35,7 +35,7 @@ Where most audio measurement tools have some sort of noise floor measurement fea
 ### Comprehensive distortion measurements
 Some standardized metrics for audio distortion measurement exist, but those standards do not comprehensively cover the range of distortion mechanisms and products that audio engineers would like to measure. In practice, "distortion", "THD", "Rub and "Buzz" and other terms are poorly defined. Different measurement systems will yield significantly different results for measurements with the same name and measurement methodologies are usually not communicated clearly with measurement results.
 
-Chirplab currently only supports Harmonic Distortion measurements (equivalent to "THD", "HOHD", "Distortion Product Level", etc.), but a wide variety of distortion metrics that provide equivalent results from other measurement systems will be added over time.
+Chirplab supports several different distortion measurements, which provide rough equivalents to many of the distortion metrics produced by other audio measurement suites, and some of the distortion measurements and parameters that are available in Chirplab are entirely unique. If you have a speaker or system with distortion that is difficult or impossible to measure with Chirplab, please [raise an issue](https://github.com/loudifier/chirplab/issues).
 
 <br/>
 
@@ -59,6 +59,6 @@ With the decreasing number of audio devices that provide realtime audio passthro
 <br/>
 
 ## Project Status
-Chirplab v0.2 is in an initial usable state, supporting file and sound card input and output and a few basic measurements - Frequency Response, Phase Response, and Harmonic Distortion. It will eventually support acoustic/electrical signal level calibration and several additional measurement types, including equivalent measurements to those that you would expect from commercial audio measurement systems and some entirely unique distortion metrics. See the [roadmap](ROADMAP.md) for a high level list of currently implemented and planned features. Contributions are welcome.
+Chirplab v0.3 is in a basic usable state, supporting file and sound card input and output with real units calibration and a set of standard audio measurements, with additional features and measurement types in development. See the [roadmap](ROADMAP.md) for a high level list of currently implemented and planned features. Contributions are welcome.
 
 If you have a specific feature request not on the roadmap, find a bug, have an audio file or signal that does not play nicely with Chirplab, etc. please [raise an issue](https://github.com/loudifier/chirplab/issues).
