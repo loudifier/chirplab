@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('project', nargs='?', help='path to ChirpLab project file to open or process (required for command-line mode)')
     parser.add_argument('-c', action='store_true', help='process input project file and output data in command-line mode')
+    parser.add_argument('-i', '--input', help='override input file when running in command line mode')
     args = parser.parse_args()
 
     if args.c:
@@ -58,6 +59,8 @@ def main():
     
     # if running in command-line mode, process measurements and output measurement data
     if not clp.gui_mode:
+        if args.input:
+            clp.project['input']['file'] = args.input
         
         # initialize measurements from project
         init_measurements()
