@@ -77,6 +77,10 @@ class MainWindow(QMainWindow):
                     return # don't create a new project if the user cancels the dialog
             clp.new_project()
             load_project()
+            self.chirp_tab.io_changed.connect(update_analyze_text)
+            update_analyze_text()
+            self.chirp_tab.capture_finished.connect(enable_capture)
+            self.chirp_tab.play_finished.connect(enable_play)
         new_project.triggered.connect(create_new_project)
         
         open_project = QAction('&Open Project', self)
@@ -99,6 +103,10 @@ class MainWindow(QMainWindow):
                 # todo: test file loading corner cases, wrap in try/except, etc.
                 clp.load_project_file(file_path) # sets working directory
                 load_project()
+                self.chirp_tab.io_changed.connect(update_analyze_text)
+                update_analyze_text()
+                self.chirp_tab.capture_finished.connect(enable_capture)
+                self.chirp_tab.play_finished.connect(enable_play)
         open_project.triggered.connect(open_project_file)
         
         file_menu.addSeparator()
@@ -253,7 +261,48 @@ class MainWindow(QMainWindow):
         
         analyze = QAction('Analyze Input File', self)
         measurement_menu.addAction(analyze)
-        analyze.triggered.connect(self.chirp_tab.analyze)
+        def analyze_or_capture():
+            if clp.project['input']['mode'] == 'file':
+                self.chirp_tab.input_params.file_input.analyze()
+            else:
+                self.chirp_tab.input_params.device_input.capture()
+                analyze.setEnabled(False)
+                if clp.project['output']['mode'] == 'device':
+                    generate.setEnabled(False)
+        analyze.triggered.connect(analyze_or_capture)
+        def update_analyze_text():
+            if clp.project['input']['mode'] == 'file':
+                analyze.setText('Analyze Input File')
+            else: # input is in device mode
+                if clp.project['output']['mode'] == 'file':
+                    analyze.setText('Capture Response')
+                else:
+                    analyze.setText('Play and Capture')
+        update_analyze_text()
+        self.chirp_tab.io_changed.connect(update_analyze_text)
+        def enable_capture():
+            analyze.setEnabled(True)
+        self.chirp_tab.capture_finished.connect(enable_capture)
+
+        generate = QAction('Generate Stimulus File')
+        measurement_menu.addAction(generate)
+        def generate_or_play():
+            if clp.project['output']['mode'] == 'file':
+                self.chirp_tab.output_params.file_output.generate_output_file()
+            else:
+                self.chirp_tab.output_params.device_output.play_stimulus()
+                generate.setEnabled(False)
+        generate.triggered.connect(generate_or_play)
+        def update_generate_text():
+            if clp.project['output']['mode'] == 'file':
+                generate.setText('Generate Stimulus File')
+            else:
+                generate.setText('Play Stimulus')
+        update_generate_text()
+        self.chirp_tab.io_changed.connect(update_generate_text)
+        def enable_play():
+            generate.setEnabled(True)
+        self.chirp_tab.play_finished.connect(enable_play)
         
         # todo: implement auto analyze option
         #auto_analyze = QAction('Automatically analyze when a parameter is updated', self)

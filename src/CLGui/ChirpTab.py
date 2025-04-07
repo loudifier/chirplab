@@ -12,6 +12,11 @@ from time import time
 
 # First tab - Chirp parameters, input/output, time-domain view of stimulus and response waveforms
 class ChirpTab(CLTab):
+    # Signals to let main window know I/O was updated
+    io_changed = Signal()
+    play_finished = Signal()
+    capture_finished = Signal()
+
     def __init__(self):
         super().__init__()
         self.graph.setTitle('Stimulus Signal / Captured Response') 
@@ -25,7 +30,6 @@ class ChirpTab(CLTab):
         self.panel.addWidget(self.chirp_params)
 
         self.panel.addWidget(QHSeparator())
-        
         
         # Output file or audio device section
         self.output_params = OutputParameters(self)
@@ -248,14 +252,15 @@ class OutputParameters(QCollapsible):
                 self.device_output = DeviceOutput(chirp_tab)
                 self.output_frame.layout().replaceWidget(current_widget, self.device_output)
                 if clp.project['input']['mode'] == 'device':
-                    chirp_tab.input_params.device_input.capture.setText('Play and Capture')
+                    chirp_tab.input_params.device_input.capture_button.setText('Play and Capture')
             else:
                 clp.project['output']['mode'] = 'file'
                 self.file_output = FileOutput(chirp_tab)
                 self.output_frame.layout().replaceWidget(current_widget, self.file_output)
                 if clp.project['input']['mode'] == 'device':
-                    chirp_tab.input_params.device_input.capture.setText('Capture Response')
+                    chirp_tab.input_params.device_input.capture_button.setText('Capture Response')
             current_widget.close()
+            chirp_tab.io_changed.emit()
         self.mode_dropdown.currentIndexChanged.connect(update_output_mode)
         
         self.output_frame = QFrame()
@@ -472,6 +477,7 @@ class FileOutput(QFrame):
                 output_file_path = save_dialog.selectedFiles()[0]
                 generate_stimulus_file(output_file_path)
         self.output_file_button.clicked.connect(generate_output_file)
+        self.generate_output_file = generate_output_file
 
 
 class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, but trying to DRY it out introduces a lot of weird coupling. Simpler to keep it separate
@@ -721,6 +727,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             chirp_tab.output_params.setEnabled(True)
             if clp.project['input']['mode'] == 'device':
                 chirp_tab.input_params.setEnabled(True)
+            chirp_tab.play_finished.emit()
 
 
 class InputParameters(QCollapsible):
@@ -746,6 +753,7 @@ class InputParameters(QCollapsible):
                 self.file_input = FileInput(chirp_tab)
                 self.input_frame.layout().replaceWidget(current_widget, self.file_input)
             current_widget.close()
+            chirp_tab.io_changed.emit()
         self.mode_dropdown.currentIndexChanged.connect(update_input_mode)
 
         self.input_frame = QFrame()
@@ -843,7 +851,6 @@ class FileInput(QFrame):
                 self.bit_depth.set_value('')
                 
                 self.file.text_box.setStyleSheet('QLineEdit { background-color: orange; }')
-        #chirp_tab.update_input_file = update_file
         self.file.update_callback = update_file
         self.update_input_file = update_file # make inner function callable as a method
         
@@ -901,7 +908,11 @@ class FileInput(QFrame):
         
         self.analyze_button = QPushButton('Analyze')
         layout.addWidget(self.analyze_button)
-        self.analyze_button.clicked.connect(chirp_tab.analyze)
+        def analyze():
+            update_file()
+            chirp_tab.analyze()
+        self.analyze_button.clicked.connect(analyze)
+        self.analyze = analyze
 
 
 class DeviceInput(QFrame):
@@ -1081,25 +1092,26 @@ class DeviceInput(QFrame):
             button_text = 'Play and Capture'
         else:
             button_text = 'Capture Response'
-        self.capture = QPushButton(button_text)
-        layout.addWidget(self.capture)
+        self.capture_button = QPushButton(button_text)
+        layout.addWidget(self.capture_button)
         self.capture_start_time = time()
-        def capture_response():
+        def capture():
             DeviceIO.record(round(clp.project['input']['capture_length']*clp.project['input']['sample_rate']), clp.project['input']['sample_rate'], clp.project['input']['device'], clp.project['input']['api'], active_callback=while_capturing, finished_callback=capture_receiver.capture_finished.emit)
             self.capture_start_time = time()
             chirp_tab.input_params.setEnabled(False)
             if clp.project['output']['mode'] == 'device':
                 chirp_tab.output_params.device_output.play_stimulus()
-        self.capture.clicked.connect(capture_response)
+        self.capture_button.clicked.connect(capture)
+        self.capture = capture
         def while_capturing():
-            self.capture.setText('Capturing: ' + str(round(time()-self.capture_start_time, 2)) + ' / ' + str(self.capture_length.value))
+            self.capture_button.setText('Capturing: ' + str(round(time()-self.capture_start_time, 2)) + ' / ' + str(self.capture_length.value))
         
         @Slot(np.ndarray)
         def when_capture_finished(captured_response):
             if clp.project['output']['mode'] == 'device':
-                self.capture.setText('Play and Capture')
+                self.capture_button.setText('Play and Capture')
             else:
-                self.capture.setText('Capture Response')
+                self.capture_button.setText('Capture Response')
 
             chirp_tab.input_params.setEnabled(True) # todo: handle corner cases where capture length is significantly shorter than stimulus length
             if clp.project['output']['mode'] == 'device':
@@ -1118,6 +1130,7 @@ class DeviceInput(QFrame):
             chirp_tab.analyze()
 
             self.save.setEnabled(True)
+            chirp_tab.capture_finished.emit()
         
         # need to go through signal and slot to actually get data from PyAudio thread back into Qt thread
         # in order to work a signal must be a member of an instance of QObject. todo: figure out if there is a simpler/cleaner way (creating signal in DeviceInput.__init__() and calling .connect outside of DeviceInput doesn't seem to work)
