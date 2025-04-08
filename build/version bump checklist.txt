@@ -1,0 +1,7 @@
+A checklist of things that should be updated when bumping the Chirplab version number. Could build a script to handle these, but that could also cause issues if something should not be updated in the case of a new version causing breaking changes.
+
+[ ] CLProject.py CHIRPLAB_VERSION
+[ ] any references to the version in README.md
+[ ] version numbers in example project files or measurement preset files
+[ ] release on GitHub
+[ ] double check that exe added to release by GitHub actions has the correct version number and runs
