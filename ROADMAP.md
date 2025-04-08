@@ -78,6 +78,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Look into alternatives to or just rolling simplified versions of stuff from Pandas? CSV export is dead simple, there is probably a lighter weight option for XLS(X), and there may be a faster (if slightly more complex) way to implement DataFrame.rolling() with NumPy. Double check import time, installation size, execution speed first, may not be worth the effort
 - [ ] Pilot tone. Required by some commercial audio software, need to investigate to determine what measurements actually require precise timing that can't be determined by cross correlation
 - [ ] Input and/or output EQ. Similar to multi-channel/multi-file analysis, this is heavily dependant on interface, but with added complications of how filtering is implemented (direct amplitude vs time, FIR filtering, biquad sum-of-sections, how an EQ table is interpolated, etc... Some interesting methods (and extra analysis of Farina method) in http://winmls.com/2004/swen-muller-aes-swp-english.pdf)
+- [ ] Option to exclude noise floor from measurement outputs. Mostly a UI question - Should there be a global project option or set individually per measurement? Should it only apply in the GUI/graph exports, or should it apply to data outputs? What granularity should the show/hide noise options control and what levels take precedence?
 
 ## Graphical User Interface
 - [x] Chirp settings, input and output tab

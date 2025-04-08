@@ -1,6 +1,6 @@
 import CLProject as clp
-from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidget, QApplication, QFileDialog, QErrorMessage, QMessageBox, QDialog, QDialogButtonBox, QVBoxLayout
-from qtpy.QtGui import QAction, QIcon
+from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidget, QApplication, QFileDialog, QErrorMessage, QMessageBox, QDialog, QDialogButtonBox, QVBoxLayout, QProxyStyle, QStyle
+from qtpy.QtGui import QAction, QIcon, QPalette, QKeySequence
 from CLGui import ChirpTab, CLParamDropdown, CLParameter
 from CLMeasurements import init_measurements, is_valid_measurement_name
 from CLAnalysis import generate_stimulus, save_csv
@@ -10,6 +10,7 @@ from copy import deepcopy
 import pyqtgraph as pg
 import pyqtgraph.exporters # just calling pg.exporters... doesn't work unless pyqtgraph.exporters is manually imported
 import yaml
+import qtpy.QtCore as QtCore
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -63,11 +64,11 @@ class MainWindow(QMainWindow):
         
         
         menubar = self.menuBar()
-        # todo: add top level keyboard shortcuts - CTRL+S for save, F5 for analyze, etc
         
         file_menu = menubar.addMenu(' &File   ')
+        file_menu.setStyle(MenuProxyStyle(file_menu.style()))
         
-        new_project = QAction('&New Project', self)
+        new_project = QAction('&New Project', self, shortcut=QKeySequence('Ctrl+N'))
         file_menu.addAction(new_project)
         def create_new_project(checked):
             # todo: look into spawning a totally separate process. os.fork() works for Linux, but equivalent behavior on Windows is apparently impossible or convoluted to accomplish
@@ -83,7 +84,7 @@ class MainWindow(QMainWindow):
             self.chirp_tab.play_finished.connect(enable_play)
         new_project.triggered.connect(create_new_project)
         
-        open_project = QAction('&Open Project', self)
+        open_project = QAction('&Open Project', self, shortcut=QKeySequence('Ctrl+O'))
         file_menu.addAction(open_project)
         def open_project_file(checked):
             if self.is_project_changed():
@@ -100,7 +101,7 @@ class MainWindow(QMainWindow):
             if file_dialog.exec():
                 file_path = file_dialog.selectedFiles()[0]
                 
-                # todo: test file loading corner cases, wrap in try/except, etc.
+                # todo: test file loading corner cases, wrap in try/except, check chirplab version, etc.
                 clp.load_project_file(file_path) # sets working directory
                 load_project()
                 self.chirp_tab.io_changed.connect(update_analyze_text)
@@ -111,7 +112,7 @@ class MainWindow(QMainWindow):
         
         file_menu.addSeparator()
         
-        save_project = QAction('&Save Project', self)
+        save_project = QAction('&Save Project', self, shortcut=QKeySequence('Ctrl+S'))
         file_menu.addAction(save_project)
         def save_project_file(checked):
             if Path(clp.project_file).name == 'New Project':
@@ -121,7 +122,7 @@ class MainWindow(QMainWindow):
                 self.last_saved_project = deepcopy(clp.project)
         save_project.triggered.connect(save_project_file)
         
-        save_as = QAction('Save Project &as...', self)
+        save_as = QAction('Save Project &as...', self, shortcut=QKeySequence('Ctrl+Shift+S'))
         file_menu.addAction(save_as)
         def save_project_as(checked):
             file_dialog = QFileDialog()
@@ -156,14 +157,15 @@ class MainWindow(QMainWindow):
         
         file_menu.addSeparator()
         
-        quit_action = QAction('&Quit', self)
+        quit_action = QAction('&Quit', self, shortcut=QKeySequence('Ctrl+Q'))
         file_menu.addAction(quit_action)
         quit_action.triggered.connect(self.close)
         
         
         measurement_menu = menubar.addMenu(' &Measurement')
+        file_menu.setStyle(MenuProxyStyle(file_menu.style()))
         
-        add_measurement = QAction('&Add Measurement', self)
+        add_measurement = QAction('&Add Measurement', self, shortcut=QKeySequence('Ctrl+A'))
         measurement_menu.addAction(add_measurement)
         def add_measurement_dialog():
             if AddMeasurementDialog(self).exec():
@@ -182,7 +184,7 @@ class MainWindow(QMainWindow):
             clp.measurements[-1].param_section.expand() # todo: figure out why measurement params sections do not actually expand in .init_tab(). Works fine for some measurements but not others, and there are only problems when adding a new measurment to the current project, not when opening/initializing a project.
         self.add_new_measurement = add_new_measurement
         
-        remove_measurement = QAction('&Remove Current Measurement', self)
+        remove_measurement = QAction('&Remove Current Measurement', self, shortcut=QKeySequence('Ctrl+R'))
         remove_measurement.setEnabled(False)
         measurement_menu.addAction(remove_measurement)
         def remove_measurement_prompt(checked=True):
@@ -259,7 +261,7 @@ class MainWindow(QMainWindow):
 
         measurement_menu.addSeparator()
         
-        analyze = QAction('Analyze Input File', self)
+        analyze = QAction('Analyze Input File', self, shortcut=QKeySequence('F5'))
         measurement_menu.addAction(analyze)
         def analyze_or_capture():
             if clp.project['input']['mode'] == 'file':
@@ -284,7 +286,7 @@ class MainWindow(QMainWindow):
             analyze.setEnabled(True)
         self.chirp_tab.capture_finished.connect(enable_capture)
 
-        generate = QAction('Generate Stimulus File')
+        generate = QAction('Generate Stimulus File', self, shortcut=QKeySequence('F6'))
         measurement_menu.addAction(generate)
         def generate_or_play():
             if clp.project['output']['mode'] == 'file':
@@ -314,7 +316,7 @@ class MainWindow(QMainWindow):
         
         measurement_menu.addSeparator()
         
-        save_data = QAction('&Save Measurement/Graph Data', self)
+        save_data = QAction('&Save Measurement/Graph Data', self, shortcut=QKeySequence('Ctrl+M'))
         measurement_menu.addAction(save_data)
         def save_measurement_data(checked=True):
             tab_index = self.tabs.currentIndex()
@@ -420,8 +422,7 @@ class MainWindow(QMainWindow):
         event.accept()
     
     # todo: add a mouse and/or key event listener to the main window to check after every action whether the project has been changed and an asterisk should be added to the title bar?
-        
-        
+            
 class LockableTabBar(QTabBar):
     def __init__(self):
         super().__init__()
@@ -505,5 +506,21 @@ class AddMeasurementDialog(QDialog):
         button_box.rejected.connect(self.reject)
         
         self.setLayout(layout)
-        
+
+class MenuProxyStyle(QProxyStyle):
+    # adapted from https://stackoverflow.com/questions/54117162/right-justify-qkeysequence-in-pyqt-qaction-menu
+    def drawControl(self, element, option, painter, widget=None):
+        shortcut = ""
+        if element == QStyle.CE_MenuItem:
+            vals = option.text.split("\t")
+            if len(vals) == 2:
+                text, shortcut = vals
+                option.text = text
+        super(MenuProxyStyle, self).drawControl(element, option, painter, widget)
+        if shortcut:
+            margin = 10
+            self.proxy().drawItemText(painter, option.rect.adjusted(margin, 0, -margin, 0), 
+                QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter,
+                option.palette, option.state & QStyle.State_Enabled, 
+                shortcut, QPalette.Text) # different palette options don't seem to actually affect the text # todo: figure out how to show the text as lighter than actual menu item text
         
