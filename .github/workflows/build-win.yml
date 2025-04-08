@@ -10,11 +10,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Merge requirements
+      run: cat src/requirements.txt >> build/requirements.txt
+
     - name: Package Application
       uses: JackMcKew/pyinstaller-action-windows@main
       with:
         path: build
-        requirements: ../src/requirements.txt
+        requirements: requirements.txt
 
     - uses: actions/upload-artifact@v4
       with:

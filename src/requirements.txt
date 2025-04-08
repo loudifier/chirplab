@@ -10,4 +10,3 @@ pandas
 pathvalidate
 pyyaml
 pyaudio # requires `apt install portaudio19-dev` on linux, `brew install portaudio` on mac
-pywin32
