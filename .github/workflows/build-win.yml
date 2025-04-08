@@ -24,11 +24,17 @@ jobs:
         path: build/dist/windows
 
 
-    - name: Release
-      uses: softprops/action-gh-release@v2
+  release:
+      name: Add bundled executable to release
+      needs: build
+      runs-on: ubuntu-latest
       if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: build/dist/windows/
+      
+      steps:
+      - run: cd build/dist/windows; zip -r chirplab_${{  github.ref_name }}_win.zip *; cd ../../../
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: build/dist/windows/chirplab_${{  github.ref_name }}_win.zip
 
 
 
