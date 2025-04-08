@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 # get this list of measurement types that need to be manually imported
-# todo: clean this up. There is subject to weird import order problems and there is almost certainly a better way to do this with ast or just parsing the text of CLMeasurements __init__.py
+# todo: clean this up. This is subject to weird import order problems and there is almost certainly a better way to do this with ast or just parsing the text of CLMeasurements __init__.py
 import sys
 sys.path.insert(0, '../src')
 import CLProject
@@ -9,6 +9,11 @@ import CLGui
 import CLAnalysis
 import CLMeasurements
 measurement_list = ['CLMeasurements.'+measurement for measurement in CLMeasurements.MEASUREMENT_TYPES]
+
+from PyInstaller.utils.hooks import collect_submodules
+#measurement_list = collect_submodules('CLMeasurements') # collect_submodules('CLMeasurements') doesn't actually find the measurements, use the ugly solution above for now
+scipy_array_api_compat = collect_submodules('scipy._lib.array_api_compat.numpy.fft') # workaround for an issue when bundling in GitHub build action
+hidden_imports = measurement_list + scipy_array_api_compat
 
 datas = [
     ['../src/CLGui/icon.png','./CLGui'],
@@ -20,7 +25,7 @@ a = Analysis(
     pathex=['../src'],
     binaries=[],
     datas=datas,
-    hiddenimports=measurement_list,
+    hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
