@@ -30,7 +30,10 @@ def main():
         if clp.IS_BUNDLED and sys.platform == 'win32': # hide console window when bundled, in GUI mode, on Windows 11, when started by double-clicking
             # todo: see if there is a way to keep the console window from flashing up (and/or see if https://github.com/pyinstaller/pyinstaller/issues/8022 has been resolved)
             import ctypes
-            from win32 import win32gui
+            try:
+                from win32 import win32gui #first try 32 bit Windows API
+            except ImportError:
+                from pythonwin import win32gui # try 64 bit Windows API if 32 doesn't work (as in the case for bundling with WINE in GitHub action)
             kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
             process_array = (ctypes.c_uint8 * 1)()
             num_processes = kernel32.GetConsoleProcessList(process_array, 1)
