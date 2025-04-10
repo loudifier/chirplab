@@ -3,7 +3,7 @@ from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidge
 from qtpy.QtGui import QAction, QIcon, QPalette, QKeySequence
 from CLGui import ChirpTab, CLParamDropdown, CLParameter
 from CLMeasurements import init_measurements, is_valid_measurement_name
-from CLAnalysis import generate_stimulus, save_csv
+from CLAnalysis import generate_stimulus
 from pathlib import Path
 import CLMeasurements
 from copy import deepcopy

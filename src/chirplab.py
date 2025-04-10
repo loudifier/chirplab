@@ -4,7 +4,7 @@ from qtpy.QtCore import Qt
 import sys
 from pathlib import Path 
 from CLGui import MainWindow
-from CLAnalysis import check_sox, read_audio_file, audio_file_info, generate_stimulus, read_response, save_csv, FormatNotSupportedError, generate_stimulus_file
+from CLAnalysis import check_sox, read_audio_file, audio_file_info, generate_stimulus, read_response, FormatNotSupportedError, generate_stimulus_file
 import argparse
 import numpy as np
 from CLMeasurements import init_measurements
