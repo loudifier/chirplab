@@ -326,7 +326,7 @@ class MainWindow(QMainWindow):
             file_dialog.setViewMode(QFileDialog.ViewMode.Detail)
             if tab_index:
                 file_dialog.selectFile(clp.measurements[tab_index-1].params['name'] + '.csv')
-                file_dialog.setNameFilters(['Output points (*.csv)', 'Graph image (*.png)',  'All files (*)'])
+                file_dialog.setNameFilters(clp.measurements[tab_index-1].output_types + ['Graph image (*.png)',  'All files (*)'])
             else: # only save graph image from chirp tab
                 file_dialog.selectFile('chirp stimulus-response.png')
                 file_dialog.setNameFilters(['Graph image (*.png)',  'All files (*)'])
@@ -342,22 +342,19 @@ class MainWindow(QMainWindow):
                 clp.working_directory = str(Path(file_path).parent)
                 
                 file_type = Path(file_path).suffix
-                if file_type.casefold() == '.png'.casefold(): # save graph image with default pyqtgraph settings
+                if file_type.casefold() == '.png'.casefold() or tab_index==0: # save graph image with default pyqtgraph settings # todo: add handlers for other image formats?
                     if tab_index: # export measurement graph
                         exporter = pg.exporters.ImageExporter(clp.measurements[self.tabs.currentIndex()-1].tab.graph.plotItem)
                     else: # export chirp tab graph
                         exporter = pg.exporters.ImageExporter(self.chirp_tab.graph.plotItem)
                     exporter.export(file_path)
-                else: # for any other extension default to exporting as .csv
-                    if tab_index: # export measurement data
-                        try:
-                            save_csv(clp.measurements[self.tabs.currentIndex()-1], file_path)
-                        except PermissionError as ex:
-                            error_box = QErrorMessage()
-                            error_box.showMessage('Error writing measurement data \n' + str(ex))
-                            error_box.exec()
-                    else:
-                        pass # silently fail if trying to save chirp tab as anything other than .png. Throw a message of some sort?
+                else: # for any other extension use measurement's data export method
+                    try:
+                        clp.measurements[self.tabs.currentIndex()-1].save_measurement_data(file_path)
+                    except PermissionError as ex:
+                        error_box = QErrorMessage()
+                        error_box.showMessage('Error writing measurement data \n' + str(ex))
+                        error_box.exec()
             return saved
         save_data.triggered.connect(save_measurement_data)
         

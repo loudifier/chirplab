@@ -256,20 +256,6 @@ def find_offset(input_sig, find_sig):
     correlation = fftconvolve(input_sig, find_sig[::-1]) # reverse 1 signal for *cross* correlation
     return np.argmax(np.abs(correlation)) - len(find_sig) # cross correlation peaks at point where signals align, offset by reversed signal
 
-def save_csv(measurement, file_name='', out_dir=''):
-    # get measurement data and save it to a CSV file at the target location
-    out_frame = pd.DataFrame({'Frequency (Hz)':measurement.out_freqs, measurement.params['output']['unit']:measurement.out_points})
-    if any(measurement.out_noise):
-        out_frame['measurement noise floor'] = measurement.out_noise
-    if file_name:
-        out_path = Path(out_dir, file_name)
-    else:
-        out_path = Path(out_dir, (Path(clp.project_file).stem + '_' + measurement.params['name'] + '.csv'))
-    with open(out_path, 'w', newline='') as out_file:
-        print('saving ' + str(out_path))
-        out_file.write(measurement.params['name'] + '\n')
-        out_frame.to_csv(out_file, index=False)
-
 def save_xlsx(measurements, out_path):
     # todo: get measurement data from one or more measurements and save the output data in a single excel file
     pass

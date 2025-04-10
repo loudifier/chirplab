@@ -99,7 +99,7 @@ def main():
             sys.exit(1)
         for measurement in clp.measurements:
             measurement.measure()
-            save_csv(measurement, '', out_dir)
+            measurement.save_measurement_data(out_dir)
             # todo: throw a warning that some output files will be overwritten if multiple measurements have the same name
         
         # exit before launching GUI

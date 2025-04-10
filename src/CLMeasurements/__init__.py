@@ -6,10 +6,14 @@ from qtpy.QtWidgets import QLineEdit
 import pyqtgraph as pg
 from pathvalidate import is_valid_filename
 from importlib import import_module
+import pandas as pd
+from pathlib import Path
 
 
 class CLMeasurement():
     measurement_type_name = 'CLMeasurement' # override with individual measurement type. e.g. 'Frequency Response'
+
+    output_types = ['Output points (*.csv)'] # used for save measurement data/graph dialog. File type dropdown will be populated with output_types, 'Graph image (*.png)', and  'All files (*)'. The GUI will save a .png of the current graph, and any other type will be passed to the measurement's save_measurement_data method.
     
     def __init__(self, name, params=None):
         if params is None:
@@ -47,6 +51,29 @@ class CLMeasurement():
         pass # override with individual measurement measure() method
         
         
+    def save_measurement_data(self, out_path=''):
+        # default behavior saves a csv of the most recent measured data
+        # can be overridden by measurements that output data in different formats, like ImpulseResponse outputting a .wav file
+        # assumes measurement data will be self.out_points and possibly self.out_noise along self.out_freqs
+        out_frame = pd.DataFrame({'Frequency (Hz)':self.out_freqs, self.params['output']['unit']:self.out_points})
+        if any(self.out_noise):
+            out_frame['measurement noise floor'] = self.out_noise
+        
+        if not out_path:
+            # no path given, output a csv using the project and measurement name in the current directory
+            out_path = Path(clp.project_file).stem + '_' + self.params['name'] + '.csv'
+        else:
+            # path given, check if it is a file name or just an output directory
+            if Path(out_path).is_dir():
+                out_path = Path(out_path) / Path(Path(clp.project_file).stem + '_' + self.params['name'] + '.csv') # add default file name to directory
+            # else leave provided file name/path as-is
+        
+        with open(out_path, 'w', newline='') as out_file:
+            print('saving ' + str(out_path))
+            out_file.write(self.params['name'] + '\n')
+            out_frame.to_csv(out_file, index=False)
+
+
     def init_tab(self):
         self.tab = CLTab()
         
