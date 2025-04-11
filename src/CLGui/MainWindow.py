@@ -324,17 +324,18 @@ class MainWindow(QMainWindow):
             file_dialog.setWindowTitle('Save Measurement Data')
             file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
             file_dialog.setViewMode(QFileDialog.ViewMode.Detail)
-            if tab_index:
-                file_dialog.selectFile(clp.measurements[tab_index-1].params['name'] + '.csv')
-                file_dialog.setNameFilters(clp.measurements[tab_index-1].output_types + ['Graph image (*.png)',  'All files (*)'])
-            else: # only save graph image from chirp tab
-                file_dialog.selectFile('chirp stimulus-response.png')
-                file_dialog.setNameFilters(['Graph image (*.png)',  'All files (*)'])
-            file_dialog.setDirectory(clp.working_directory)
             def filterSelected(filter_string):
                 default_suffix = filter_string.split('(*')[1].split(')')[0].split(' ')[0].split(',')[0].split(';')[0] # try to get the first actual file type suffix from the type string
                 file_dialog.setDefaultSuffix(default_suffix)
             file_dialog.filterSelected.connect(filterSelected)
+            if tab_index:
+                file_dialog.setNameFilters(clp.measurements[tab_index-1].output_types + ['Graph image (*.png)',  'All files (*)'])
+                filterSelected(clp.measurements[tab_index-1].output_types[0])
+                file_dialog.selectFile(clp.measurements[tab_index-1].params['name'])
+            else: # only save graph image from chirp tab
+                file_dialog.selectFile('chirp stimulus-response.png')
+                file_dialog.setNameFilters(['Graph image (*.png)',  'All files (*)'])
+            file_dialog.setDirectory(clp.working_directory)
             
             saved = file_dialog.exec()
             if saved:

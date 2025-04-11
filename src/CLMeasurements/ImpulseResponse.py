@@ -8,6 +8,8 @@ import numpy as np
 import pyqtgraph as pg
 from qtpy.QtWidgets import QCheckBox
 from qtpy.QtCore import Qt
+from pathlib import Path
+from CLAnalysis import write_audio_file
 
 class ImpulseResponse(CLMeasurement):
     measurement_type_name = 'Impulse Response'
@@ -39,8 +41,6 @@ class ImpulseResponse(CLMeasurement):
                                      # 'centered' rolls the IR by 1/2 of the total IR length, so the peak will be close to the halfway point
                                      # 'offset' rolls the IR by self.params['offset'] ms
             self.params['offset'] = 10 # length of time in ms to roll the IR to the right when alignment is 'offset'
-
-            self.params['plot_window'] = True # plot the window that is applied to the impulse response (only used in the GUI)
 
             self.params['output'] = { # impulse response output is a wav file. If a noise sample is present a noise IR will be plotted in the GUI, but not output as a wav file. # todo: add an option to output a second channel or second wav file for noise?
                 #'unit': 'Y/X', # unit not actually used for anything, and wouldn't be accurate if output is normalized. Is it needed for anything?
@@ -98,6 +98,11 @@ class ImpulseResponse(CLMeasurement):
         # store measurement data
         self.out_ir = impulse_response
 
+        # store window bounds for truncation
+        if self.params['window_mode'] != 'raw':
+            self.window_start_sample = -window_start + roll_samples
+            self.window_end_sample = window_end + roll_samples # todo: handle edge cases of very long windows/offsets longer than the IR
+
         # generate sample timestamps for graphs
         self.out_times = samples_to_ms(np.arange(len(impulse_response)) - roll_samples)
 
@@ -108,7 +113,7 @@ class ImpulseResponse(CLMeasurement):
                 noise_ir *= window
             self.out_noise = np.roll(noise_ir, roll_samples)
 
-        if self.params['plot_window'] and self.params['window_mode']!='raw':
+        if self.params['window_mode']!='raw':
             # apply offset and scale window appropriately for plotting
             self.out_window = np.roll(window, roll_samples) * max(abs(self.out_ir))
         
@@ -125,6 +130,7 @@ class ImpulseResponse(CLMeasurement):
         self.param_section.addWidget(self.window_mode)
         def update_window_mode(index):
             self.params['window_mode'] = self.WINDOW_MODES[index]
+            self.truncate.setEnabled(self.params['window_mode']!='raw')
             if self.params['window_mode'] == 'windowed':
                 self.window_params.setLocked(False)
             else:
@@ -209,10 +215,31 @@ class ImpulseResponse(CLMeasurement):
 
         # output parameters
         # truncate checkbox
+        self.truncate = QCheckBox('Truncate to window')
+        self.truncate.setChecked(self.params['output']['truncate'])
+        self.truncate.setEnabled(self.params['window_mode']!='raw')
+        self.output_section.addWidget(self.truncate)
+        def update_truncate(checked):
+            self.params['output']['truncate'] = checked
+        self.truncate.stateChanged.connect(update_truncate)
 
         # normalize checkbox
+        self.normalize = QCheckBox('Normalize to full scale')
+        self.normalize.setChecked(self.params['output']['normalize'])
+        self.output_section.addWidget(self.normalize)
+        def update_normalize(checked):
+            self.params['output']['normalize'] = checked
+        self.normalize.stateChanged.connect(update_normalize)
 
         # bit depth dropdown
+        self.depth = CLParamDropdown('Bit depth', clp.OUTPUT_BIT_DEPTHS)
+        depth_index = self.depth.dropdown.findText(self.params['output']['bit_depth'])
+        if depth_index != -1:
+            self.depth.dropdown.setCurrentIndex(depth_index)
+        self.output_section.addWidget(self.depth)
+        def update_depth(index):
+            self.params['output']['bit_depth'] = clp.OUTPUT_BIT_DEPTHS[index]
+        self.depth.update_callback = update_depth
 
     def update_tab(self):
         self.window_params.update_window_params()
@@ -220,8 +247,31 @@ class ImpulseResponse(CLMeasurement):
 
     # time series measurement output requires some base CLMeasurement methods to be overridden
     def save_measurement_data(self, out_path=''):
-        pass
-    
+        out_ir = np.copy(self.out_ir)
+
+        if self.params['output']['normalize']:
+            out_ir /= max(abs(out_ir))
+
+        if self.params['output']['truncate'] and self.params['window_mode']!='raw':
+            if self.window_start_sample < 0:
+                out_ir = out_ir[:self.window_end_sample]
+            else:
+                out_ir = out_ir[self.window_start_sample:self.window_end_sample]
+
+        if not out_path:
+            # no path given, output a wav file using the project and measurement name in the current directory
+            out_path = Path(clp.project_file).stem + '_' + self.params['name'] + '.wav'
+        else:
+            # path given, check if it is a file name or just an output directory
+            if Path(out_path).is_dir():
+                out_path = Path(out_path) / Path(Path(clp.project_file).stem + '_' + self.params['name'] + '.wav') # add default file name to directory
+            # else leave provided file name/path as-is
+
+        write_audio_file(out_ir, out_path, clp.project['sample_rate'], self.params['output']['bit_depth'])
+
+
+
+
     def format_graph(self):
         self.tab.graph.setTitle(self.params['name'])
         self.tab.graph.setLabel('bottom', 'Time (ms)')
