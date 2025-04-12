@@ -20,7 +20,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Fixed window impulse response/energy time curve visualizer GUI
     - [ ] Option for windowing GUI elements to express times in distance (probably only meters for simplicity)
 - [x] Harmonic Distortion
-    - [ ] Option to set parameters of reference fundamental frequency response measurement parameters (e.g. use raw or fixed window for faster processing)
+    - [ ] Option to set fundamental frequency response measurement parameters (e.g. use raw or fixed window for faster processing)
     - [ ] Experiment with adaptive windowing and/or add parameters for harmonic impulse windowing (likely very slow)
     - [ ] Experiment with loudness frequency weighting to to see if a hearing model approach can produce better estimates for distortion audibility
 - [x] Phase Response and Group Delay
@@ -37,7 +37,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Look at different ways to estimate noise floor, since filtered response could unintentionally leave some residual of the direct response that isn't present in the noise signal
 - [x] Residual Distortion
     - [x] Implement a speaker model that includes major nonlinearities. Using impulse response with default windowing parameters used in adaptive frequency response and harmonic distortion measurements. Seems to work fairly well in practice
-    - [x] Do some experiments to compare Klippel-style Rub and Buzz measurements (speaker model that includes major nonlinearities) against AP-style Rub and Buzz measurements (high pass tracking filter)
+    - [ ] Do some experiments to compare Klippel-style Rub and Buzz measurements (speaker model that includes major nonlinearities) against AP-style Rub and Buzz measurements (high pass tracking filter)
     - [ ] Come up with a more descriptive name, something that makes it more clear that you can analyze distortions from rub and buzz to THD+N. "Residual" feels better than "Instantaneous" or "Impulsive", but isn't great
     - [ ] Look into plotting distortion value against signal level. Chirplab doesn't have access to excursion information, so maybe try plotting against a reference channel from displacement sensor or driving voltage? Derivative of voltage might be a close enough correlation to excursion to be meaningful. Trying to model an actual speaker response might be a bit outside the scope of the measurement and Chirplab in general
 - [ ] Spectral Analysis
@@ -54,14 +54,18 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Spectrogram plot
         - Color coding for different components of the signal - fundamental, harmonics, noise
         - Any way to clearly communicate measurement noise floor in spectrogram? Maybe something like how cameras show clipping with zerba overlay?
-- [ ] Impulse Response
-    - [ ] Parameters
+- [x] Impulse Response
+    - [x] Parameters
         - IR length, pre-post trimming
         - Windowing fade in/out
         - Wrapped with time aligned to t0 or shifted/rolled to the right
         - Normalized or raw - may need to specify floating point if outputting to WAV (verify SoX/wavfile behavior with floating point values greater than 1.0)
-    - [ ] Option to output and/or plot as Energy Time Curve, T60 (or generic Tn value)
-    - [ ] Measurement noise floor output off by default when outputting IR waveforms, but could be very useful for qualitative comparison in IR and ETC plots
+    - [x] Measurement noise floor output off by default when outputting IR waveforms, but is plotted in GUI. Add options to have a second channel or second wav file for exporting noise IR?
+- [ ] Reverberation
+    - Not sure if this really fits with Chirplab. Branch created with stubs based on ImpulseResponse, but not actually adding for now
+    - [ ] Several different methods commonly used. Start out using IR as raw input for energy decay curve and see how easy/effectively RT60 can be derived
+    - [ ] Output broadband, at 1kHz, or as times vs frequency?
+    - [ ] pyroomacoustics has an implementation of Schroeder method
 - [ ] Waterfall
     - [ ] What should the configuration parameters and output look like?
     - [ ] 3D plotting, figure out how to communicate measurement noise floor without making it too busy
@@ -76,9 +80,11 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Compilation, caching, etc to improve Python startup and processing time. Numba seems like the lowest-friction option to try first
     - [ ] Delay GUI imports until needed to keep CLI from having to import Qt libraries
     - [ ] Look into alternatives to or just rolling simplified versions of stuff from Pandas? CSV export is dead simple, there is probably a lighter weight option for XLS(X), and there may be a faster (if slightly more complex) way to implement DataFrame.rolling() with NumPy. Double check import time, installation size, execution speed first, may not be worth the effort
+    - [ ] pyFFTW exists
 - [ ] Pilot tone. Required by some commercial audio software, need to investigate to determine what measurements actually require precise timing that can't be determined by cross correlation
 - [ ] Input and/or output EQ. Similar to multi-channel/multi-file analysis, this is heavily dependant on interface, but with added complications of how filtering is implemented (direct amplitude vs time, FIR filtering, biquad sum-of-sections, how an EQ table is interpolated, etc... Some interesting methods (and extra analysis of Farina method) in http://winmls.com/2004/swen-muller-aes-swp-english.pdf)
-- [ ] Option to exclude noise floor from measurement outputs. Mostly a UI question - Should there be a global project option or set individually per measurement? Should it only apply in the GUI/graph exports, or should it apply to data outputs? What granularity should the show/hide noise options control and what levels take precedence?
+- [x] Options to exclude noise floor from graphs or measurement outputs
+    - Currently a global project option. Should there be individual settings per measurement? The granularity of adding options at multiple levels adds UI overhead
 
 ## Graphical User Interface
 - [x] Chirp settings, input and output tab
@@ -92,7 +98,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
         - [x] Graph colors are blue/orange by default, avoid red/green
         - [ ] Qt elements are pretty good about keyboard controls and I tried to include hotkeys for all standard options, but there are a lot of UI elements, so I may have missed some
         - [ ] I am not very familiar with screen readers, but I believe Qt should have good support natively
-    - [ ] Proper scaling over a wide range of DPI
+    - [ ] Proper scaling over a wide range of DPI. Mostly works, but graph exports seem small
     - [ ] Speed up plotting, particularly chirp tab updating every time a chirp parameter spinbox is clicked
         - pyqtgraph downsampling and setting pen width to 1 helps a lot. Also try the skip finite check
         - see if there is a good way to pause the graph updating, plot all of the data, then draw at once. Might be able to avoid a triple redraw when updating stimulus, response, and noise together. Seems like the bottleneck is .drawLines(), so it might not be any faster (probably also not much faster to .setData())
@@ -108,8 +114,9 @@ Features in each subheading are ordered roughly in order of prioritization. This
 - [ ] Measure calibration tone from a file and apply the calibration to a project file
 
 ## Other
-- [ ] Build automation
-    - PyInstaller .spec file created, look into GitHub Workflow automation
+- [x] Build automation. Github actions automatically bundle Windows exe on push and add bundle to releases
+    - [ ] Linux build? deb, flatpack, or what?
+    - [ ] Mac build?
 - [ ] Documentation, probably using GitHub wiki
     - [ ] Quick Start guide
     - [ ] Project file format
