@@ -98,6 +98,10 @@ def new_project():
         'FS_per_V': 1.0, # electrical input level in Full Scale units per Volt. e.g for a full scale input voltage of +16dBu, FS_per_V = 0.2045
         # for an analog mic with -40dBV sensitivity and interface with +16dBu full scale input voltage (EMM-6 + Scarlett 2i2 at minimum gain), FS_per_V = 0.2045 and FS_per_Pa = 0.002045
 
+        # noise floor settings (measurements will calculate noise floor regardless of whether the noise floor is plotted or saved)
+        'plot_noise': True, # plot the measurement noise floor in the GUI
+        'save_noise': True, # output the measurement noise floor when saving measurement data from the GUI or the command line
+
         # parameters of stimulus file or audio output device
         'output': {
             'mode': 'file', # 'file' or 'device'

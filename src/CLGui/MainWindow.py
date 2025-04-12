@@ -306,13 +306,30 @@ class MainWindow(QMainWindow):
             generate.setEnabled(True)
         self.chirp_tab.play_finished.connect(enable_play)
         
-        # todo: implement auto analyze option
+        # todo: implement auto analyze option. Current behavior is to always update the current measurement (or all measurements if on chirp tab) when a setting is updated
         #auto_analyze = QAction('Automatically analyze when a parameter is updated', self)
         #measurement_menu.addAction(auto_analyze)
         
-        # todo: implement show/hide noise floor option
-        #noise_floor = QAction('Show/&Hide Measurement Noise Floor', self)
-        #measurement_menu.addAction(noise_floor)
+        measurement_menu.addSeparator()
+
+        plot_noise = QAction('Show/&Hide Measurement Noise Floor', self)
+        plot_noise.setCheckable(True)
+        plot_noise.setChecked(clp.project['plot_noise'])
+        measurement_menu.addAction(plot_noise)
+        def update_plot_noise(checked):
+            clp.project['plot_noise'] = checked
+            #self.chirp_tab.plot() # still plot the noise sample if it is present
+            for measurement in clp.measurements:
+                measurement.plot()
+        plot_noise.triggered.connect(update_plot_noise)
+
+        save_noise = QAction('&Include Noise Floor in Data Output', self)
+        save_noise.setCheckable(True)
+        save_noise.setChecked(clp.project['save_noise'])
+        measurement_menu.addAction(save_noise)
+        def update_save_noise(checked):
+            clp.project['save_noise'] = checked
+        save_noise.triggered.connect(update_save_noise)
         
         measurement_menu.addSeparator()
         

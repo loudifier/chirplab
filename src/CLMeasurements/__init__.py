@@ -50,13 +50,14 @@ class CLMeasurement():
         # estimate the measurement noise floor the noise floor estimate will be stored in self.out_noise
         pass # override with individual measurement measure() method
         
-        
+    # save_measurement_data() customized in:
+    # - ImpulseResponse
     def save_measurement_data(self, out_path=''):
         # default behavior saves a csv of the most recent measured data
         # can be overridden by measurements that output data in different formats, like ImpulseResponse outputting a .wav file
         # assumes measurement data will be self.out_points and possibly self.out_noise along self.out_freqs
         out_frame = pd.DataFrame({'Frequency (Hz)':self.out_freqs, self.params['output']['unit']:self.out_points})
-        if any(self.out_noise):
+        if clp.project['save_noise'] and any(self.out_noise):
             out_frame['measurement noise floor'] = self.out_noise
         
         if not out_path:
@@ -112,7 +113,8 @@ class CLMeasurement():
         # i.e. update frequency response window sample counts when analysis sample rate is changed
         pass
         
-        
+    # format_graph() customized in:
+    # - ImpulseResponse
     def format_graph(self):
         # default graph formatting with title, legend, axis titles, log x scale
         self.tab.graph.setTitle(self.params['name'])
@@ -121,7 +123,8 @@ class CLMeasurement():
         self.tab.graph.setLabel('left', self.params['output']['unit'])
         #self.tab.graph.getAxis('bottom').enableAutoSIPrefix(True) # consider using pyqtgraph's unit system. Manually constructing axis labels for now
 
-    
+    # plot() customized in:
+    # - ImpulseResponse
     def plot(self):
         # basic plot, could be much more complex for different measurement types (like waterfalls)
         
@@ -130,7 +133,7 @@ class CLMeasurement():
         plot_pen = pg.mkPen(color=clp.PLOT_COLORS[0], width=clp.PLOT_PEN_WIDTH)
         self.tab.graph.plot(self.out_freqs, self.out_points, name = self.measurement_type_name, pen=plot_pen) # todo: do something different when plotting a single point (pyqtgraph falls on its face otherwise)
         
-        if any(self.out_noise):
+        if clp.project['plot_noise'] and any(self.out_noise):
             noise_pen = pg.mkPen(color=clp.NOISE_COLOR, width=clp.PLOT_PEN_WIDTH)
             self.tab.graph.plot(self.out_freqs, self.out_noise, name='Noise Floor', pen=noise_pen)#, color='gray')
 

@@ -283,7 +283,7 @@ class ImpulseResponse(CLMeasurement):
         plot_pen = pg.mkPen(color=clp.PLOT_COLORS[0], width=clp.PLOT_PEN_WIDTH)
         self.tab.graph.plot(self.out_times, self.out_ir, name = self.measurement_type_name, pen=plot_pen) # todo: do something different when plotting a single point (pyqtgraph falls on its face otherwise)
         
-        if any(self.out_noise):
+        if clp.project['plot_noise'] and any(self.out_noise):
             noise_pen = pg.mkPen(color=clp.NOISE_COLOR, width=clp.PLOT_PEN_WIDTH)
             self.tab.graph.plot(self.out_times, self.out_noise, name='Noise Floor', pen=noise_pen)#, color='gray')
 
