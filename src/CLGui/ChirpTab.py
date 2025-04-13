@@ -985,7 +985,6 @@ class DeviceInput(QFrame):
         # auto capture length checkbox
         self.auto_length = QCheckBox('auto')
         self.auto_length.setChecked(clp.project['input']['use_output_length'])
-        layout.addWidget(self.auto_length)
         def update_auto_length(checked):
             clp.project['input']['use_output_length'] = checked
             self.capture_length.spin_box.setEnabled(not checked)
@@ -1007,6 +1006,7 @@ class DeviceInput(QFrame):
         # total length spinbox - s/sample dropdown
         self.capture_length = CLParamNum('Capture length', round(clp.project['input']['capture_length'],2), ['Sec','Samples'], 0, 2*(clp.MAX_CHIRP_LENGTH+2*clp.MAX_ZERO_PAD), 'float')
         layout.addWidget(self.capture_length)
+        self.capture_length.layout.addWidget(self.auto_length)
         def update_capture_length(new_value):
             if self.capture_length.units.currentIndex()==1: # seconds
                 new_value = new_value / clp.project['input']['sample_rate']
