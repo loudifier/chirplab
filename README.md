@@ -5,6 +5,8 @@ Chirplab is an audio and acoutics measurement suite based on fast open-loop log-
 
 Chirplab is built on Python, NumPy/SciPy, Qt, and other open source software and is released under the [MIT license](LICENSE)
 
+Head over to the wiki to [get started](../../wiki/Quick-Start)
+
 ## Overview
 Chirplab can be used as a standalone GUI for interactively examining measurement data and experimenting with different project and measurement parameters, or entirely via a command line interface using plaintext project file input and measurement data output. This allows a seamless transision between R&D and automated or manufacturing workflows, and even allows custom Chirplab measurements to be incorporated into other audio test software that can call external programs as part of a measurement sequence.
 
