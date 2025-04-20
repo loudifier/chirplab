@@ -17,7 +17,6 @@ class HarmonicDistortion(CLMeasurement):
         if params is None:
             params = {}
         super().__init__(name, params)
-        self.params['type'] = 'HarmonicDistortion'
 
         if len(params)<3: # default measurement parameters
             self.params['start_harmonic'] = 2 # default to low order THD (H2:H7)
@@ -219,5 +218,5 @@ class HarmonicDistortion(CLMeasurement):
         
 def harmonic_impulse_time(chirp_length, start_freq, stop_freq, harmonic):
     # calculates and returns the arrival time in of a harmonic impulse response, relative to the t=0 of the fundamental impulse response
-    return -1 * chirp_length * (np.log(harmonic) / np.log(stop_freq/start_freq));
+    return -1 * chirp_length * (np.log(harmonic) / np.log(stop_freq/start_freq))
     

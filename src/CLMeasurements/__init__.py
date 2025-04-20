@@ -21,7 +21,7 @@ class CLMeasurement():
         else:
             self.params = params
         self.params['name'] = name
-        self.params['type'] = 'CLMeasurement'
+        self.params['type'] = type(self).__name__
         
         # add default measurement parameters in individual measurement __init__(). Example for frequency response:
         #if not params: # populate default measurement parameters if none are provided

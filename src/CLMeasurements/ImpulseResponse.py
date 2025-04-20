@@ -26,7 +26,6 @@ class ImpulseResponse(CLMeasurement):
         if params is None:
             params = {}
         super().__init__(name, params)
-        self.params['type'] = 'ImpulseResponse'
 
         if len(params)<3: # populate default measurement parameters if none are provided
             self.params['window_mode'] = 'auto' # options are 'raw' for no windowing, 'windowed' for fixed (time-gated) windowing, or 'auto' to use an automatically-derived window based on the lowest chirp frequency

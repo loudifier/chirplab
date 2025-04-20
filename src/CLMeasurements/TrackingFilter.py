@@ -34,7 +34,6 @@ class TrackingFilter(CLMeasurement):
         if params is None:
             params = {}
         super().__init__(name, params)
-        self.params['type'] = 'TrackingFilter'
 
         if len(params)<3: # default measurement parameters
             self.params['filters'] = [ # bank of 2nd order filters to apply to the response signal

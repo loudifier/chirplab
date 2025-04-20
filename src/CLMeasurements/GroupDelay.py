@@ -22,7 +22,6 @@ class GroupDelay(CLMeasurement):
         if params is None:
             params = {}
         super().__init__(name, params)
-        self.params['type'] = 'GroupDelay'
 
         if len(params)<3: # populate default measurement parameters if none are provided
             # add new keys to existing dict instead of defining new one, so updates will propogate to full project dict and can be easily saved to a project file

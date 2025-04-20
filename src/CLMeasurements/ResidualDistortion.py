@@ -27,7 +27,6 @@ class ResidualDistortion(CLMeasurement):
         if params is None:
             params = {}
         super().__init__(name, params)
-        self.params['type'] = 'ResidualDistortion'
 
         if len(params)<3: # default measurement parameters
             self.params['mode'] = 'peak' # which analysis mode is used. Either 'rms', 'peak', or 'crestfactor'
