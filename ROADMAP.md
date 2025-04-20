@@ -19,6 +19,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [x] Raw, fixed window, and adaptive windowing modes
     - [ ] Fixed window impulse response/energy time curve visualizer GUI
     - [ ] Option for windowing GUI elements to express times in distance (probably only meters for simplicity)
+    - [ ] Option to output dB normalized to a set frequency
 - [x] Harmonic Distortion
     - [ ] Option to set fundamental frequency response measurement parameters (e.g. use raw or fixed window for faster processing)
     - [ ] Experiment with adaptive windowing and/or add parameters for harmonic impulse windowing (likely very slow)
@@ -76,6 +77,11 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [x] General unit conversion function in CLAnalysis to convert raw measurement outputs in FS to common units
     - [ ] Calibration interface could be improved to make it more clear how to set calibration values from known sensitivity
     - [ ] Possibly add save/load of calibration values (.clc file?), so a hardware setup preset could be used across different projects
+    - [ ] Add some sort of warning when using acoustic/electrical units if the calibration parameter is 1.0
+- [ ] Custom measurement output points
+    - [ ] Data structure for measurement outputs to define the custom points
+    - [ ] GUI dialog for entering/editing the points
+    - [ ] Fix plotting when there is only 1 output point, handle corner cases where points are duplicated, not sorted, etc.
 - [ ] Performance optimization to improve batch file processing
     - [ ] Compilation, caching, etc to improve Python startup and processing time. Numba seems like the lowest-friction option to try first
     - [ ] Delay GUI imports until needed to keep CLI from having to import Qt libraries
@@ -85,6 +91,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
 - [ ] Input and/or output EQ. Similar to multi-channel/multi-file analysis, this is heavily dependant on interface, but with added complications of how filtering is implemented (direct amplitude vs time, FIR filtering, biquad sum-of-sections, how an EQ table is interpolated, etc... Some interesting methods (and extra analysis of Farina method) in http://winmls.com/2004/swen-muller-aes-swp-english.pdf)
 - [x] Options to exclude noise floor from graphs or measurement outputs
     - Currently a global project option. Should there be individual settings per measurement? The granularity of adding options at multiple levels adds UI overhead
+- [ ] Chirp fade in/out. Aesthetically pleasing, but hard start/stop usually works well in practice. Would need some thought about how the parameters would clearly communicate how they work (to avoid the situation with other software that extends past the specified chirp range or lets you start a log chirp at 0Hz...)
 
 ## Graphical User Interface
 - [x] Chirp settings, input and output tab
@@ -105,6 +112,9 @@ Features in each subheading are ordered roughly in order of prioritization. This
         - maybe add a short delay of ~1s before recalculating to allow spamming a spin box and recalculating with whatever value the user lands on
     - [ ] Bundle Windows exe in such a way that GUI launches without console window and CLI/GUI both output to stdout. Current solution still flashes console window when launching GUI. https://pyinstaller.org/en/stable/feature-notes.html#automatic-hiding-and-minimization-of-console-window-under-windows
 - [ ] Undo/redo - a lot of work with many edge cases that need to be handled, but would be really nice to have
+- [ ] Customize pyqtgraph. Right-click menu with reset and dialog to set ranges and scales, click on trace to show point values, etc.
+- [ ] Check for and prompt user to save last device capture when closing Chirplab or opening another project
+- [ ] Help menu in menubar
 
 ## Command Line Interface
 - [x] Run all measurements in a project file and output measurement data
@@ -117,8 +127,8 @@ Features in each subheading are ordered roughly in order of prioritization. This
 - [x] Build automation. Github actions automatically bundle Windows exe on push and add bundle to releases
     - [ ] Linux build? deb, flatpack, or what?
     - [ ] Mac build?
-- [ ] Documentation, probably using GitHub wiki
-    - [ ] Quick Start guide
+- [ ] Documentation, using GitHub wiki
+    - [x] Quick Start guide
     - [ ] Project file format
     - [ ] Calibration guide (including clear explanation of 3dB RMS vs peak compensation)
     - [ ] Explanations of individual measurements. How they work, what the different parameters do, what the outputs mean, etc.
