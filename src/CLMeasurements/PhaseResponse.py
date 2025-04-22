@@ -27,10 +27,10 @@ class PhaseResponse(CLMeasurement):
             self.params['excess_method'] = 'linear_phase' # options are 'linear_phase' which aligns to a linear regression of the phase over the chirp, 'min_delay' which aligns phase to an estimate of the minimum group delay, and 'cross_correlation' which uses the time alignment determined by cross correlation when reading the input signal
             self.params['ref_channel'] = 2 # loopback input channel used as the phase reference in 'relative' mode. If there is no input channel ref_channel or ref_channel is the same as the project input channel the measurement will output -1 for all frequency points
             self.params['unwrap'] = True # if true measurement will attempt to unwrap the phase to be continuous instead of the intermediary calculated values, which are bound to +/-180deg (+/-pi). Can easily skip full cycles at high frequencies and technically only absolute assuming receiver/mic is within 1 wavelength of source/speaker at starting chirp frequency.
-            self.params['auto_invert'] = False # automatically subtract 180 degrees from phase if lowest chirp frequency is within +/-45 degrees of 180 or -180 degrees
+            self.params['auto_invert'] = False # automatically subtract 180 degrees from phase if lowest chirp frequency is within +/-90 degrees of 180 or -180 degrees
 
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
-                'unit': 'degrees',
+                'unit': 'degrees', # either 'degrees' or 'radians'
                 'min_freq': 20,
                 'min_auto': True,
                 'max_freq': 20000,
@@ -58,10 +58,11 @@ class PhaseResponse(CLMeasurement):
 
         # apply an aggressive window to the impulse response. Significantly reduces noise but does not impact low frequency phase accuracy as much as magnitude. Used for excess and relative phase modes. Might be overly smooth
         # todo: window width determined empirically, experiment with other widths or exposing as a measurement parameter. Current implementation usually resolves phase at lowest chirp freq to nearest pi
-        window_width = round(clp.project['sample_rate'] / clp.project['start_freq'])
+        max_wavelength = round(clp.project['sample_rate'] / clp.project['start_freq'])
         window = np.zeros(len(clp.signals['stimulus']))
-        window[:window_width] = hann(window_width)
-        window = np.roll(window, -round(window_width/2)) # hann window of width equal to lowest chirp wavelength, centered at t0.
+        window[:max_wavelength] = hann(2*max_wavelength)[:max_wavelength] # half Hann window of longest chirp wavelength
+        window[max_wavelength:3*max_wavelength] = hann(4*max_wavelength)[2*max_wavelength:] # half Hann window of double longest chirp wavelength
+        window = np.roll(window, -max_wavelength)
 
         if self.params['mode']=='excess': # estimate the minimum group delay and apply an offset to the phase
             # calculate raw impulse response
@@ -177,9 +178,9 @@ class PhaseResponse(CLMeasurement):
                     phase = (phase + 180) % - 180
 
         if self.params['auto_invert']:
-            if abs(phase[min_bin] - 180) < 45:
+            if abs(phase[min_bin] - 180) < 90:
                 phase -= 180
-            elif abs(phase[min_bin] + 180) < 45:
+            elif abs(phase[min_bin] + 180) < 90:
                 phase += 180
 
             
