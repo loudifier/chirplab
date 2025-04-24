@@ -60,7 +60,7 @@ class CalibrationDialog(QDialog):
 
                 self.samples = read_audio_file(file_path)
                 if self.file_info['channels'] > 1:
-                    self.samples = self.samples[:, channel]
+                    self.samples = self.samples[:, channel-1]
 
                 skip.max = len(self.samples) - 2
                 skip.set_value(min(skip.value, skip.max))
