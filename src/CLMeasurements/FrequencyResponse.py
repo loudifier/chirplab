@@ -18,7 +18,7 @@ class FrequencyResponse(CLMeasurement):
     WINDOW_MODES = ['raw', 'windowed', 'adaptive']
     MAX_WINDOW_START = 1000 # fixed impulse response window can start up to 1s before t0
     MAX_WINDOW_END = 10000 # IR window can end up to 10s after t0
-    OUTPUT_UNITS = ['dBFS', 'dBSPL', 'dBV', 'FS', 'Pa', 'V']
+    OUTPUT_UNITS = ['dBFS', 'dB', 'dBSPL', 'dBV', 'FS', 'Pa', 'V']
     
     def __init__(self, name, params=None):
         if params is None:
@@ -34,7 +34,8 @@ class FrequencyResponse(CLMeasurement):
             self.params['fade_out'] = 25
             
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
-                'unit': 'dBFS',
+                'unit': 'dBFS', # all options are absolute units, except for 'dB', which outputs the measured frequency response relative to the absolute response at the specified ref_freq
+                'ref_freq': 1000, # used for 'dB' relative output, otherwise ignored
                 'min_freq': 20,
                 'min_auto': True,
                 'max_freq': 20000,
@@ -64,14 +65,22 @@ class FrequencyResponse(CLMeasurement):
         self.out_points = interpolate(fr_freqs, fr, self.out_freqs, self.params['output']['spacing']=='linear') # todo: still may not be correct. Verify behavior for linear/log frequency scale *and* linear/log output units
         
         # convert output to desired units
-        self.out_points = FS_to_unit(self.out_points, self.params['output']['unit'])
+        if self.params['output']['unit'] == 'dB':
+            # get the absolute level at the reference frequency
+            ref_level = interpolate(fr_freqs, fr, self.params['output']['ref_freq'], self.params['output']['spacing']=='linear')
+            self.out_points = 20*np.log10(self.out_points / ref_level)
+        else:
+            self.out_points = FS_to_unit(self.out_points, self.params['output']['unit'])
         
         
         # check for noise sample and calculate noise floor
         if any(clp.signals['noise']):
             fr_freqs, noise_fr = self.calc_fr(clp.signals['noise'])
             self.out_noise = interpolate(fr_freqs, noise_fr, self.out_freqs, self.params['output']['spacing']=='linear')
-            self.out_noise = FS_to_unit(self.out_noise, self.params['output']['unit'])
+            if self.params['output']['unit'] == 'dB':
+                self.out_noise = 20*np.log10(self.out_noise / ref_level)
+            else:
+                self.out_noise = FS_to_unit(self.out_noise, self.params['output']['unit'])
         else:
             self.out_noise = np.zeros(0)
     
@@ -187,10 +196,21 @@ class FrequencyResponse(CLMeasurement):
         self.output_section.addWidget(self.output_unit)
         def update_output_unit(index):
             self.params['output']['unit'] = self.OUTPUT_UNITS[index]
+            self.ref_freq.setEnabled(self.params['output']['unit'] == 'dB')
             self.measure()
             self.plot()
             self.format_graph()
         self.output_unit.update_callback = update_output_unit
+
+        self.ref_freq = CLParamNum('Normalize to', self.params['output']['ref_freq'], 'Hz', 1, clp.project['sample_rate']/2)
+        self.ref_freq.setEnabled(self.params['output']['unit'] == 'dB')
+        self.output_section.addWidget(self.ref_freq)
+        def update_ref_freq(new_val):
+            self.params['output']['ref_freq'] = new_val
+            self.measure()
+            self.plot()
+            self.format_graph()
+        self.ref_freq.update_callback = update_ref_freq
         
         self.output_points = FreqPointsParams(self.params['output'])
         self.output_section.addWidget(self.output_points)
@@ -206,6 +226,7 @@ class FrequencyResponse(CLMeasurement):
     def update_tab(self):
         self.window_params.update_window_params()
         self.output_points.update_min_max()
+        self.ref_freq.max = clp.project['sample_rate']/2
         
     def calc_auto_min_freq(self):
         return clp.project['start_freq']

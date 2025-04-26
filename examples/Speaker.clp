@@ -18,6 +18,7 @@ measurements:
     min_auto: true
     min_freq: 20.0
     num_points: 24
+    ref_freq: 1000
     round_points: false
     spacing: octave
     unit: dBFS
