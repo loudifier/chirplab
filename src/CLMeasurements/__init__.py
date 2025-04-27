@@ -125,6 +125,7 @@ class CLMeasurement():
 
     # plot() customized in:
     # - ImpulseResponse
+    # - Waterfall
     def plot(self):
         # basic plot, could be much more complex for different measurement types (like waterfalls)
         
@@ -139,7 +140,7 @@ class CLMeasurement():
 
         
 # list of the class names of all measurement types that are available
-MEASUREMENT_TYPES = ['FrequencyResponse', 'HarmonicDistortion', 'PhaseResponse', 'GroupDelay', 'ImpulseResponse', 'TrackingFilter', 'ResidualDistortion']
+MEASUREMENT_TYPES = ['FrequencyResponse', 'HarmonicDistortion', 'PhaseResponse', 'GroupDelay', 'ImpulseResponse', 'Waterfall', 'TrackingFilter', 'ResidualDistortion']
 
 # imports in __init__.py make measurements available in other code via `from CLMeasurements import <measurement class>`, etc.
 for measurement in MEASUREMENT_TYPES:
