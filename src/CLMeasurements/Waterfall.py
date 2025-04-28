@@ -6,6 +6,7 @@ from scipy.signal.windows import hann
 import numpy as np
 from CLMeasurements import CLMeasurement
 import pyqtgraph as pg
+from CLMeasurements.FrequencyResponse import WindowParamsSection
 
 # much of the Waterfall measurement is a copy of FrequencyResponse. Much of the calculations and GUI elements are the same or similar, biggest difference is the custom plot() method
 
@@ -22,6 +23,7 @@ class Waterfall(CLMeasurement):
     MAX_WINDOW_END = 1000 # IR window can end up to 1s after t0
     MAX_START_TIME = 1000 # max amount of time before t0 of the first time slice
     MAX_END_TIME = 10000 # max amount of time after t0 of the last time slice
+    MAX_SLICES = 1000 # max number of time slices to calculate
     OUTPUT_UNITS = ['dBFS', 'dBSPL', 'dBV', 'FS', 'Pa', 'V']
     
     def __init__(self, name, params=None):
@@ -30,13 +32,13 @@ class Waterfall(CLMeasurement):
         super().__init__(name, params)
 
         if len(params)<3: # populate default measurement parameters if none are provided
-            self.params['window_start'] = 1 # for fixed window, amount of time in ms included before beginning of impulse response
-            self.params['fade_in'] = 1 # beginning of fixed window ramps up with a half Hann window of width fade_in (must be <= window_start)
+            self.params['window_start'] = 5 # for fixed window, amount of time in ms included before beginning of impulse response
+            self.params['fade_in'] = 5 # beginning of fixed window ramps up with a half Hann window of width fade_in (must be <= window_start)
             self.params['window_end'] = 10
             self.params['fade_out'] = 1
             self.params['start_time'] =  0 # negative time in ms before t0 to calculate the first time slice. e.g. -10 to start 10ms before t0
-            self.params['stop_time'] = 100 # time in ms after t0 to calculate the last time slice
-            self.params['num_slices'] = 100 # the number of time slices to calculate the waterfall response over. Slice interval = (end_time - start_time) / num_slices
+            self.params['end_time'] = 10 # time in ms after t0 to calculate the last time slice
+            self.params['num_slices'] = 21 # the number of time slices to calculate the waterfall response over. Slice interval = (end_time - start_time) / num_slices
             
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
                 'unit': 'dBFS',
@@ -70,7 +72,6 @@ class Waterfall(CLMeasurement):
         fr_freqs = fftfreq(len(clp.signals['stimulus']), 1/clp.project['sample_rate'])
         # trim to only positive frequencies
         fr_freqs = fr_freqs[1:int(len(fr_freqs)/2)-1] # technically, removes highest point for odd-length inputs, but shouldn't be a problem
-        
 
         # initialize output data array
         self.out_points = np.zeros([self.params['num_slices'], len(self.out_freqs)])
@@ -105,7 +106,7 @@ class Waterfall(CLMeasurement):
             return fr
 
         # generate array of time slices to analyze
-        self.out_times = np.linspace(self.params['start_time'], self.params['stop_time'], self.params['num_slices'])
+        self.out_times = np.linspace(self.params['start_time'], self.params['end_time'], self.params['num_slices'])
 
         # loop through time slices
         for i in range(self.params['num_slices']):
@@ -122,21 +123,79 @@ class Waterfall(CLMeasurement):
         
         
         # check for noise sample and calculate noise floor
-        #if any(clp.signals['noise']):
-        #    fr_freqs, noise_fr = self.calc_fr(clp.signals['noise'])
-        #    self.out_noise = interpolate(fr_freqs, noise_fr, self.out_freqs, self.params['output']['spacing']=='linear')
-        #    if self.params['output']['unit'] == 'dB':
-        #        self.out_noise = 20*np.log10(self.out_noise / ref_level)
-        #    else:
-        #        self.out_noise = FS_to_unit(self.out_noise, self.params['output']['unit'])
-        #else:
-        #    self.out_noise = np.zeros(0)
+        if any(clp.signals['noise']):
+            noise_ir = ifft(fft(clp.signals['noise']) / fft(clp.signals['stimulus']))
+            noise_fr = calc_slice_fr(noise_ir, 0)
+            self.out_noise = interpolate(fr_freqs, noise_fr, self.out_freqs, self.params['output']['spacing']=='linear')
+            self.out_noise = FS_to_unit(self.out_noise, self.params['output']['unit'])
+        else:
+            self.out_noise = np.zeros(0)
         
         
     def init_tab(self):
         super().init_tab()
         
-        # time slice parameters
+        self.start_time = CLParamNum('First slice time', self.params['start_time'], ['ms','samples'], -self.MAX_START_TIME, 0)
+        self.param_section.addWidget(self.start_time)
+        def update_start_time(new_val):
+            if self.start_time.units.currentIndex():
+                self.params['start_time'] = new_val / clp.project['sample_rate']
+            else:
+                self.params['start_time'] = new_val
+            update_slice_period()
+            self.measure()
+            self.plot()
+        self.start_time.update_callback = update_start_time
+        def update_start_time_units(index):
+            if index:
+                self.start_time.set_numtype('int')
+                self.start_time.min = -self.MAX_START_TIME * clp.project['sample_rate']
+                self.start_time.set_value(ms_to_samples(self.params['start_time']))
+            else:
+                self.start_time.set_numtype('float')
+                self.start_time.min = -self.MAX_START_TIME
+                self.start_time.set_value(self.params['start_time'])
+        self.start_time.units_update_callback = update_start_time_units
+        self.update_start_time_units = update_start_time_units
+
+        self.end_time = CLParamNum('Last slice time', self.params['end_time'], ['ms','samples'], 0, self.MAX_END_TIME)
+        self.param_section.addWidget(self.end_time)
+        def update_end_time(new_val):
+            if self.end_time.units.currentIndex():
+                self.params['end_time'] = samples_to_ms(new_val)
+            else:
+                self.params['end_time'] = new_val
+            update_slice_period()
+            self.measure()
+            self.plot()
+        self.end_time.update_callback = update_end_time
+        def update_end_time_units(index):
+            if index:
+                self.end_time.set_numtype('int')
+                self.end_time.max = self.MAX_END_TIME * clp.project['sample_rate']
+                self.end_time.set_value(ms_to_samples(self.params['end_time']))
+            else:
+                self.end_time.set_numtype('float')
+                self.end_time.max = self.MAX_END_TIME
+                self.end_time.set_value(self.params['end_time'])
+        self.end_time.units_update_callback = update_end_time_units
+        self.update_end_time_units = update_end_time_units
+
+        self.num_slices = CLParamNum('Number of time slices', self.params['num_slices'], None, 1, self.MAX_SLICES, 'int')
+        self.param_section.addWidget(self.num_slices)
+        def update_num_slices(new_val):
+            self.params['num_slices'] = new_val
+            update_slice_period()
+            self.measure()
+            self.plot()
+        self.num_slices.update_callback = update_num_slices
+
+        self.slice_period = CLParamNum('Slice time interval', 0, 'ms')
+        self.slice_period.setEnabled(False)
+        self.param_section.addWidget(self.slice_period)
+        def update_slice_period():
+            self.slice_period.set_value((self.params['end_time']-self.params['start_time'])/(self.params['num_slices']-1))
+        update_slice_period()
 
         self.window_params = WindowParamsSection(self.params)
         self.param_section.addWidget(self.window_params)
@@ -172,6 +231,8 @@ class Waterfall(CLMeasurement):
     def update_tab(self):
         self.window_params.update_window_params()
         self.output_points.update_min_max()
+        self.update_start_time_units(self.start_time.units.currentIndex())
+        self.update_end_time_units(self.end_time.units.currentIndex())
         
     def calc_auto_min_freq(self):
         return clp.project['start_freq']
@@ -180,144 +241,43 @@ class Waterfall(CLMeasurement):
         return min(clp.project['stop_freq'], (clp.project['sample_rate']/2) * 0.9)
 
     def plot(self):
-        # basic plot, could be much more complex for different measurement types (like waterfalls)
-        
+        # todo: figure out how to do 3D plotting
+        # for some reason nothing shows up when using a GLViewWidget instead of PlotWidget
         self.tab.graph.clear()
         
-        plot_pen = pg.mkPen(color=clp.PLOT_COLORS[0], width=clp.PLOT_PEN_WIDTH)
         for i in range(self.params['num_slices']):
-            self.tab.graph.plot(self.out_freqs, self.out_points[i, :], name = self.measurement_type_name, pen=plot_pen) # todo: do something different when plotting a single point (pyqtgraph falls on its face otherwise)
+            if i == 0:
+                plot_pen = pg.mkPen(color=clp.PLOT_COLORS[0], width=clp.PLOT_PEN_WIDTH)
+                self.tab.graph.plot(self.out_freqs, self.out_points[i, :], name = 't=' + str(self.params['start_time']) + 'ms', pen=plot_pen)
+            elif i == (self.params['num_slices'] - 1):
+                plot_pen = pg.mkPen(color=clp.PLOT_COLORS[1], width=clp.PLOT_PEN_WIDTH)
+                self.tab.graph.plot(self.out_freqs, self.out_points[i, :], name = 't=' + str(self.params['end_time']) + 'ms', pen=plot_pen)
+            else:
+                slice_color = interp_colors(clp.PLOT_COLORS[0], clp.PLOT_COLORS[1], i/self.params['num_slices'])
+                plot_pen = pg.mkPen(color=slice_color, width=clp.PLOT_PEN_WIDTH)
+                self.tab.graph.plot(self.out_freqs, self.out_points[i, :], pen=plot_pen)
         
-        #if clp.project['plot_noise'] and any(self.out_noise):
-        #    noise_pen = pg.mkPen(color=clp.NOISE_COLOR, width=clp.PLOT_PEN_WIDTH)
-        #    self.tab.graph.plot(self.out_freqs, self.out_noise, name='Noise Floor', pen=noise_pen)#, color='gray')
+        if clp.project['plot_noise'] and any(self.out_noise):
+            noise_pen = pg.mkPen(color=clp.NOISE_COLOR, width=clp.PLOT_PEN_WIDTH)
+            self.tab.graph.plot(self.out_freqs, self.out_noise, name='Noise Floor', pen=noise_pen)
+            
+def interp_colors(color_zero, color_one, ratio):
+    # interpolate between two colors
+    # Naively mixes RGB values, where ratio=0 returns color_zero and ratio=1 returns color_one, does not take into account hue, saturation, colorspace, etc.
+    # colors specified as hex values
+    color_zero = color_zero.lstrip('#')
+    r0 = int(color_zero[0:1], 16)
+    g0 = int(color_zero[2:3], 16)
+    b0 = int(color_zero[4:5], 16)
 
-# break out fixed windowing parameters UI elements, so they can be reused in the impulse response visualizer dialog
-# also try to contain some of the spaghetti that is generated when updating one window parameter cascades to updating other parameters
-# params should be a reference to the measurement's params or another dict that includes 'window_start', 'fade_in', 'window_end', and 'fade_out' times in ms
-class WindowParamsSection(QCollapsible):
-    def __init__(self, params):
-        super().__init__('Window settings')
-        
-        self.update_callback = None
-        
-        # maximum length of each window feature changes dynamically based on the other features and total impulse response length
-        # helpers to calculate the max length of each feature (in ms)
-        def max_window_start():
-            # hard limit, or total impulse response length minus the current window end
-            return min(Waterfall.MAX_WINDOW_START, samples_to_ms(len(clp.signals['stimulus'])) - params['window_end'])
-        # max fade in is limited to the current window start length
-        def max_window_end():
-            # hard limit, or total impulse response length
-            return min(Waterfall.MAX_WINDOW_END, samples_to_ms(len(clp.signals['stimulus'])))
-        # max fade out is limited to the current window end length
-        
-        
-        self.window_start = CLParamNum('Window start', params['window_start'], ['ms', 'samples'], 0, max_window_start(), 'float')
-        self.addWidget(self.window_start)
-        def update_window_start(new_value):
-            # update param with new value, even if it is invalid, then clean up all window parameters together
-            if self.window_start.units.currentIndex():
-                params['window_start'] = samples_to_ms(new_value)
-            else:
-                params['window_start'] = new_value
-            update_window_params()
-            if self.update_callback:
-                self.update_callback()
-        self.window_start.update_callback = update_window_start
-        def update_window_start_units(index):
-            if index: # samples
-                self.window_start.set_numtype('int')
-                self.window_start.max = ms_to_samples(max_window_start())
-                self.window_start.set_value(ms_to_samples(params['window_start']))
-            else: # ms
-                self.window_start.set_numtype('float')
-                self.window_start.max = max_window_start()
-                self.window_start.set_value(params['window_start'])
-        self.window_start.units_update_callback = update_window_start_units
+    color_one = color_one.lstrip('#')
+    r1 = int(color_one[0:1], 16)
+    g1 = int(color_one[2:3], 16)
+    b1 = int(color_one[4:5], 16)
 
-        self.fade_in = CLParamNum('Fade in', params['fade_in'], ['ms', 'samples'], 0, params['window_start'], 'float')
-        self.addWidget(self.fade_in)
-        def update_fade_in(new_value):
-            if self.fade_in.units.currentIndex():
-                params['fade_in'] = samples_to_ms(new_value)
-            else:
-                params['fade_in'] = new_value
-            update_window_params()
-            if self.update_callback:
-                self.update_callback()
-        self.fade_in.update_callback = update_fade_in
-        def update_fade_in_units(index):
-            if index: # samples
-                self.fade_in.set_numtype('int')
-                self.fade_in.max = ms_to_samples(params['window_start'])
-                self.fade_in.set_value(ms_to_samples(params['fade_in']))
-            else: # ms
-                self.fade_in.set_numtype('float')
-                self.fade_in.max = params['window_start']
-                self.fade_in.set_value(params['fade_in'])
-        self.fade_in.units_update_callback = update_fade_in_units
-        
-        self.window_end = CLParamNum('Window end', params['window_end'], ['ms', 'samples'], 0, max_window_end(), 'float')
-        self.addWidget(self.window_end)
-        def update_window_end(new_value):
-            if self.window_end.units.currentIndex():
-                params['window_end'] = samples_to_ms(new_value)
-            else:
-                params['window_end'] = new_value
-            update_window_params()
-            if self.update_callback:
-                self.update_callback()
-        self.window_end.update_callback = update_window_end
-        def update_window_end_units(index):
-            if index: # samples
-                self.window_end.set_numtype('int')
-                self.window_end.max = ms_to_samples(max_window_end())
-                self.window_end.set_value(ms_to_samples(params['window_end']))
-            else: # ms
-                self.window_end.set_numtype('float')
-                self.window_end.max = max_window_end()
-                self.window_end.set_value(params['window_end'])
-        self.window_end.units_update_callback = update_window_end_units
-        
-        self.fade_out = CLParamNum('Fade out', params['fade_out'], ['ms', 'samples'], 0, params['window_end'], 'float')
-        self.addWidget(self.fade_out)
-        def update_fade_out(new_value):
-            if self.fade_out.units.currentIndex():
-                params['fade_out'] = samples_to_ms(new_value)
-            else:
-                params['fade_out'] = new_value
-            update_window_params()
-            if self.update_callback:
-                self.update_callback()
-        self.fade_out.update_callback = update_fade_out
-        def update_fade_out_units(index):
-            if index: # samples
-                self.fade_out.set_numtype('int')
-                self.fade_out.max = ms_to_samples(params['window_end'])
-                self.fade_out.set_value(ms_to_samples(params['fade_out']))
-            else: # ms
-                self.fade_out.set_numtype('float')
-                self.fade_out.max = params['window_end']
-                self.fade_out.set_value(params['fade_out'])
-        self.fade_out.units_update_callback = update_fade_out_units
-        
-        def update_window_params():
-            # window parameter lengths propogate in the order of:
-            #   window_end
-            #   --> fade_out
-            #   --> window_start
-            #       --> fade_in
-            params['window_end'] = min(params['window_end'], max_window_end())
-            params['fade_out'] = min(params['fade_out'], params['window_end'])
-            params['window_start'] = min(params['window_start'], max_window_start())
-            params['fade_in'] = min(params['fade_in'], params['window_start'])
-            
-            update_window_end_units(self.window_end.units.currentIndex())
-            update_fade_out_units(self.fade_out.units.currentIndex())
-            update_window_start_units(self.window_start.units.currentIndex())
-            update_fade_in_units(self.fade_in.units.currentIndex())
-        self.update_window_params = update_window_params # promote inner function to method
-            
-            
+    r = round(r0 + ((r1-r0)*ratio))
+    g = round(g0 + ((g1-g0)*ratio))
+    b = round(b0 + ((b1-b0)*ratio))
+
+    return '#' + hex(r)[2:] + hex(g)[2:] + hex(b)[2:]
         
