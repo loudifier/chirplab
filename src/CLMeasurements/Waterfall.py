@@ -6,9 +6,15 @@ from scipy.signal.windows import hann
 import numpy as np
 from CLMeasurements import CLMeasurement
 import pyqtgraph as pg
+#import pyqtgraph.opengl as gl
 from CLMeasurements.FrequencyResponse import WindowParamsSection
+#from vispy import scene
+#from vispy.scene import visuals
+# matplotlib stuff at the bottom
 
 # much of the Waterfall measurement is a copy of FrequencyResponse. Much of the calculations and GUI elements are the same or similar, biggest difference is the custom plot() method
+
+# 3D waterfall plotting is done with matplotlib for now, stubs for pyqtgraph and VisPy are here, but both make it very difficult to add axes with ticks, labels, etc.
 
 # helpers to make sample length calculations cleaner, comes up a lot in windowing
 def ms_to_samples(ms):
@@ -135,15 +141,25 @@ class Waterfall(CLMeasurement):
     def init_tab(self):
         super().init_tab()
 
+        # plot 3D by default. Need to replace 2D plot with 3D plot
         graph_2D = self.tab.graph
+
+        # matplotlib implementation
         self.tab.graph = MplCanvas()
-        graph_2D.parent().layout().replaceWidget(graph_2D, self.tab.graph)
+        self.format_graph()
+        
+        # pyqtgraph implementation using OpenGL
+        #self.tab.graph = gl.GLViewWidget()
+        #self.tab.graph.show() # may not be necessary
+        
+        # VisPy implementation
+        #self.canvas = scene.SceneCanvas(keys='interactive', show=True) # the base widget is a "canvas"
+        #self.tab.graph = self.canvas.central_widget.add_view() # the main graph that you actually interactive with is a "view"
+        #self.tab.graph.camera = 'turntable'
+        
+        # replace the 2D graph
+        graph_2D.parent().layout().replaceWidget(graph_2D, self.tab.graph) # for VisPy replace with `self.canvas.native`
         graph_2D.close()
-        self.tab.graph_toolbar = NavigationToolbar(self.tab.graph)
-        self.tab.graph.axes.yaxis.set_inverted(True)
-        self.tab.graph.axes.set_xlim(clp.project['start_freq'], clp.project['stop_freq'])
-        # #self.tab.graph.axes.set_xscale('log') # log scaling is broken in mpl 3D plots. Need to define a custom tick formatter https://stackoverflow.com/questions/3909794/plotting-mplot3d-axes3d-xyz-surface-plot-with-log-scale
-        # #self.tab.graph.axes.view_init(elev=45., azim=110) # haven't actually tried this yet
 
         
         self.start_time = CLParamNum('First slice time', self.params['start_time'], ['ms','samples'], -self.MAX_START_TIME, 0)
@@ -252,17 +268,37 @@ class Waterfall(CLMeasurement):
         return min(clp.project['stop_freq'], (clp.project['sample_rate']/2) * 0.9)
 
     def plot(self):
-        for artist in self.tab.graph.axes.lines + self.tab.graph.axes.collections:
+        # matplotlib 3D plotting
+        for artist in self.tab.graph.axes.collections:
             artist.remove()
+        self.tab.graph.axes.set_prop_cycle(None) # todo: default blue color works, but look into a custom color scale
 
-        X, Y = np.meshgrid(self.out_freqs, self.out_times)
-
-        self.tab.graph.axes.plot_surface(X, Y, self.out_points)
-        return
-        # todo: figure out how to do 3D plotting
-        # for some reason nothing shows up when using a GLViewWidget instead of PlotWidget
-        self.tab.graph.clear()
+        log_freqs = np.log10(self.out_freqs)
+        x, y = np.meshgrid(log_freqs, self.out_times)
+        self.tab.graph.axes.plot_surface(x, y, self.out_points)
+        self.tab.graph.axes.set_zlabel('Amplitude (' + self.params['output']['unit'] + ')')
+        self.tab.graph.draw_idle()
         
+        # pyqtgraph 3D plotting
+        #self.tab.graph.clear()
+        #grid = gl.GLGridItem() # grid defaults to white, invisible with white background unless the grid is between the camera and the actual surface plot
+        #self.tab.graph.addItem(grid)
+        #axes = gl.GLAxisItem()
+        #self.tab.graph.addItem(axes)
+        #surf = gl.GLSurfacePlotItem(x=np.log10(self.out_freqs), y=self.out_times, z=self.out_points.transpose(), shader='shaded', color=hex2float(clp.PLOT_COLORS[0]))
+        # need to add scaling and translation to get the surface plot in the right spot. Surface is outside of default view, zoom out (mouse scroll wheel) to see it
+        #self.tab.graph.addItem(surf)
+
+        # VisPy 3D plotting
+        #surface = visuals.SurfacePlot(z=self.out_points, color=hex2float(clp.PLOT_COLORS[0]))
+        #self.tab.graph.add(surface)
+        #grid = visuals.GridLines(color=(0.5, 0.5, 0.5, 1))
+        #self.tab.graph.add(grid)
+        
+
+        return
+        # todo: consider adding a toggle to select 2D or 3D plotting
+        # pyqtgraph 2D plotting with color-coded time slices
         for i in range(self.params['num_slices']):
             if i == 0:
                 plot_pen = pg.mkPen(color=clp.PLOT_COLORS[0], width=clp.PLOT_PEN_WIDTH)
@@ -280,21 +316,32 @@ class Waterfall(CLMeasurement):
             self.tab.graph.plot(self.out_freqs, self.out_noise, name='Noise Floor', pen=noise_pen)
             
     def format_graph(self):
-        return
+        # graph formatting for matplotlib 3D plot
+        #self.tab.graph_toolbar = NavigationToolbar(self.tab.graph) # todo: doesn't actually work. Default mouse controls for 3D plots is mostly fine, but it would be nice to be able to pan/zoom a single axis at a time
+        self.tab.graph.axes.yaxis.set_inverted(True)
+        self.tab.graph.axes.set_title(self.params['name'])
+        self.tab.graph.axes.set_xlabel('Frequency (Hz)')
+        self.tab.graph.axes.set_ylabel('Time (ms)')
+        # #self.tab.graph.axes.set_xscale('log') # log scaling is broken in mpl 3D plots. Need to define a custom tick formatter https://stackoverflow.com/questions/3909794/plotting-mplot3d-axes3d-xyz-surface-plot-with-log-scale
+        self.tab.graph.axes.xaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
+        self.tab.graph.axes.xaxis.set_major_locator(mticker.MaxNLocator(integer=True)) # todo: figure out how to plot frequency on a 1-2-5 series
+        self.tab.graph.axes.xaxis.set_minor_locator(mticker.MultipleLocator(0.1))
+        #self.tab.graph.axes.grid(which='minor', linestyle=':', linewidth=5.0) # todo: this doesn't work for 3D. Figure out how to draw minor gridlines lighter
+        self.tab.graph.axes.view_init(elev=15., azim=250)
 
 def interp_colors(color_zero, color_one, ratio):
     # interpolate between two colors
     # Naively mixes RGB values, where ratio=0 returns color_zero and ratio=1 returns color_one, does not take into account hue, saturation, colorspace, etc.
     # colors specified as hex values
     color_zero = color_zero.lstrip('#')
-    r0 = int(color_zero[0:1], 16)
-    g0 = int(color_zero[2:3], 16)
-    b0 = int(color_zero[4:5], 16)
+    r0 = int(color_zero[0:2], 16)
+    g0 = int(color_zero[2:4], 16)
+    b0 = int(color_zero[4:6], 16)
 
     color_one = color_one.lstrip('#')
-    r1 = int(color_one[0:1], 16)
-    g1 = int(color_one[2:3], 16)
-    b1 = int(color_one[4:5], 16)
+    r1 = int(color_one[0:2], 16)
+    g1 = int(color_one[2:4], 16)
+    b1 = int(color_one[4:6], 16)
 
     r = round(r0 + ((r1-r0)*ratio))
     g = round(g0 + ((g1-g0)*ratio))
@@ -302,8 +349,25 @@ def interp_colors(color_zero, color_one, ratio):
 
     return '#' + hex(r)[2:] + hex(g)[2:] + hex(b)[2:]
         
+def hex2float(hex_color, alpha=1.0):
+    # convert hex color string to tuple suitable for OpenGl/VisPy with RGB values from 0-1
+    hex_color = hex_color.lstrip('#')
+    r = int(hex_color[0:2], 16) / 255
+    g = int(hex_color[2:4], 16) / 255
+    b = int(hex_color[4:6], 16) / 255
+
+    return (r, g, b, alpha)
+
+
+
+import matplotlib.ticker as mticker
+from engineering_notation import EngNumber
+def log_tick_formatter(val, pos=None):
+    return EngNumber(10**val)
 
 # matplotlib stuff, mostly copied from pythonguis.com
+# this was originally in CLTab.py but removed as part of the switch from mpl to pyqtgraph. Maybe put it back in CLTab for other measurements that need a 3D plot
+# speed stuff mostly helps when plotting time series signals (like on the ChirpTab), probably doesn't make much of a difference for relatively sparse surface plots
 import matplotlib
 matplotlib.use('QtAgg') # 'Qt5Agg' is only use for backwards compatibility to force Qt5
 
@@ -318,12 +382,14 @@ matplotlib.rcParams['agg.path.chunksize'] = 10000
 matplotlib.rcParams['path.simplify'] = True
 matplotlib.rcParams['path.simplify_threshold'] = 1.0
 
+matplotlib.rcParams["figure.autolayout"] = True # default to tight_layout
+
 # chunksize and simplify_threshold have some interdependency. Increasing one or the other is fine, marginally improves performance. Increasing both improves performance more but introduces artefacts.
 #matplotlib.rcParams['agg.path.chunksize'] = 100
 #matplotlib.rcParams['path.simplify'] = True
 #matplotlib.rcParams['path.simplify_threshold'] = 1.0
 
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar # todo: test if this breaks compatiblity with other PyQt bindings
 from matplotlib.figure import Figure
 
 class MplCanvas(FigureCanvasQTAgg):
