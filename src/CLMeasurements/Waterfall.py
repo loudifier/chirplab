@@ -134,6 +134,17 @@ class Waterfall(CLMeasurement):
         
     def init_tab(self):
         super().init_tab()
+
+        graph_2D = self.tab.graph
+        self.tab.graph = MplCanvas()
+        graph_2D.parent().layout().replaceWidget(graph_2D, self.tab.graph)
+        graph_2D.close()
+        self.tab.graph_toolbar = NavigationToolbar(self.tab.graph)
+        self.tab.graph.axes.yaxis.set_inverted(True)
+        self.tab.graph.axes.set_xlim(clp.project['start_freq'], clp.project['stop_freq'])
+        # #self.tab.graph.axes.set_xscale('log') # log scaling is broken in mpl 3D plots. Need to define a custom tick formatter https://stackoverflow.com/questions/3909794/plotting-mplot3d-axes3d-xyz-surface-plot-with-log-scale
+        # #self.tab.graph.axes.view_init(elev=45., azim=110) # haven't actually tried this yet
+
         
         self.start_time = CLParamNum('First slice time', self.params['start_time'], ['ms','samples'], -self.MAX_START_TIME, 0)
         self.param_section.addWidget(self.start_time)
@@ -241,6 +252,13 @@ class Waterfall(CLMeasurement):
         return min(clp.project['stop_freq'], (clp.project['sample_rate']/2) * 0.9)
 
     def plot(self):
+        for artist in self.tab.graph.axes.lines + self.tab.graph.axes.collections:
+            artist.remove()
+
+        X, Y = np.meshgrid(self.out_freqs, self.out_times)
+
+        self.tab.graph.axes.plot_surface(X, Y, self.out_points)
+        return
         # todo: figure out how to do 3D plotting
         # for some reason nothing shows up when using a GLViewWidget instead of PlotWidget
         self.tab.graph.clear()
@@ -261,6 +279,9 @@ class Waterfall(CLMeasurement):
             noise_pen = pg.mkPen(color=clp.NOISE_COLOR, width=clp.PLOT_PEN_WIDTH)
             self.tab.graph.plot(self.out_freqs, self.out_noise, name='Noise Floor', pen=noise_pen)
             
+    def format_graph(self):
+        return
+
 def interp_colors(color_zero, color_one, ratio):
     # interpolate between two colors
     # Naively mixes RGB values, where ratio=0 returns color_zero and ratio=1 returns color_one, does not take into account hue, saturation, colorspace, etc.
@@ -281,3 +302,33 @@ def interp_colors(color_zero, color_one, ratio):
 
     return '#' + hex(r)[2:] + hex(g)[2:] + hex(b)[2:]
         
+
+# matplotlib stuff, mostly copied from pythonguis.com
+import matplotlib
+matplotlib.use('QtAgg') # 'Qt5Agg' is only use for backwards compatibility to force Qt5
+
+#matplotlib speed settings
+#matplotlib.style.use('default') # settings are persistent in Spyder. use('default') to reset
+# agg.path.chunksize = 0
+# path.simplify = True
+# path.simplify_threshold = 1/9
+
+#matplotlib.style.use('fast') # fast, but sometimes leaves holes in stimulus/response plots. Equivalent to:
+matplotlib.rcParams['agg.path.chunksize'] = 10000
+matplotlib.rcParams['path.simplify'] = True
+matplotlib.rcParams['path.simplify_threshold'] = 1.0
+
+# chunksize and simplify_threshold have some interdependency. Increasing one or the other is fine, marginally improves performance. Increasing both improves performance more but introduces artefacts.
+#matplotlib.rcParams['agg.path.chunksize'] = 100
+#matplotlib.rcParams['path.simplify'] = True
+#matplotlib.rcParams['path.simplify_threshold'] = 1.0
+
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+from matplotlib.figure import Figure
+
+class MplCanvas(FigureCanvasQTAgg):
+
+    def __init__(self, parent=None, width=5, height=4, dpi=100): # DPI doesn't seem to make artefacts better/worse, Qt or actual display DPI might.
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes = fig.add_subplot(111, projection='3d')
+        super(MplCanvas, self).__init__(fig)
