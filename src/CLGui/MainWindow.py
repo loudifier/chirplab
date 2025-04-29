@@ -400,7 +400,7 @@ class MainWindow(QMainWindow):
             webbrowser.open('https://github.com/loudifier/chirplab/issues/new/choose')
         issues_link.triggered.connect(open_issue)
         
-        about = QAction('About Chirplab', self)
+        about = QAction('&About Chirplab', self)
         help_menu.addAction(about)
         about.triggered.connect(AboutWindow)
         

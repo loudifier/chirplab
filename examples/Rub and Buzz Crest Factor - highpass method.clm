@@ -1,4 +1,4 @@
-chirplab_version: 0.3
+chirplab_version: 0.4
 filters:
 - Q: 0.707
   multiplier: 10

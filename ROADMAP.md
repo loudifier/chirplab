@@ -25,7 +25,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Experiment with adaptive windowing and/or add parameters for harmonic impulse windowing (likely very slow)
     - [ ] Experiment with loudness frequency weighting to to see if a hearing model approach can produce better estimates for distortion audibility
 - [x] Phase Response and Group Delay
-    - Could use more thorough validation of current methods and experiments with other methods. Does a pilot tone help, and how do you compensate for significant phase shift of the pilot tone itself?
+    - [ ] Could use more thorough validation of current methods and experiments with other methods. Check if difference between absolute and excess phase at low frequencies in wiki example can be improved. Does a pilot tone help, and how do you compensate for significant phase shift of the pilot tone itself?
     - How does noise impact phase response? Is a measurement noise floor calculation meaningful?
     - Group delay is a separate measurement, but is mostly just a wrapper for phase response with output in ms
 - [x] Tracking Filter
@@ -67,9 +67,10 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Several different methods commonly used. Start out using IR as raw input for energy decay curve and see how easy/effectively RT60 can be derived
     - [ ] Output broadband, at 1kHz, or as times vs frequency?
     - [ ] pyroomacoustics has an implementation of Schroeder method
-- [ ] Waterfall
-    - [ ] What should the configuration parameters and output look like?
-    - [ ] 3D plotting, figure out how to communicate measurement noise floor without making it too busy
+- [x] Waterfall
+    - [x] Basic frequency response fixed window parameters plus start/end times and number of time slices
+    - [x] 3D plotting
+    - [ ] Figure out how to plot measurement noise floor without making the graph too busy
 
 ## General features
 - [x] Real units calibration - some sort of 'Pa per FS' and 'Volts per FS' conversion factors so output units can be expressed in real units
@@ -114,7 +115,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
 - [ ] Undo/redo - a lot of work with many edge cases that need to be handled, but would be really nice to have
 - [ ] Customize pyqtgraph. Right-click menu with reset and dialog to set ranges and scales, click on trace to show point values, etc.
 - [ ] Check for and prompt user to save last device capture when closing Chirplab or opening another project
-- [ ] Help menu in menubar
+- [x] Help menu in menubar
 
 ## Command Line Interface
 - [x] Run all measurements in a project file and output measurement data
