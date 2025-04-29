@@ -5,6 +5,8 @@ from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
 from CLMeasurements import CLMeasurement
+import pandas as pd
+from pathlib import Path
 import pyqtgraph as pg
 #import pyqtgraph.opengl as gl
 from CLMeasurements.FrequencyResponse import WindowParamsSection
@@ -136,7 +138,29 @@ class Waterfall(CLMeasurement):
             self.out_noise = FS_to_unit(self.out_noise, self.params['output']['unit'])
         else:
             self.out_noise = np.zeros(0)
+
+
+    def save_measurement_data(self, out_path=''):
+        out_frame = pd.DataFrame(data=self.out_points.transpose(), columns=[str(slice_time)+'ms' for slice_time in self.out_times])
+        out_frame.insert(0, 'Frequency (Hz)', self.out_freqs)
+        if clp.project['save_noise'] and any(self.out_noise):
+            out_frame['measurement noise floor'] = self.out_noise
         
+        if not out_path:
+            # no path given, output a csv using the project and measurement name in the current directory
+            out_path = Path(clp.project_file).stem + '_' + self.params['name'] + '.csv'
+        else:
+            # path given, check if it is a file name or just an output directory
+            if Path(out_path).is_dir():
+                out_path = Path(out_path) / Path(Path(clp.project_file).stem + '_' + self.params['name'] + '.csv') # add default file name to directory
+            # else leave provided file name/path as-is
+        
+        with open(out_path, 'w', newline='') as out_file:
+            print('saving ' + str(out_path))
+            out_file.write(self.params['name'] + ', ' + self.params['output']['unit'] + '\n')
+            out_frame.to_csv(out_file, index=False)
+
+
         
     def init_tab(self):
         super().init_tab()
