@@ -1,7 +1,7 @@
 import CLProject as clp
-from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidget, QApplication, QFileDialog, QErrorMessage, QMessageBox, QDialog, QDialogButtonBox, QVBoxLayout, QProxyStyle, QStyle
-from qtpy.QtGui import QAction, QIcon, QPalette, QKeySequence
-from CLGui import ChirpTab, CLParamDropdown, CLParameter
+from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidget, QApplication, QFileDialog, QErrorMessage, QMessageBox, QDialog, QDialogButtonBox, QVBoxLayout, QProxyStyle, QStyle, QLabel, QSizePolicy
+from qtpy.QtGui import QAction, QIcon, QPalette, QKeySequence, QPixmap
+from CLGui import ChirpTab, CLParamDropdown, CLParameter, QHSeparator
 from CLMeasurements import init_measurements, is_valid_measurement_name
 from CLAnalysis import generate_stimulus
 from pathlib import Path
@@ -11,6 +11,7 @@ import pyqtgraph as pg
 import pyqtgraph.exporters # just calling pg.exporters... doesn't work unless pyqtgraph.exporters is manually imported
 import yaml
 import qtpy.QtCore as QtCore
+import webbrowser
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -65,7 +66,7 @@ class MainWindow(QMainWindow):
         
         menubar = self.menuBar()
         
-        file_menu = menubar.addMenu(' &File   ')
+        file_menu = menubar.addMenu(' &File ')
         file_menu.setStyle(MenuProxyStyle(file_menu.style()))
         
         new_project = QAction('&New Project', self, shortcut=QKeySequence('Ctrl+N'))
@@ -153,7 +154,6 @@ class MainWindow(QMainWindow):
             return saved
         self.save_project_as = save_project_as
         save_as.triggered.connect(save_project_as)
-            
         
         file_menu.addSeparator()
         
@@ -386,17 +386,23 @@ class MainWindow(QMainWindow):
         save_data.triggered.connect(save_measurement_data)
         
         
-        # todo: add help menu items (after creating things for help menu items to point to...)
-        #help_menu = menubar.addMenu(' &Help    ')
+        help_menu = menubar.addMenu(' &Help ')
         
-        #docs_link = QAction('Chirplab &documentation', self)
-        #help_menu.addAction(docs_link)
+        docs_link = QAction('&Quick Start and wiki', self)
+        help_menu.addAction(docs_link)
+        def open_docs(checked=True):
+            webbrowser.open('https://github.com/loudifier/chirplab/wiki/Quick-Start')
+        docs_link.triggered.connect(open_docs)
         
-        #issues_link = QAction('&Report a bug or request a feature', self)
-        #help_menu.addAction(issues_link)
+        issues_link = QAction('&Report a bug', self)
+        help_menu.addAction(issues_link)
+        def open_issue(checked=True):
+            webbrowser.open('https://github.com/loudifier/chirplab/issues/new/choose')
+        issues_link.triggered.connect(open_issue)
         
-        #about = QAction('About Chirplab', self)
-        #help_menu.addAction(about)
+        about = QAction('About Chirplab', self)
+        help_menu.addAction(about)
+        about.triggered.connect(AboutWindow)
         
     def init_tabs(self):
         self.tabs.blockSignals(True)
@@ -547,4 +553,64 @@ class MenuProxyStyle(QProxyStyle):
                 QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter,
                 option.palette, option.state & QStyle.State_Enabled, 
                 shortcut, QPalette.Text) # different palette options don't seem to actually affect the text # todo: figure out how to show the text as lighter than actual menu item text
-        
+            
+class AboutWindow(QDialog):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle('About Chirplab')
+        self.setFixedWidth(600)
+
+        layout = QVBoxLayout()
+
+        self.splash = QLabel()
+        self.splash_img = QPixmap(str(Path(__file__).parent) + '/splash.png')
+        self.splash.setPixmap(self.splash_img)
+        self.splash.setScaledContents(False)
+        self.splash.setMinimumSize(1,1)
+        self.splash.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.splash.setAlignment(QtCore.Qt.AlignTop)
+        self.splash.installEventFilter(self) # a bunch of stuff just to set the splash image to the right size and aspect ratio. Probably overkill but works
+        layout.addWidget(self.splash)
+
+        version = QLabel('Chirplab v' + str(clp.CHIRPLAB_VERSION))
+        version.setStyleSheet('font-size: 14pt; font-weight:bold;')
+        layout.addWidget(version)
+
+        layout.addWidget(QHSeparator())
+
+        text = QLabel('''
+            <html>
+            <p><b>Chirplab</b> - fast open-loop log-swept sine chirp generation, capture, and analysis</p>
+            <p>Chirplab is open source, distributed under the <a href="https://raw.githubusercontent.com/loudifier/chirplab/refs/heads/main/LICENSE">MIT licence</a> and built using other open source software including:</p>
+            <ul>
+                <li>Python</li>
+                <li>NumPy/SciPy</li>
+                <li>Qt/PyQt</li>
+                <li>PyAudio/PortAudio</li>
+                <li>pyqtgraph</li>
+                <li>matplotlib</li>
+                <li>PyInstaller</li>
+            </ul>
+            <p>Chirplab code can be found on <a href="https://github.com/loudifier/chirplab">GitHub</a>, along with <a href="https://github.com/loudifier/chirplab/wiki">guides and documentation</a>. Contributions are welcome. If you encounter a bug or unexpected behavior, or would like to make a feature request, please <a href="https://github.com/loudifier/chirplab/issues/new/choose">open an issue</a>.</p>
+            </html>''')
+        text.setOpenExternalLinks(True)
+        text.setWordWrap(True)
+        layout.addWidget(text)
+
+        layout.addWidget(QHSeparator())
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(self.accept)
+        layout.addWidget(button_box)
+
+        layout.addStretch()
+        self.setLayout(layout)
+
+        self.exec()
+
+    def eventFilter(self, widget, event):
+        if event.type() == QtCore.QEvent.Resize and widget is self.splash:
+            self.splash.setPixmap(self.splash_img.scaled(self.splash.width(), self.splash.height(), QtCore.Qt.KeepAspectRatio, transformMode=QtCore.Qt.SmoothTransformation))
+            return True
+        return super(AboutWindow, self).eventFilter(widget, event)
