@@ -360,12 +360,21 @@ class MainWindow(QMainWindow):
                 clp.working_directory = str(Path(file_path).parent)
                 
                 file_type = Path(file_path).suffix
-                if file_type.casefold() == '.png'.casefold() or tab_index==0: # save graph image with default pyqtgraph settings # todo: add handlers for other image formats?
-                    if tab_index: # export measurement graph
-                        exporter = pg.exporters.ImageExporter(clp.measurements[self.tabs.currentIndex()-1].tab.graph.plotItem)
-                    else: # export chirp tab graph
-                        exporter = pg.exporters.ImageExporter(self.chirp_tab.graph.plotItem)
-                    exporter.export(file_path)
+                if file_type.casefold() == '.png'.casefold() or tab_index==0: # save graph image with default pyqtgraph settings # todo: add handlers for other image formats? # todo: really should move image export to CLMeasurement so measurements can do custom image exports
+                    if not isinstance(clp.measurements[self.tabs.currentIndex()-1].tab.graph, pg.PlotWidget): # assume the graph is a matplotlib canvas
+                        try:
+                            clp.measurements[self.tabs.currentIndex()-1].tab.graph.axes.get_figure().savefig(file_path)
+                        except PermissionError as ex:
+                            error_box = QErrorMessage()
+                            error_box.showMessage('Error writing measurement data \n' + str(ex))
+                            error_box.exec()
+                    else: # save pyqtgraph image
+                        if tab_index: # export measurement graph
+                             exporter = pg.exporters.ImageExporter(clp.measurements[self.tabs.currentIndex()-1].tab.graph.plotItem)
+                        else: # export chirp tab graph
+                            exporter = pg.exporters.ImageExporter(self.chirp_tab.graph.plotItem)
+                        exporter.export(file_path) # todo: fails silently if graph is a matplotlib canvas. Refine error checking
+                
                 else: # for any other extension use measurement's data export method
                     try:
                         clp.measurements[self.tabs.currentIndex()-1].save_measurement_data(file_path)
