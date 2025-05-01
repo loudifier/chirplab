@@ -69,7 +69,11 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] pyroomacoustics has an implementation of Schroeder method
 - [x] Waterfall
     - [x] Basic frequency response fixed window parameters plus start/end times and number of time slices
-    - [x] 3D plotting
+    - [ ] 3D plotting
+        - Mostly works using matplotlib, there are a couple issues in bundled .exe. Performance is worse, and the plot rotates around the center point without constraining the Z axis to vertical...
+        - Would be nice to do everything with pyqtgraph, but its 3D plotting isn't as easy/mature and is half-deprecated with old OpenGL stuff. They will probably eventually switch to VisPy, but that seems to have basically the same usability issues for 3D. There are stubs for 3D plotting with pyqtgraph and VisPy in Waterfall.py
+        - Color-coding the surface plot could help highlight problem resonances. Simple blue to orange gradient vs time? Gradient for time multiplied by amplitude (either absolute amplitude or relative to t0 for that frequency)?
+        - Maybe have a toggle to plot color-coded 2D. The 2D plotting is still in the code but skipped
     - [ ] Figure out how to plot measurement noise floor without making the graph too busy
 
 ## General features
