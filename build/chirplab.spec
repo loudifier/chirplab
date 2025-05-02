@@ -16,8 +16,9 @@ scipy_array_api_compat = collect_submodules('scipy._lib.array_api_compat.numpy.f
 hidden_imports = measurement_list + scipy_array_api_compat
 
 datas = [
-    ['../src/CLGui/icon.png', '../src/CLGui/splash.png', './CLGui'],
-    ['../examples/new-project_response.wav', '.']
+    ['../src/CLGui/icon.png', './CLGui'],
+    ['../src/CLGui/splash.png', './CLGui'],
+    ['../examples/new-project_response.wav', '.'],
 ]
 
 a = Analysis(
