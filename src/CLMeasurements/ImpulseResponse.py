@@ -57,39 +57,46 @@ class ImpulseResponse(CLMeasurement):
                 } # output sample rate is the same as the project analysis sample rate
             
     def measure(self):
-        if (self.params['timing_channel']==0) or (self.params['timing_channel']==clp.project['input']['channel']):
-            # skip time alignment if input channel is referenced to itself
+        def get_input_signal(channel, delay): # mostly the same process as CLAnalysis.read_response() # todo: consider refactoring CLAnalysis.read_response(), this, and PhaseResponse to reduce duplication
+            # get signal from raw input channel at the given delay. Ued to get reference signal and timing reference signals
+            if clp.signals['raw_response'].ndim > 1:
+                input_signal = clp.signals['raw_response'][:,channel-1]
+            else:
+                input_signal = clp.signals['raw_response']
+            if clp.project['sample_rate'] != clp.IO['input']['sample_rate']:
+                input_signal = resample(input_signal, clp.IO['input']['sample_rate'], clp.project['sample_rate'])
+
+            start_padding = max(0, -delay)
+            delay = delay + start_padding
+            end_padding = max(0, len(clp.signals['stimulus']) - (len(input_signal) - delay))
+            input_signal = np.concatenate([np.zeros(start_padding), input_signal, np.zeros(end_padding)])
+
+            return input_signal[delay:delay + len(clp.signals['stimulus'])]
+
+        if self.params['ref_channel']:
+            # get signal from reference channel at same timing as input channel
+            reference = get_input_signal(self.params['ref_channel'], clp.IO['input']['delay'])
             response = clp.signals['response']
         else:
-            # get reference channel time alignment # todo: using same process as CLAnalysis.read_response(), which is the same process in PhaseResponse... see if these can be refactored or if they are all slightly too different from each other
-            response = clp.signals['raw_response'][:,clp.project['input']['channel']-1]
-            reference = clp.signals['raw_response'][:,self.params['timing_channel']-1]
+            # use stimulus signal as the reference (and potentially use a different channel as the timing reference)
+            reference = clp.signals['stimulus']
 
-            # resample input if necessary
-            if clp.project['sample_rate'] != clp.IO['input']['sample_rate']:
-                if clp.project['use_input_rate']:
-                    clp.project['sample_rate'] = clp.IO['input']['sample_rate']
-                else:
-                    response = resample(response, clp.IO['input']['sample_rate'], clp.project['sample_rate'])
-                    reference = resample(reference, clp.IO['input']['sample_rate'], clp.project['sample_rate'])
+            if (self.params['timing_channel']==0) or (self.params['timing_channel']==clp.project['input']['channel']):
+                # skip time alignment if input channel is referenced to itself
+                response = clp.signals['response']
+            else:
+                # get the time reference aligned to main response
+                time_reference = get_input_signal(self.params['timing_channel'], clp.IO['input']['delay'])
 
-            # determine the position of the captured chirp in the reference signal
-            reference_delay = find_offset(reference, clp.signals['stimulus'])
+                # calculate the offset between the time reference and the stimulus
+                time_reference_offset = find_offset(time_reference, clp.signals['stimulus'])
 
-            # pad the response if the beginning or end of the chirp is cut off or there isn't enough silence for pre/post sweep (or there is a severe mismatch between stimulus and response). Throw a warning?
-            start_padding = max(0, -reference_delay) # reference_delay should be negative if beginning is cut off
-            reference_delay = reference_delay + start_padding
-            end_padding = max(0, len(clp.signals['stimulus']) - (len(response) - reference_delay))
-            response = np.concatenate([np.zeros(start_padding),
-                                    response,
-                                    np.zeros(end_padding)])
-            
-            # trim the raw response to just the segment aligned with the stimulus
-            response = response[reference_delay:reference_delay + len(clp.signals['stimulus'])] # get only the part of the raw response signal where the chirp was detected
+                # get the response signal trimmed to the time reference delay
+                response = get_input_signal(clp.project['input']['channel'], clp.IO['input']['delay'] + time_reference_offset)
 
 
         # calculate raw impulse response
-        impulse_response = ifft(fft(response) / fft(clp.signals['stimulus'])).real
+        impulse_response = ifft(fft(response) / fft(reference)).real
         
 
         # calculate window parameters (parameters are sometimes used even when window isn't applied)
@@ -214,25 +221,46 @@ class ImpulseResponse(CLMeasurement):
             self.plot()
         self.window_params.update_callback = update_window_params
 
+        # reference channel dropdown
+        self.ref_channel = CLParamDropdown('Reference signal', ['stimulus'])
+        self.param_section.addWidget(self.ref_channel)
+        def update_ref_channel(index):
+            self.params['ref_channel'] = index
+            self.timing_channel.setEnabled(index==0)
+            self.measure()
+            self.plot()
+        self.ref_channel.update_callback = update_ref_channel
+
         # time reference channel dropdown
         self.timing_channel = CLParamDropdown('Timing reference', ['input'])
+        self.timing_channel.setEnabled(self.params['ref_channel']==0)
         self.param_section.addWidget(self.timing_channel)
         def update_timing_channel(index): # todo: check more thoroughly for corner cases
             self.params['timing_channel'] = index
             self.measure()
             self.plot()
         self.timing_channel.update_callback = update_timing_channel
+        
         def update_num_channels(num_channels):
-            channel_list = ['input channel'] + ['channel '+str(chan) for chan in range(1, num_channels+1)] # todo: 'input' is not very descriptive... come up with a better name
+            channel_list = ['channel '+str(chan) for chan in range(1, num_channels+1)]
+
+            self.ref_channel.dropdown.blockSignals(True)
+            self.ref_channel.dropdown.clear()
+            self.ref_channel.dropdown.addItems(['stimulus signal'] + channel_list)
+            if self.params['ref_channel'] > num_channels:
+                self.params['ref_channel'] = 0
+            self.ref_channel.dropdown.setCurrentIndex(self.params['ref_channel'])
+            self.ref_channel.dropdown.blockSignals(False)
+
             self.timing_channel.dropdown.blockSignals(True)
             self.timing_channel.dropdown.clear()
-            self.timing_channel.dropdown.addItems(channel_list)
+            self.timing_channel.dropdown.addItems(['input channel'] + channel_list)
             if self.params['timing_channel'] > num_channels:
                 self.params['timing_channel'] = 0
             self.timing_channel.dropdown.setCurrentIndex(self.params['timing_channel'])
             self.timing_channel.dropdown.blockSignals(False)
         self.update_num_channels = update_num_channels
-        # self.update_num_channels(clp.IO['input']['channels']) # call below after initializing timing_channel dropdown
+        self.update_num_channels(clp.IO['input']['channels'])
 
         # alignment dropdown
         self.alignment = CLParamDropdown('Time alignment', self.ALIGNMENT_MODES)
@@ -297,11 +325,6 @@ class ImpulseResponse(CLMeasurement):
                 self.offset.max = samples_to_ms(len(clp.signals['stimulus'])-1)
         self.offset.units_update_callback = update_offset_unit
         self.update_offset_unit = update_offset_unit
-
-        # reference channel dropdown
-        #self.ref_channel = CLParamDropdown('Reference signal', ['stimulus'])
-        self.update_num_channels(clp.IO['input']['channels'])
-        #self.param_section.addWidget(self.ref_channel)
 
 
         # output parameters

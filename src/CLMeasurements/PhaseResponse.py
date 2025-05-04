@@ -127,7 +127,7 @@ class PhaseResponse(CLMeasurement):
                         reference = resample(reference, clp.IO['input']['sample_rate'], clp.project['sample_rate'])
                     
                 # determine the position of the captured chirp in the response signal
-                response_delay = find_offset(response, clp.signals['stimulus'])
+                response_delay = clp.IO['input']['delay']
                 
                 # pad the response if the beginning or end of the chirp is cut off or there isn't enough silence for pre/post sweep (or there is a severe mismatch between stimulus and response). Throw a warning?
                 start_padding = max(0, -response_delay) # response_delay should be negative if beginning is cut off

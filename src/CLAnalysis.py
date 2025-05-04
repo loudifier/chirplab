@@ -104,6 +104,7 @@ def read_response():
         
     # determine the position of the captured chirp in the response signal
     response_delay = find_offset(response, clp.signals['stimulus'])
+    clp.IO['input']['delay'] = response_delay
     
     # pad the response if the beginning or end of the chirp is cut off or there isn't enough silence for pre/post sweep (or there is a severe mismatch between stimulus and response). Throw a warning?
     start_padding = max(0, -response_delay) # response_delay should be negative if beginning is cut off

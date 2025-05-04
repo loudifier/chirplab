@@ -19,6 +19,7 @@ IO = {'input':{'length_samples':0,
                'sample_rate':0,
                'channels':0,
                'numtype':''},
+               'delay': 0, # detected chirp time offset in samples from the start of the signal (at the most recently calculated project analysis sample rate, *not* the raw input sample rate)
       'output':{}}
 
 # list of measurement objects (to be defined and instantiated based on measurement parameters in project dict)
