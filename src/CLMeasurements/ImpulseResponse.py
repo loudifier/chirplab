@@ -328,6 +328,7 @@ class ImpulseResponse(CLMeasurement):
 
         # fixed truncation length spinbox
         self.truncate_length = CLParamNum('Fixed length (after t0)', self.params['output']['truncate_length'], ['ms', 'samples'], 0, samples_to_ms(len(clp.signals['stimulus'])-1 - self.calc_offset_samples()))
+        self.truncate_length.setEnabled(self.params['output']['truncate_mode']=='fixed')
         self.output_section.addWidget(self.truncate_length)
         def update_truncate_length(new_val):
             if self.truncate_length.units.currentIndex(): # samples
