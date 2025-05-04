@@ -161,16 +161,19 @@ class CLParamDropdown(QWidget):
         self.dropdown = QComboBox()
         self.dropdown.addItems(item_list)
         self.layout.addWidget(self.dropdown)
-        
+
         self.value = self.dropdown.currentText()
+        self.last_index = 0
         def indexChanged(index):
             self.value = self.dropdown.currentText()
             if not self.update_callback is None:
                 self.update_callback(index)
             self.last_value = self.value
+            self.last_index = self.dropdown.currentIndex()
         self.dropdown.currentIndexChanged.connect(indexChanged)
 
-        if editable:
+        self.editable = editable
+        if self.editable:
             self.dropdown.setEditable(True)
             self.dropdown.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
             self.last_value = self.value
@@ -181,6 +184,12 @@ class CLParamDropdown(QWidget):
                     return
                 indexChanged(-1) # follow the regular update callback with index of -1 to indicate text was edited instead of selecting a dropdown entry
             self.dropdown.lineEdit().editingFinished.connect(editingFinished)
+
+            def set_value(new_value):
+                self.dropdown.setCurrentText(str(new_value))
+                self.value = self.dropdown.currentText()
+                self.last_value = self.value
+            self.set_value = set_value
         
         # Only add a unit label if the unit is specified
         if not unit is None:
@@ -200,6 +209,13 @@ class CLParamDropdown(QWidget):
         # define external callback functions to handle parameter updates
         self.update_callback = None
         self.units_update_callback = None
+
+    def revert(self):
+        self.dropdown.blockSignals(True)
+        self.dropdown.setCurrentIndex(self.last_index)
+        if self.editable:
+            self.set_value(self.last_value)
+        self.dropdown.blockSignals(False)
 
 
 class CLParamFile(QWidget):
