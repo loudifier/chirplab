@@ -21,7 +21,7 @@ class ImpulseResponse(CLMeasurement):
     MAX_WINDOW_END = 10000 # IR window can end up to 10s after t0
 
     ALIGNMENT_MODES = ['window start', 't=0', 'centered', 'fixed offset']
-    TRUNCATE_MODES = ['window end', 'fixed length (after t0)', 'full length']
+    TRUNCATE_MODES = ['window end', 'fixed length', 'full length']
 
     def __init__(self, name, params=None):
         if params is None:
@@ -34,7 +34,8 @@ class ImpulseResponse(CLMeasurement):
             self.params['fade_in'] = 10 # beginning of window ramps up with a half Hann window of width fade_in (must be <= window_start)
             self.params['window_end'] = 50
             self.params['fade_out'] = 25
-            self.params['ref_channel'] = 0 # channel to use as a timing reference so multiple impulse response outputs are time-aligned (mic array outputs relative to primary microphone, etc). When set to 0, the input channel time alignment is used.
+            self.params['ref_channel'] = 0 # signal to use as the reference for the impulse response calculation, where the impulse response is a model of the transfer function between an input signal (the ref_channel) and and output signal (the input channel selected in the main project). When ref_channel is 0, the stimulus signal is used as the reference
+            self.params['timing_channel'] = 0 # When ref_channel is 0, the input channel to use as a timing reference. This allows time alignment relative to the mean group delay of the timing reference, without being affected by variations in the reference channel's frequency or phase response. When set to 0, the input channel time alignment is used.
 
             self.params['alignment'] = 'window_start' # options determine how far the calculated impulse response is rolled to the right
                                      # 'window_start' rolls IR by window_start. If window_mode is 'raw', 'window_start' alignment will revert to 'offset'
@@ -56,13 +57,13 @@ class ImpulseResponse(CLMeasurement):
                 } # output sample rate is the same as the project analysis sample rate
             
     def measure(self):
-        if (self.params['ref_channel']==0) or (self.params['ref_channel']==clp.project['input']['channel']):
+        if (self.params['timing_channel']==0) or (self.params['timing_channel']==clp.project['input']['channel']):
             # skip time alignment if input channel is referenced to itself
             response = clp.signals['response']
         else:
             # get reference channel time alignment # todo: using same process as CLAnalysis.read_response(), which is the same process in PhaseResponse... see if these can be refactored or if they are all slightly too different from each other
             response = clp.signals['raw_response'][:,clp.project['input']['channel']-1]
-            reference = clp.signals['raw_response'][:,self.params['ref_channel']-1]
+            reference = clp.signals['raw_response'][:,self.params['timing_channel']-1]
 
             # resample input if necessary
             if clp.project['sample_rate'] != clp.IO['input']['sample_rate']:
@@ -214,24 +215,24 @@ class ImpulseResponse(CLMeasurement):
         self.window_params.update_callback = update_window_params
 
         # time reference channel dropdown
-        self.ref_channel = CLParamDropdown('Timing reference channel', ['input'])
-        self.param_section.addWidget(self.ref_channel)
-        def update_ref_channel(index): # todo: check more thoroughly for corner cases
-            self.params['ref_channel'] = index
+        self.timing_channel = CLParamDropdown('Timing reference', ['input'])
+        self.param_section.addWidget(self.timing_channel)
+        def update_timing_channel(index): # todo: check more thoroughly for corner cases
+            self.params['timing_channel'] = index
             self.measure()
             self.plot()
-        self.ref_channel.update_callback = update_ref_channel
+        self.timing_channel.update_callback = update_timing_channel
         def update_num_channels(num_channels):
-            channel_list = ['input'] + [str(chan) for chan in range(1, num_channels+1)] # todo: 'input' is not very descriptive... come up with a better name
-            self.ref_channel.dropdown.blockSignals(True)
-            self.ref_channel.dropdown.clear()
-            self.ref_channel.dropdown.addItems(channel_list)
-            if self.params['ref_channel'] > num_channels:
-                self.params['ref_channel'] = 0
-            self.ref_channel.dropdown.setCurrentIndex(self.params['ref_channel'])
-            self.ref_channel.dropdown.blockSignals(False)
+            channel_list = ['input channel'] + ['channel '+str(chan) for chan in range(1, num_channels+1)] # todo: 'input' is not very descriptive... come up with a better name
+            self.timing_channel.dropdown.blockSignals(True)
+            self.timing_channel.dropdown.clear()
+            self.timing_channel.dropdown.addItems(channel_list)
+            if self.params['timing_channel'] > num_channels:
+                self.params['timing_channel'] = 0
+            self.timing_channel.dropdown.setCurrentIndex(self.params['timing_channel'])
+            self.timing_channel.dropdown.blockSignals(False)
         self.update_num_channels = update_num_channels
-        self.update_num_channels(clp.IO['input']['channels'])
+        # self.update_num_channels(clp.IO['input']['channels']) # call below after initializing timing_channel dropdown
 
         # alignment dropdown
         self.alignment = CLParamDropdown('Time alignment', self.ALIGNMENT_MODES)
@@ -296,6 +297,11 @@ class ImpulseResponse(CLMeasurement):
                 self.offset.max = samples_to_ms(len(clp.signals['stimulus'])-1)
         self.offset.units_update_callback = update_offset_unit
         self.update_offset_unit = update_offset_unit
+
+        # reference channel dropdown
+        #self.ref_channel = CLParamDropdown('Reference signal', ['stimulus'])
+        self.update_num_channels(clp.IO['input']['channels'])
+        #self.param_section.addWidget(self.ref_channel)
 
 
         # output parameters
