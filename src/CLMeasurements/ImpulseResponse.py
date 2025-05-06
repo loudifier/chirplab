@@ -20,7 +20,7 @@ class ImpulseResponse(CLMeasurement):
     MAX_WINDOW_START = 1000 # fixed impulse response window can start up to 1s before t0
     MAX_WINDOW_END = 10000 # IR window can end up to 10s after t0
 
-    ALIGNMENT_MODES = ['window start', 't=0', 'centered', 'fixed offset']
+    ALIGNMENT_MODES = ['window start', 't0', 'centered', 'fixed offset']
     TRUNCATE_MODES = ['window end', 'fixed length', 'full length']
 
     def __init__(self, name, params=None):
@@ -39,15 +39,15 @@ class ImpulseResponse(CLMeasurement):
 
             self.params['alignment'] = 'window_start' # options determine how far the calculated impulse response is rolled to the right
                                      # 'window_start' rolls IR by window_start. If window_mode is 'raw', 'window_start' alignment will revert to 'offset'
-                                     # 't=0' does not roll the IR. Due to cross-correlation alignment the IR peak will be close to the first (or last) sample of the full IR.
-                                     # 'centered' rolls the IR by 1/2 of the total IR length, so the peak will be close to the halfway point. Truncation setting will be changed to 'full'
+                                     # 't0' does not roll the IR. Due to cross-correlation alignment the IR peak will be close to the first (or last) sample of the full IR.
+                                     # 'centered' rolls the IR by 1/2 of the total IR length, so the peak will be close to the halfway point. truncate_mode will be changed to 'full'
                                      # 'offset' rolls the IR by self.params['offset'] ms
             self.params['offset'] = 10 # length of time in ms to roll the IR to the right when alignment is 'offset'
 
             self.params['output'] = { # impulse response output is a wav file. If a noise sample is present a noise IR will be plotted in the GUI, but not output as a wav file. # todo: add an option to output a second channel or second wav file for noise?
                 #'unit': 'Y/X', # unit not actually used for anything, and wouldn't be accurate if output is normalized. Is it needed for anything?
                 # the total output length includes any time preceeding t0 determined by alignment settings, plus the time after t0 determined by truncation settings
-                'truncate_mode': 'window_end', # length of time to cut off impulse response after t=0
+                'truncate_mode': 'window_end', # length of time to cut off impulse response after t0
                                # 'window_end' truncates the impulse response to window_end
                                # 'fixed' truncates to self.params['output']['truncate_length'] ms after t0
                                # 'full' does not trim the impulse response at all. If window_start is 'centered', truncate_mode will be set to 'full'
@@ -178,7 +178,7 @@ class ImpulseResponse(CLMeasurement):
                 return round(len(clp.signals['stimulus'])/2)
             case 'offset':
                 return ms_to_samples(self.params['offset'])
-        # if alignment is 't=0' or not recognized
+        # if alignment is 't0' or not recognized
         return 0
 
     def init_tab(self):
@@ -267,7 +267,7 @@ class ImpulseResponse(CLMeasurement):
         match self.params['alignment']:
             case 'window_start':
                 alignment_index = 0
-            case 't=0':
+            case 't0':
                 alignment_index = 1
             case 'centered':
                 alignment_index = 2
@@ -287,7 +287,7 @@ class ImpulseResponse(CLMeasurement):
                 case 0:
                     self.params['alignment'] = 'window_start'
                 case 1:
-                    self.params['alignment'] = 't=0'
+                    self.params['alignment'] = 't0'
                 case 2:
                     self.params['alignment'] = 'centered'
                     self.params['output']['truncate_mode'] = 'full'
@@ -374,6 +374,8 @@ class ImpulseResponse(CLMeasurement):
                 self.truncate_length.set_numtype('float')
                 self.truncate_length.set_value(self.params['output']['truncate_length'])
                 self.truncate_length.max = len(clp.signals['stimulus'])-1 - self.calc_offset_samples()
+            self.measure()
+            self.plot()
         self.truncate_length.units_update_callback = update_truncate_length_units
         self.update_truncate_length_units = update_truncate_length_units
 
