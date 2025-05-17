@@ -2,7 +2,7 @@ import CLProject as clp
 from CLAnalysis import chirp_time_to_freq, freq_points, interpolate, FS_to_unit, fftconv, max_in_intervals
 from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams
 import numpy as np
-from CLMeasurements import CLMeasurement
+from CLMeasurements import CLMeasurement, FrequencyResponse
 import pandas as pd
 from scipy.fftpack import fft, ifft
 from scipy.signal.windows import hann
@@ -163,8 +163,13 @@ class ResidualDistortion(CLMeasurement):
         # if necessary, calculate moving RMS of raw response signal
         if self.params['mode'] != 'crestfactor':
             if self.params['output']['unit'] in ['dB', '%', '% (IEC method)']: # if peak or rms modes and output is a relative unit
-                ref_points = np.sqrt(pd.DataFrame(clp.signals['response']*clp.signals['response']).rolling(rms_samples, center=True, min_periods=1).mean())
-                ref_points = interpolate(response_freqs, np.array(ref_points)[:,0], self.out_freqs)
+                ref_fr = FrequencyResponse('fr')
+                ref_fr.params['output'] = self.params['output'].copy()
+                ref_fr.params['output']['unit'] = 'FS'
+                ref_fr.params['output']['min_auto'] = False # shouldn't actually have any impact, but set in case of future updates
+                ref_fr.params['output']['max_auto'] = False
+                ref_fr.measure()
+                ref_points = ref_fr.out_points
             else:
                 ref_points = None
 
