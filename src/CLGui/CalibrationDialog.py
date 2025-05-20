@@ -200,6 +200,13 @@ class CalibrationDialog(QDialog):
         tone_level = CLParameter('Measured tone level', '0', ['dBFS', 'FS'])
         tone_level.text_box.setEnabled(False)
         tab.panel.addWidget(tone_level)
+        def update_tone_level_unit(index):
+            if tone_level.value != '0': # skip conversion if not initialized
+                if index: # changing from dBFS to FS
+                    tone_level.set_value(str(10**(float(tone_level.value)/20)))
+                else:
+                    tone_level.set_value(str(20*np.log10(float(tone_level.value))))
+        tone_level.units_update_callback = update_tone_level_unit
 
         tab.panel.addWidget(QHSeparator())
 
