@@ -1,9 +1,7 @@
-chirp_length: 1.0
-chirplab_version: 0.4
 FS_per_Pa: 1.0
 FS_per_V: 1.0
-plot_noise: True
-save_noise: True
+chirp_length: 1.0
+chirplab_version: 0.5
 input:
   channel: 1
   file: speaker-response.wav
@@ -70,9 +68,11 @@ output:
   post_sweep: 0.5
   pre_sweep: 0.5
   sample_rate: 48000
+plot_noise: true
 post_sweep: 0.05
 pre_sweep: 0.05
 sample_rate: 48000
+save_noise: true
 start_freq: 20.0
 stop_freq: 20000
 use_input_rate: true

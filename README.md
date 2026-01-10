@@ -1,5 +1,5 @@
 # Chirplab
-Chirplab is an audio and acoutics measurement suite based on fast open-loop log-swept sine chirp generation, capture, and analysis.
+Chirplab is an audio and acoustics measurement suite based on fast open-loop log-swept sine chirp generation, capture, and analysis.
 
 <picture><img alt="Chirplab logo" src="img/splash.png"></picture>
 
@@ -61,6 +61,6 @@ With the decreasing number of audio devices that provide realtime audio passthro
 <br/>
 
 ## Project Status
-Chirplab v0.4 is in a basic usable state, supporting file and sound card input and output with real units calibration and a set of standard audio measurements, with additional features and measurement types in development. See the [roadmap](ROADMAP.md) for a high level list of currently implemented and planned features. Contributions are welcome.
+Chirplab v0.5 is in a basic usable state, supporting file and sound card input and output with real units calibration and a set of standard audio measurements, with additional features and measurement types in development. See the [roadmap](ROADMAP.md) for a high level list of currently implemented and planned features. Contributions are welcome.
 
 If you have a specific feature request not on the roadmap, find a bug, have an audio file or signal that does not play nicely with Chirplab, etc. please [raise an issue](https://github.com/loudifier/chirplab/issues).

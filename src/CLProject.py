@@ -36,7 +36,7 @@ sox_dl_url = 'https://sourceforge.net/projects/sox/files/sox/14.4.2/sox-14.4.2-w
 
 
 # when loading project files from older versions of chirplab, the project may be able to be upgraded for compatibility with current version
-CHIRPLAB_VERSION = 0.4
+CHIRPLAB_VERSION = 0.5
 
 
 # constants
@@ -63,7 +63,7 @@ PLOT_COLORS = [ # default color order used by MATLAB
     '#4DBEEE', # light blue
     '#A2142F'] # red
 NOISE_COLOR = '#808080'
-PLOT_PEN_WIDTH = 3 # some high density plots force the pen width to 1, which is much faster
+PLOT_PEN_WIDTH = 3 # some high density plots ignore this and force the pen width to 1, which is much faster
 
 
 # default project parameters
@@ -96,8 +96,8 @@ def new_project():
         
         # calibration parameters
         'FS_per_Pa': 1.0, # acoustic input level in Full Scale units per Pascal. e.g. for a 94dBSPL sensitivity of -37dBFS, FS_per_Pa = 0.0141
-        'FS_per_V': 1.0, # electrical input level in Full Scale units per Volt. e.g for a full scale input voltage of +16dBu, FS_per_V = 0.2045
-        # for an analog mic with -40dBV sensitivity and interface with +16dBu full scale input voltage (EMM-6 + Scarlett 2i2 at minimum gain), FS_per_V = 0.2045 and FS_per_Pa = 0.002045
+        'FS_per_V': 1.0, # electrical input level in Full Scale units per Volt. e.g for a full scale input voltage of +9dBu, FS_per_V = 0.4579
+        # for an analog mic with -40dBV sensitivity and interface with +9dBu full scale input voltage (EMM-6 + Scarlett 2i2 at minimum gain), FS_per_V = 0.4579 and FS_per_Pa = 0.004579
 
         # noise floor settings (measurements will calculate noise floor regardless of whether the noise floor is plotted or saved)
         'plot_noise': True, # plot the measurement noise floor in the GUI

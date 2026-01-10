@@ -1,4 +1,4 @@
-chirplab_version: 0.4
+chirplab_version: 0.5
 harmonic_fade_in: 0.1
 harmonic_fade_out: 0.5
 harmonic_window_end: 0.9

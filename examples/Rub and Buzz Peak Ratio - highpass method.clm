@@ -1,9 +1,15 @@
-chirplab_version: 0.4
+chirplab_version: 0.5
 filters:
-- Q: 0.707
+- Q: 0.51
   multiplier: 10
   type: highpass
-- Q: 0.707
+- Q: 0.6
+  multiplier: 10
+  type: highpass
+- Q: 0.9
+  multiplier: 10
+  type: highpass
+- Q: 2.56
   multiplier: 10
   type: highpass
 measured_signal: filtered peak

@@ -43,6 +43,7 @@ def main():
         
         app = mkQApp() # same as a regular QApplication, but first sets up some environment stuff to handle DPI scaling across multiple monitors
         app.setAttribute(Qt.ApplicationAttribute.AA_DisableWindowContextHelpButton)
+        # todo: seems like mkQApp sets the default window icon. Override that to the Chirplab icon
     
     if args.project:
         try:

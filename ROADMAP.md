@@ -11,6 +11,8 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - Technically, any audio file format that SoX understands is already supported by manually entering the full filename and extension and/or using the 'All files' filter in the input file picker.
 - [ ] Native file I/O without using SoX as an intermediary
     - SoX is used as a robust, fast, lightweight, and readily available universal file conversion utility. This comes with the downside of needing a separate download and potentially introduces security issues to work around SoX's strange stderr output. The SciPy wavfile module works for 16 and 32 bit int and 32 bit floating point WAV files, but does not properly handle common 24 bit WAV files or any other formats, so the current solution is to use SoX to convert input files to a 32 bit floating point WAV (including any resampling) and read the WAV with wavfile (and vice versa for output files).
+    - Everything works fine, except SoX converts all files to a 32-bit *integer* format when reading files and there is no appetite from the SoX maintainers to make any updates... Loss of precision with 32 bit floating point is of slight concern, but a bigger issue is the inability to read and write floating point input files that exceed ±1.0FS. https://sourceforge.net/p/sox/mailman/sox-users/thread/20230522070824.6g2tkoksss72ay5t%40fastmail.com/
+    - https://github.com/bastibe/python-soundfile seems to be the most common alternative to SciPy wavfile. See if it works for floating point files exceeding full scale. Would still need some sort of resampling solution...
 - [ ] Multi-channel/Multi-file/Multi-capture support
     - Analyzing additional signals is trivial on top of implementing the actual signal analysis in any given measurement, but managing the UI and how the user *expects* multi-channel analysis to work gets very complex very quickly. How multiple measurement inputs are selected, how outputs are displayed with or without measurement noise floor(s), storing measurement outputs and adding new measurement traces, and handling a geometrically expanding set of UI interactions can derail the development of other features and measurements.
 
@@ -57,12 +59,17 @@ Features in each subheading are ordered roughly in order of prioritization. This
         - Any way to clearly communicate measurement noise floor in spectrogram? Maybe something like how cameras show clipping with zerba overlay?
 - [x] Impulse Response
     - [x] Parameters
-        - IR length, pre-post trimming
-        - Windowing fade in/out
-        - Wrapped with time aligned to t0 or shifted/rolled to the right
-        - Normalized or raw - may need to specify floating point if outputting to WAV (verify SoX/wavfile behavior with floating point values greater than 1.0)
+        - [x] IR length, pre-post trimming
+        - [x] Windowing fade in/out
+        - [x] Wrapped with time aligned to t0 or shifted/rolled to the right
+        - [x] Normalized or raw
+        - [x] Select channel used as reference
+        - [x] Select channel used for timing reference, similar to phase response/group delay selection
+    - [x] Output IR as wav file
+        - [x] Selectable bit depth
+        - [ ] ~~Verify SoX/wavfile behavior with floating point values greater than 1.0~~ SoX clips files internally... add warning if clipping occurs
     - [x] Measurement noise floor output off by default when outputting IR waveforms, but is plotted in GUI. Add options to have a second channel or second wav file for exporting noise IR?
-- [ ] Reverberation
+- [ ] ~~Reverberation~~
     - Not sure if this really fits with Chirplab. Branch created with stubs based on ImpulseResponse, but not actually adding for now
     - [ ] Several different methods commonly used. Start out using IR as raw input for energy decay curve and see how easy/effectively RT60 can be derived
     - [ ] Output broadband, at 1kHz, or as times vs frequency?
@@ -75,6 +82,12 @@ Features in each subheading are ordered roughly in order of prioritization. This
         - Color-coding the surface plot could help highlight problem resonances. Simple blue to orange gradient vs time? Gradient for time multiplied by amplitude (either absolute amplitude or relative to t0 for that frequency)?
         - Maybe have a toggle to plot color-coded 2D. The 2D plotting is still in the code but skipped
     - [ ] Figure out how to plot measurement noise floor without making the graph too busy
+- [ ] Thiele-Small Parameters
+    - Right on the edge of being in scope...
+    - [ ] Guide for settting everything up, calibrating to measure impedance
+        - Include guidance on using noise floor as a guideline to reduce drive level to stay within linear range as much as posible. Explain some of the limitations of using chirps for impedance measurements, why Klippel uses multitone/noise, warn about drive level and sweep direction influencing apparent F0, other parameters. Can any of the Klippel LSI stuff be done purely with chirps?
+    - [ ] Do the math to derive TS params from impedance curve - there are probably existing implementations that can be used for reference
+    - [ ] Option to output impedance curve
 
 ## General features
 - [x] Real units calibration - some sort of 'Pa per FS' and 'Volts per FS' conversion factors so output units can be expressed in real units
@@ -109,12 +122,13 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Any accessibility issues will be prioritized. Please raise an issue if you identify UI elements with poor contrast or color contrast, excessive flashing, etc.
         - [x] Graph colors are blue/orange by default, avoid red/green
         - [ ] Qt elements are pretty good about keyboard controls and I tried to include hotkeys for all standard options, but there are a lot of UI elements, so I may have missed some
-        - [ ] I am not very familiar with screen readers, but I believe Qt should have good support natively
+        - [ ] I am not familiar with screen readers, but I believe Qt should have good support natively
     - [ ] Proper scaling over a wide range of DPI. Mostly works, but graph exports seem small
     - [ ] Speed up plotting, particularly chirp tab updating every time a chirp parameter spinbox is clicked
         - pyqtgraph downsampling and setting pen width to 1 helps a lot. Also try the skip finite check
         - see if there is a good way to pause the graph updating, plot all of the data, then draw at once. Might be able to avoid a triple redraw when updating stimulus, response, and noise together. Seems like the bottleneck is .drawLines(), so it might not be any faster (probably also not much faster to .setData())
         - maybe add a short delay of ~1s before recalculating to allow spamming a spin box and recalculating with whatever value the user lands on
+        - look into fastplotlib. Looks promising, surface meshes are on the roadmap
     - [ ] Bundle Windows exe in such a way that GUI launches without console window and CLI/GUI both output to stdout. Current solution still flashes console window when launching GUI. https://pyinstaller.org/en/stable/feature-notes.html#automatic-hiding-and-minimization-of-console-window-under-windows
 - [ ] Undo/redo - a lot of work with many edge cases that need to be handled, but would be really nice to have
 - [ ] Customize pyqtgraph. Right-click menu with reset and dialog to set ranges and scales, click on trace to show point values, etc.
@@ -127,6 +141,8 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Additional overrides?
 - [x] Generate stimulus file from project file settings
 - [ ] Measure calibration tone from a file and apply the calibration to a project file
+- [ ] Handle wildcards (and/or some sort of list entry?) for multiple input files in file override
+- [ ] handle list or range for channel override
 
 ## Other
 - [x] Build automation. Github actions automatically bundle Windows exe on push and add bundle to releases
@@ -137,6 +153,8 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Project file format
     - [ ] Calibration guide (including clear explanation of 3dB RMS vs peak compensation)
     - [ ] Explanations of individual measurements. How they work, what the different parameters do, what the outputs mean, etc.
+    - [ ] VCAD guide
+    - [ ] Collect data and add graphs for HOHD, highpass, residual Rub and Buzz
 - [ ] Testing
     - End-to-end tests of measurement outputs from different input signals, rather than typical TDD-style units tests
     - Ground truth comparisons to other measurement software
