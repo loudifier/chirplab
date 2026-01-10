@@ -275,6 +275,7 @@ class ResidualDistortion(CLMeasurement):
         self.harmonic_range.unit.setText(harmonic_suffix(self.params['max_harmonic']))
         def update_harmonic_range(new_val):
             self.params['max_harmonic'] = new_val
+            self.output_points.update_min_max()
             self.harmonic_range.unit.setText(harmonic_suffix(new_val))
             self.measure()
             self.plot()
@@ -315,6 +316,6 @@ class ResidualDistortion(CLMeasurement):
         return clp.project['start_freq']
     
     def calc_auto_max_freq(self):
-        return clp.project['stop_freq']
+        return clp.project['stop_freq'] / self.params['max_harmonic']
 
 
