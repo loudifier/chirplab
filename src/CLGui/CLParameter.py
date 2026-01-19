@@ -1,6 +1,7 @@
 import CLProject as clp
 from qtpy.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QComboBox, QDoubleSpinBox, QAbstractSpinBox, QPushButton, QFileDialog, QCheckBox
 import numpy as np
+from CLGui import undo_stack
 
 # collection of combination classes for displaying and entering configuration parameters
 # typically a label on the left, text box or similar element in the middle, and sometimes a unit label or dropdown on the right
@@ -95,9 +96,11 @@ class CLParamNum(QWidget):
                 new_val = int(round(new_val))
             #self.spin_box.setValue(self.value) # fires an extra callback, call self.set_value() instead
             self.set_value(min(max(new_val, self.min), self.max)) # update if rounded or changed to min/max
-            if not self.update_callback is None:
+            if self.update_callback is not None:
                 self.update_callback(self.value)
+            undo_stack.push(self.undo_redo, self.last_value)
             self.last_value = self.value
+        
         self.spin_box.valueChanged.connect(valueChanged)
         
         # Only add a unit label if the unit is specified
@@ -147,6 +150,12 @@ class CLParamNum(QWidget):
             self.spin_box.setStepType(QAbstractSpinBox.StepType.DefaultStepType)
             self.spin_box.setDecimals(0)
             # default step value should still be 1
+
+    def undo_redo(self, undo_redo, value):
+        self.set_value(value)
+        self.last_value = value
+        if self.update_callback is not None:
+                self.update_callback(self.value)
 
 
 class CLParamDropdown(QWidget):

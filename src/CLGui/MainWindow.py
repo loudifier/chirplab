@@ -1,7 +1,7 @@
 import CLProject as clp
 from qtpy.QtWidgets import QMainWindow, QTabWidget, QTabBar, QGridLayout, QWidget, QApplication, QFileDialog, QErrorMessage, QMessageBox, QDialog, QDialogButtonBox, QVBoxLayout, QProxyStyle, QStyle, QLabel, QSizePolicy
 from qtpy.QtGui import QAction, QIcon, QPalette, QKeySequence, QPixmap
-from CLGui import ChirpTab, CLParamDropdown, CLParameter, QHSeparator
+from CLGui import ChirpTab, CLParamDropdown, CLParameter, QHSeparator, undo_stack
 from CLMeasurements import init_measurements, is_valid_measurement_name
 from CLAnalysis import generate_stimulus
 from pathlib import Path
@@ -161,6 +161,15 @@ class MainWindow(QMainWindow):
         file_menu.addAction(quit_action)
         quit_action.triggered.connect(self.close)
         
+
+        edit_menu = menubar.addMenu(' &Edit ')
+        edit_menu.setStyle(MenuProxyStyle(edit_menu.style()))
+
+        undo = QAction('Undo', self, shortcut=QKeySequence('Ctrl+Z'))
+        edit_menu.addAction(undo)
+        undo.triggered.connect(undo_stack.undo)
+        #todo: initialize disabled, add handle for undo stack to enable/disable undo/redo
+
         
         measurement_menu = menubar.addMenu(' &Measurement')
         file_menu.setStyle(MenuProxyStyle(file_menu.style()))
