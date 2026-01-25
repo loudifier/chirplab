@@ -172,6 +172,9 @@ class ChirpParameters(QCollapsible):
                 else:
                     clp.project['use_input_rate'] = False
                     clp.project['sample_rate'] = new_rate
+                self.start_freq.max = clp.project['sample_rate']/2
+                self.stop_freq.max = clp.project['sample_rate']/2
+                # todo: reduce start/stop freq if they exceed new max
                 update_pre_sweep_units(self.pre_sweep.units.currentIndex())
                 update_post_sweep_units(self.post_sweep.units.currentIndex())
                 chirp_tab.update_stimulus()
@@ -246,6 +249,7 @@ class OutputParameters(QCollapsible):
         def update_output_mode(index):
             # inelegant to recreate the panel each time the mode is updated, but FileOutput/DeviceOutput both change shared clp.project and actually switching still feels fast in the GUI
             # todo: check for weird memory leaks or corner cases with .replaceWidget() and .close(). Searching for anything related to replacing/deleting widgets seems to show a lot of different approaches with differing results
+            # todo: thise needs to be completely reworked for undo/redo
             current_widget = self.output_frame.layout().itemAt(0).widget()
             if index:
                 clp.project['output']['mode'] = 'device'
@@ -827,6 +831,7 @@ class FileInput(QFrame):
                 
                 update_input_length_units(self.input_length.units.currentIndex())
                 self.sample_rate.set_value(str(EngNumber(file_info['sample_rate'])))
+                # todo: check if analysis is set to 'use input rate' and update
                 self.num_channels.set_value(file_info['channels'])
                 update_num_channels(file_info['channels'])
                 self.channel.setEnabled(True)
@@ -1044,6 +1049,7 @@ class DeviceInput(QFrame):
                 clp.project['input']['sample_rate'] = new_rate
                 self.sample_rate.value = new_rate # set manually because calling externally with new_rate skips CLParamDropdown callback
                 self.sample_rate.last_value = new_rate
+                # todo: check if analysis is set to 'use input rate' and update
                 update_capture_length_units(self.capture_length.units.currentIndex())
             else:
                 self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
