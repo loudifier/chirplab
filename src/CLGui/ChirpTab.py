@@ -42,6 +42,13 @@ class ChirpTab(CLTab):
         # Input file or audio device section
         self.input_params = InputParameters(self)
         self.panel.addWidget(self.input_params)
+
+        # update output mode after input_params is initialized
+        if clp.project['output']['mode'] == 'file':
+            self.output_params.update_output_mode(0)
+        else:
+            self.output_params.update_output_mode(1)
+            self.output_params.expand()
         
 
     def update_stimulus(self):
@@ -272,11 +279,8 @@ class OutputParameters(QCollapsible):
         self.output_frame.layout().addWidget(QFrame())
         self.addWidget(self.output_frame)
 
-        if clp.project['output']['mode'] == 'file':
-            update_output_mode(0)
-        else:
-            update_output_mode(1)
-            self.expand()
+        # update_output_mode call moved to after InputParameters are created in ChirpTab init. Avoids potentially referencing chirp_tab.input_params before it exists
+        self.update_output_mode = update_output_mode
 
 
 class FileOutput(QFrame):
