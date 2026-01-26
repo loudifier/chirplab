@@ -18,8 +18,8 @@ signals = {}
 IO = {'input':{'length_samples':0,
                'sample_rate':0,
                'channels':0,
-               'numtype':''},
-               'delay': 0, # detected chirp time offset in samples from the start of the signal (at the most recently calculated project analysis sample rate, *not* the raw input sample rate)
+               'numtype':'',
+               'delay': 0}, # detected chirp time offset in samples from the start of the signal (at the most recently calculated project analysis sample rate, *not* the raw input sample rate)
       'output':{}}
 
 # list of measurement objects (to be defined and instantiated based on measurement parameters in project dict)
@@ -155,6 +155,18 @@ def load_project_file(load_path):
         # todo: add some sort of project format validation
         project = yaml.safe_load(in_file)
     
+    # todo: resetting globals is just duplicated from top of file, refactor this to some sort of start-from-scratch function
+    global signals
+    signals = {}
+
+    global IO
+    IO = {'input':{'length_samples':0,
+                   'sample_rate':0,
+                   'channels':0,
+                   'numtype':'',
+                   'delay': 0},
+      'output':{}}
+
     global project_file
     project_file = load_path
     

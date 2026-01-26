@@ -115,11 +115,15 @@ class PhaseResponse(CLMeasurement):
             else: # calculate phase relative to reference channel
                 # align and trim reference channel from raw response (same process as CLAnalysis.read_response())
                 # get the input channel and the reference channel
-                response = clp.signals['raw_response'][:,clp.project['input']['channel']-1]
-                reference = clp.signals['raw_response'][:,self.params['ref_channel']-1]
+                if 'raw_response' not in clp.signals:
+                    response = np.zeros(len(clp.signals['stimulus']))
+                    reference = np.zeros(len(clp.signals['stimulus']))
+                else:
+                    response = clp.signals['raw_response'][:,clp.project['input']['channel']-1]
+                    reference = clp.signals['raw_response'][:,self.params['ref_channel']-1]
 
                 # resample input if necessary
-                if clp.project['sample_rate'] != clp.IO['input']['sample_rate']:
+                if clp.project['sample_rate'] != clp.IO['input']['sample_rate'] and clp.IO['input']['sample_rate'] != 0:
                     if clp.project['use_input_rate']:
                         clp.project['sample_rate'] = clp.IO['input']['sample_rate']
                     else:
