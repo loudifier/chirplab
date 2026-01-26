@@ -9,4 +9,4 @@ requests
 pandas
 pathvalidate
 pyyaml
-pyaudio # requires `apt install portaudio19-dev` on linux, `brew install portaudio` on mac
+pyaudio # requires `apt install portaudio19-dev` on linux, `brew install portaudio` on mac. At time of writing, Windows wheels are only pre-built up to Python 3.13
