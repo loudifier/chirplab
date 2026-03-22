@@ -98,7 +98,7 @@ class CLParamNum(QWidget):
             self.set_value(min(max(new_val, self.min), self.max)) # update if rounded or changed to min/max
             if self.update_callback is not None:
                 self.update_callback(self.value)
-            undo_stack.push(self.undo_redo, self.last_value)
+            undo_stack.push(self.undo_redo, self.last_value, self.undo_redo, self.value)
             self.last_value = self.value
         
         self.spin_box.valueChanged.connect(valueChanged)
@@ -151,7 +151,7 @@ class CLParamNum(QWidget):
             self.spin_box.setDecimals(0)
             # default step value should still be 1
 
-    def undo_redo(self, undo_redo, value):
+    def undo_redo(self, value): # undo and redo are identical, use the same function
         self.set_value(value)
         self.last_value = value
         if self.update_callback is not None:

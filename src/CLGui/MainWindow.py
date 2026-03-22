@@ -54,6 +54,8 @@ class MainWindow(QMainWindow):
             self.chirp_tab.update_stimulus()
             self.last_saved_project = deepcopy(clp.project)
             self.setWindowTitle('Chirplab - ' + Path(clp.project_file).name)
+            if hasattr(self, 'undo'): # todo: really need to figure out how to completely start a new process instead of resetting every piece of active state...
+                undo_stack.clear()
         load_project()
         
         layout = QGridLayout() # base layout. Only 0,0 used
@@ -165,11 +167,19 @@ class MainWindow(QMainWindow):
         edit_menu = menubar.addMenu(' &Edit ')
         edit_menu.setStyle(MenuProxyStyle(edit_menu.style()))
 
-        undo = QAction('Undo', self, shortcut=QKeySequence('Ctrl+Z'))
-        edit_menu.addAction(undo)
-        undo.triggered.connect(undo_stack.undo)
-        #todo: initialize disabled, add handle for undo stack to enable/disable undo/redo
+        self.undo = QAction('&Undo', self, shortcut=QKeySequence('Ctrl+Z'))
+        edit_menu.addAction(self.undo)
+        self.undo.triggered.connect(undo_stack.undo)
 
+        self.redo = QAction('&Redo', self, shortcut=QKeySequence('Ctrl+Y'))
+        edit_menu.addAction(self.redo)
+        self.redo.triggered.connect(undo_stack.redo)
+
+        # initialize undo/redo disabled, let undo stack manage their state
+        self.undo.setEnabled(False)
+        self.redo.setEnabled(False)
+        undo_stack.undo_action = self.undo 
+        undo_stack.redo_action = self.redo
         
         measurement_menu = menubar.addMenu(' &Measurement')
         measurement_menu.setStyle(MenuProxyStyle(measurement_menu.style())) # todo: should be applying to measurement menu, add style to other menus
