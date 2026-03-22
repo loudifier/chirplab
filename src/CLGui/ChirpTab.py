@@ -144,6 +144,11 @@ class ChirpParameters(QCollapsible):
                 self.chirp_length.min = clp.MIN_CHIRP_LENGTH
                 self.chirp_length.max = clp.MAX_CHIRP_LENGTH
                 self.chirp_length.set_value(clp.project['chirp_length'])
+
+                # workaround for X range not being set when data is too small and downsampling is being used https://github.com/pyqtgraph/pyqtgraph/issues/2328
+                x_range = chirp_tab.graph.getViewBox().viewRange()[0]
+                chirp_tab.graph.setXRange(x_range[0]/clp.project['sample_rate'],x_range[1]/clp.project['sample_rate'])
+                chirp_tab.graph.enableAutoRange(axis='x')
             else:
                 self.chirp_length.min = clp.MIN_CHIRP_LENGTH*clp.project['sample_rate']
                 self.chirp_length.max = clp.MAX_CHIRP_LENGTH*clp.project['sample_rate']
