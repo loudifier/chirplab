@@ -299,7 +299,7 @@ class Waterfall(CLMeasurement):
 
         log_freqs = np.log10(self.out_freqs)
         x, y = np.meshgrid(log_freqs, self.out_times)
-        self.tab.graph.axes.plot_surface(x, y, self.out_points)
+        self.tab.graph.axes.plot_surface(x, y, self.out_points, antialiased=False, linewidth=0)
         self.tab.graph.axes.set_zlabel('Amplitude (' + self.params['output']['unit'] + ')')
         self.tab.graph.draw_idle()
         
@@ -413,7 +413,7 @@ matplotlib.rcParams["figure.autolayout"] = True # default to tight_layout
 #matplotlib.rcParams['path.simplify'] = True
 #matplotlib.rcParams['path.simplify_threshold'] = 1.0
 
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar # todo: test if this breaks compatiblity with other PyQt bindings
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 
 class MplCanvas(FigureCanvasQTAgg):
@@ -421,4 +421,5 @@ class MplCanvas(FigureCanvasQTAgg):
     def __init__(self, parent=None, width=5, height=4, dpi=100): # DPI doesn't seem to make artefacts better/worse, Qt or actual display DPI might.
         fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = fig.add_subplot(111, projection='3d')
+        matplotlib.rcParams['axes3d.mouserotationstyle'] = 'azel'
         super(MplCanvas, self).__init__(fig)

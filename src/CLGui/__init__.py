@@ -6,6 +6,7 @@ from qtpy.QtWidgets import QFrame
 
 pg.setConfigOption('background', clp.GRAPH_BG)
 pg.setConfigOption('foreground', clp.GRAPH_FG)
+pg.setConfigOptions(useOpenGL=True)
 
 
 # version of the pyqtgraph AxisItem that formats ticks with engineering notation prefixes (1e4 -> 10k)

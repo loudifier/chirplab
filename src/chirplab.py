@@ -42,7 +42,8 @@ def main():
                 win32gui.ShowWindow(hWnd, 0) # hide the console window
         
         app = mkQApp() # same as a regular QApplication, but first sets up some environment stuff to handle DPI scaling across multiple monitors
-        app.setAttribute(Qt.ApplicationAttribute.AA_DisableWindowContextHelpButton)
+        if hasattr(Qt.ApplicationAttribute,'AA_DisableWindowContextHelpButton'): #PyQt5 adds a help question mark to all dialog boxes. Doesn't exist in PySide6
+            app.setAttribute(Qt.ApplicationAttribute.AA_DisableWindowContextHelpButton)
         # todo: seems like mkQApp sets the default window icon. Override that to the Chirplab icon
     
     if args.project:
