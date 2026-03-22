@@ -21,7 +21,9 @@ jobs:
         pip install -r build/requirements.txt
 
     - name: Build executable
-      run: pyinstaller build/chirplab.spec
+      run: |
+        cd build
+        pyinstaller build/chirplab.spec
 
     - uses: actions/upload-artifact@v4
       with:
