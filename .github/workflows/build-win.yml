@@ -23,7 +23,7 @@ jobs:
     - name: Build executable
       run: |
         cd build
-        pyinstaller build/chirplab.spec
+        pyinstaller chirplab.spec
 
     - uses: actions/upload-artifact@v4
       with:
