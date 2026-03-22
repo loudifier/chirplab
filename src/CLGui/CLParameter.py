@@ -113,10 +113,19 @@ class CLParamNum(QWidget):
                 self.units = QComboBox()
                 self.units.addItems(unit)
                 self.layout.addWidget(self.units)
+                self.units.last_index = 0
                 def unitsIndexChanged(index):
-                    if not self.units_update_callback is None:
+                    if self.units_update_callback is not None:
                         self.units_update_callback(index)
+                    undo_stack.push(units_undo_redo, self.units.last_index, units_undo_redo, index)
+                    self.units.last_index = index
                 self.units.currentIndexChanged.connect(unitsIndexChanged)
+                def units_undo_redo(index):
+                    self.units.setCurrentIndex(index)
+                    self.units.last_index = index
+                    if self.units_update_callback is not None:
+                            self.units_update_callback(index)
+
         
         # define external callback functions to handle parameter updates
         self.update_callback = None
