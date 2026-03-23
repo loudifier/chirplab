@@ -37,13 +37,14 @@ jobs:
       run: |
         cd build/dist/chirplab
         Compress-Archive -Path ./* -DestinationPath chirplab_${{  github.ref_name }}_win.zip
+        dir
         cd ../../../
 
     - name: Add bundle to release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
-        files: build/dist/windows/chirplab_${{  github.ref_name }}_win.zip
+        files: build/dist/chirplab/chirplab_${{  github.ref_name }}_win.zip
 
 
 
