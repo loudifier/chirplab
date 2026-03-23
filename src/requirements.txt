@@ -1,10 +1,11 @@
 numpy
 scipy
-pyqt5 # should be able to use any standard Qt bindings. PyQt5 used for most development and testing
+pyside6 # should be able to use any standard Qt bindings. PySide6 used for default GitHub Windows builds
 qtpy
 pyqtgraph
-pyopengl
-matplotlib # replaced with pyqtgraph but pyqtgraph allows exporting to matplotlib, may remove that from right-click menu at some point
+pyopengl # OpenGL packages not actually needed for PyQt5
+pyopengl_accelerate
+matplotlib # replaced with pyqtgraph (for everything except for waterfall at this point) but pyqtgraph allows exporting to matplotlib, may remove that from right-click menu at some point
 engineering_notation
 requests
 pandas
