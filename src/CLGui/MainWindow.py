@@ -163,7 +163,7 @@ class MainWindow(QMainWindow):
         
         
         measurement_menu = menubar.addMenu(' &Measurement')
-        file_menu.setStyle(MenuProxyStyle(file_menu.style()))
+        measurement_menu.setStyle(MenuProxyStyle(measurement_menu.style())) # todo: should be applying to measurement menu, add style to other menus
         
         add_measurement = QAction('&Add Measurement', self, shortcut=QKeySequence('Ctrl+A'))
         measurement_menu.addAction(add_measurement)
@@ -551,7 +551,7 @@ class MenuProxyStyle(QProxyStyle):
             margin = 10
             self.proxy().drawItemText(painter, option.rect.adjusted(margin, 0, -margin, 0), 
                 QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter,
-                option.palette, option.state & QStyle.State_Enabled, 
+                option.palette, bool(option.state & QStyle.State_Enabled), 
                 shortcut, QPalette.Text) # different palette options don't seem to actually affect the text # todo: figure out how to show the text as lighter than actual menu item text
             
 class AboutWindow(QDialog):
