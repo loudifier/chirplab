@@ -182,7 +182,7 @@ class MainWindow(QMainWindow):
         undo_stack.redo_action = self.redo
         
         measurement_menu = menubar.addMenu(' &Measurement')
-        measurement_menu.setStyle(MenuProxyStyle(measurement_menu.style())) # todo: should be applying to measurement menu, add style to other menus
+        measurement_menu.setStyle(MenuProxyStyle(measurement_menu.style()))
         
         add_measurement = QAction('&Add Measurement', self, shortcut=QKeySequence('Ctrl+A'))
         measurement_menu.addAction(add_measurement)
@@ -406,6 +406,7 @@ class MainWindow(QMainWindow):
         
         
         help_menu = menubar.addMenu(' &Help ')
+        help_menu.setStyle(MenuProxyStyle(help_menu.style()))
         
         docs_link = QAction('&Quick Start and wiki', self)
         help_menu.addAction(docs_link)
