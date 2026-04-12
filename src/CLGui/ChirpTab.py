@@ -263,8 +263,6 @@ class OutputParameters(QCollapsible):
         self.device_output = DeviceOutput(chirp_tab) # todo: do something to delay initializing hardware if starting in file mode?
         self.file_output = FileOutput(chirp_tab)
         def update_output_mode(index):
-            # is there a situation where the current widget is already set, or is it safe to assume update_output_mode is always changing from one to the other type?
-            # current_widget = self.output_frame.layout().itemAt(0).widget()
             if index:
                 clp.project['output']['mode'] = 'device'
                 self.file_output.hide()
@@ -276,16 +274,18 @@ class OutputParameters(QCollapsible):
             else:
                 clp.project['output']['mode'] = 'file'
                 self.device_output.hide()
+                self.file_output.sync(self.device_output)
                 self.output_frame.layout().replaceWidget(self.device_output, self.file_output)
                 self.file_output.show()
                 if clp.project['input']['mode'] == 'device':
                     chirp_tab.input_params.device_input.capture_button.setText('Capture Response')
-            chirp_tab.io_changed.emit() # todo: is this actually used anywhere? Add comment with expected use or remove...
+            chirp_tab.io_changed.emit() # main window listens for io_changed, updates analyze/generate button text
+            # todo: pretty sure io_changed was a workaround for previous implmenetation of creating a new set of parameter controls when switching between file and device mode
+            # could/should probably remove signal and change text directly from mode update function (also update for output mode)
         self.mode_dropdown.currentIndexChanged.connect(update_output_mode)
         
         self.output_frame = QFrame()
         QVBoxLayout(self.output_frame)
-        # self.output_frame.layout().addWidget(QFrame())
         if clp.project['output']['mode'] == 'file':
             self.output_frame.layout().addWidget(self.file_output)
         else:
@@ -499,6 +499,27 @@ class FileOutput(QFrame):
                 generate_stimulus_file(output_file_path)
         self.output_file_button.clicked.connect(generate_output_file)
         self.generate_output_file = generate_output_file
+
+    def sync(self, device_output):
+        # update any elements that may have been changed while output was set to file mode
+        self.amplitude.units.setCurrentIndex(device_output.amplitude.units.currentIndex()) # fires callback if units are changed
+        self.amplitude.units_update_callback(self.amplitude.units.currentIndex()) # force firing callback (which updates values) in case units are not changed
+
+        self.pre_sweep.units.setCurrentIndex(device_output.pre_sweep.units.currentIndex())
+        self.pre_sweep.units_update_callback(self.pre_sweep.units.currentIndex())
+        
+        self.post_sweep.units.setCurrentIndex(device_output.post_sweep.units.currentIndex())
+        self.post_sweep.units_update_callback(self.post_sweep.units.currentIndex())
+        
+        self.output_length.units.setCurrentIndex(device_output.output_length.units.currentIndex())
+        self.output_length.units_update_callback(self.output_length.units.currentIndex())
+
+        self.include_silence.setChecked(clp.project['output']['include_silence'])
+        
+        self.sample_rate.set_value(clp.project['output']['sample_rate'])
+        self.sample_rate.update_callback(-1)
+        
+        self.channel.update_callback(channel=clp.project['output']['channel']) 
 
 
 class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, but trying to DRY it out introduces a lot of weird coupling. Simpler to keep it separate
@@ -792,23 +813,25 @@ class InputParameters(QCollapsible):
         self.mode_dropdown = QComboBox()
         self.addWidget(self.mode_dropdown)
         self.mode_dropdown.addItems(['File', 'Device'])
+        if clp.project['input']['mode'] == 'device':
+            self.mode_dropdown.setCurrentIndex(1)
+        self.device_input = DeviceInput(chirp_tab)
+        self.file_input = FileInput(chirp_tab)
         def update_input_mode(index):
-            clp.IO['input']['length_samples'] = 0
-            clp.IO['input']['sample_rate'] = 0
-            clp.IO['input']['channels'] = 0
-            clp.IO['input']['numtype'] = 0
-            
-            current_widget = self.input_frame.layout().itemAt(0).widget()
             if index:
                 clp.project['input']['mode'] = 'device'
-                self.device_input = DeviceInput(chirp_tab)
-                self.input_frame.layout().replaceWidget(current_widget, self.device_input)
+                self.file_input.hide()
+                self.device_input.sync()
+                self.input_frame.layout().replaceWidget(self.file_input, self.device_input)
+                self.device_input.show()
             else:
                 clp.project['input']['mode'] = 'file'
-                self.file_input = FileInput(chirp_tab)
-                self.input_frame.layout().replaceWidget(current_widget, self.file_input)
-            current_widget.close()
-            chirp_tab.io_changed.emit()
+                self.device_input.hide()
+                self.file_input.sync()
+                self.input_frame.layout().replaceWidget(self.device_input, self.file_input)
+                self.file_input.show()
+
+            chirp_tab.io_changed.emit() # todo: probably could/should be removed. See update_output_mode comments
         self.mode_dropdown.currentIndexChanged.connect(update_input_mode)
 
         self.input_frame = QFrame()
@@ -817,9 +840,9 @@ class InputParameters(QCollapsible):
         self.addWidget(self.input_frame)
 
         if clp.project['input']['mode'] == 'file':
-            update_input_mode(0)
+            self.input_frame.layout().addWidget(self.file_input)
         else:
-            update_input_mode(1)
+            self.input_frame.layout().addWidget(self.device_input)
 
 
         # calibration parameters section
@@ -969,6 +992,10 @@ class FileInput(QFrame):
             chirp_tab.analyze()
         self.analyze_button.clicked.connect(analyze)
         self.analyze = analyze
+
+    def sync(self):
+        # update clp.IO['input'] to reflect file input after switching from device input
+        self.update_input_file(clp.project['input']['file'])
 
 
 class DeviceInput(QFrame):
@@ -1235,3 +1262,8 @@ class DeviceInput(QFrame):
             else:
                 self.save.setEnabled(False) # disable button if it is accidentally left enabled after raw response is cleared
         self.save.clicked.connect(save_capture)
+
+    def sync(self):
+        # update clp.IO['input'] to reflect device input after switching from file input
+        # refresh devices?
+        self.api.update_callback(self.api.dropdown.currentIndex())
