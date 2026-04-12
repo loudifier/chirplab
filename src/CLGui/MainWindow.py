@@ -426,6 +426,7 @@ class MainWindow(QMainWindow):
         
     def init_tabs(self):
         self.tabs.blockSignals(True)
+        undo_stack.paused = True
         
         # build (or rebuild) full set of chirp, measurement, and add measurement tabs from the current clp.project
         self.tabs.clear()
@@ -444,6 +445,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(QWidget(), ' + ')
         
         self.tabs.blockSignals(False)
+        undo_stack.paused = False
         
     def is_project_changed(self):
         # checks the current clp.project against the most recent saved or loaded project
