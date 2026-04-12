@@ -258,30 +258,38 @@ class OutputParameters(QCollapsible):
         self.mode_dropdown = QComboBox()
         self.addWidget(self.mode_dropdown)
         self.mode_dropdown.addItems(['File','Device'])
+        if clp.project['output']['mode'] == 'device':
+            self.mode_dropdown.setCurrentIndex(1)
+        self.device_output = DeviceOutput(chirp_tab) # todo: do something to delay initializing hardware if starting in file mode?
+        self.file_output = FileOutput(chirp_tab)
         def update_output_mode(index):
-            # inelegant to recreate the panel each time the mode is updated, but FileOutput/DeviceOutput both change shared clp.project and actually switching still feels fast in the GUI
-            # todo: check for weird memory leaks or corner cases with .replaceWidget() and .close(). Searching for anything related to replacing/deleting widgets seems to show a lot of different approaches with differing results
-            # todo: thise needs to be completely reworked for undo/redo
-            current_widget = self.output_frame.layout().itemAt(0).widget()
+            # is there a situation where the current widget is already set, or is it safe to assume update_output_mode is always changing from one to the other type?
+            # current_widget = self.output_frame.layout().itemAt(0).widget()
             if index:
                 clp.project['output']['mode'] = 'device'
-                self.device_output = DeviceOutput(chirp_tab)
-                self.output_frame.layout().replaceWidget(current_widget, self.device_output)
+                self.file_output.hide()
+                self.device_output.sync(self.file_output)
+                self.output_frame.layout().replaceWidget(self.file_output, self.device_output)
+                self.device_output.show()
                 if clp.project['input']['mode'] == 'device':
                     chirp_tab.input_params.device_input.capture_button.setText('Play and Capture')
             else:
                 clp.project['output']['mode'] = 'file'
-                self.file_output = FileOutput(chirp_tab)
-                self.output_frame.layout().replaceWidget(current_widget, self.file_output)
+                self.device_output.hide()
+                self.output_frame.layout().replaceWidget(self.device_output, self.file_output)
+                self.file_output.show()
                 if clp.project['input']['mode'] == 'device':
                     chirp_tab.input_params.device_input.capture_button.setText('Capture Response')
-            current_widget.close()
-            chirp_tab.io_changed.emit()
+            chirp_tab.io_changed.emit() # todo: is this actually used anywhere? Add comment with expected use or remove...
         self.mode_dropdown.currentIndexChanged.connect(update_output_mode)
         
         self.output_frame = QFrame()
         QVBoxLayout(self.output_frame)
-        self.output_frame.layout().addWidget(QFrame())
+        # self.output_frame.layout().addWidget(QFrame())
+        if clp.project['output']['mode'] == 'file':
+            self.output_frame.layout().addWidget(self.file_output)
+        else:
+            self.output_frame.layout().addWidget(self.device_output)
         self.addWidget(self.output_frame)
 
         # update_output_mode call moved to after InputParameters are created in ChirpTab init. Avoids potentially referencing chirp_tab.input_params before it exists
@@ -510,7 +518,10 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
 
         # Host API dropdown
         self.api = CLParamDropdown('Host API', DeviceIO.HOST_APIS)
-        api_index = self.api.dropdown.findText(clp.project['output']['api'])
+        if 'api' in clp.project['output']:
+            api_index = self.api.dropdown.findText(clp.project['output']['api'])
+        else:
+            api_index = -1
         if api_index != -1:
             self.api.dropdown.setCurrentIndex(api_index)
         else:
@@ -535,9 +546,13 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
                 default_device = DeviceIO.get_default_output_device(clp.project['output']['api'])
                 index = self.device.dropdown.findText(default_device)
             self.device.dropdown.setCurrentIndex(index)
-        set_device_index(clp.project['output']['device'])
+        if 'device' in clp.project['output']:
+            set_device_index(clp.project['output']['device'])
+        else:
+            set_device_index('')
         clp.project['output']['device'] = self.device.dropdown.currentText()
-        clp.project['output']['num_channels'] = DeviceIO.get_num_output_channels(clp.project['output']['device'], clp.project['output']['api'])
+        #clp.project['output']['num_channels'] = DeviceIO.get_num_output_channels(clp.project['output']['device'], clp.project['output']['api'])
+        clp.IO['output']['channels'] = DeviceIO.get_num_output_channels(clp.project['output']['device'], clp.project['output']['api'])
         layout.addWidget(self.device)
         def update_device(index):
             set_device_index(self.device.dropdown.currentText())
@@ -678,7 +693,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
                 self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
                 self.sample_rate.value = self.sample_rate.last_value
         self.sample_rate.update_callback = update_sample_rate
-        update_sample_rate(new_rate=clp.project['output']['sample_rate'])
+        #update_sample_rate(new_rate=clp.project['output']['sample_rate']) # don't update sample rate on init, to avoid colliding with file output
         def sample_rate_str2num(str_rate):
             try:
                 EngNumber(str_rate) # if the input text can't be construed as a number return 0
@@ -694,20 +709,23 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         # output channel
         self.channel = CLParamDropdown('Output Channel', ['all'])
         def set_num_channels(num_channels):
-            clp.project['output']['num_channels'] = num_channels
+            #clp.project['output']['num_channels'] = num_channels
+            clp.IO['output']['channels'] = num_channels
             self.channel.dropdown.blockSignals(True)
             self.channel.dropdown.clear()
             self.channel.dropdown.addItem('all')
             self.channel.dropdown.addItems([str(chan) for chan in range(1, num_channels+1)])
             self.channel.dropdown.blockSignals(False)
-        set_num_channels(clp.project['output']['num_channels'])
+        #set_num_channels(clp.project['output']['num_channels'])
+        set_num_channels(clp.IO['output']['channels'])
         layout.addWidget(self.channel)
         def update_channel(index=-1, channel=None):
             if index==-1:
                 if channel=='all':
                     index=0
                 else:
-                    if channel > clp.project['output']['num_channels']:
+                    #if channel > clp.project['output']['num_channels']:
+                    if channel > clp.IO['output']['channels']:
                         index=0
                     else:
                         index=channel
@@ -721,7 +739,9 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
 
         # play button
         self.play = QPushButton('Play Stimulus')
-        # gray out and change text if current selected device seems to be invalid
+        # todo: gray out and change text if current selected device seems to be invalid (also handle for capture)
+        # todo: disable undo/redo while playing (also handle for capture)
+        # todo: allow user to cancel playback (also handle for capture)
         layout.addWidget(self.play)
         self.play_start_time = time()
         def play_stimulus():
@@ -741,6 +761,28 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             if clp.project['input']['mode'] == 'device':
                 chirp_tab.input_params.setEnabled(True)
             chirp_tab.play_finished.emit()
+
+    def sync(self, file_output):
+        # update any elements that may have been changed while output was set to file mode
+        # todo: refresh devices?
+        self.amplitude.units.setCurrentIndex(file_output.amplitude.units.currentIndex()) # fires callback if units are changed
+        self.amplitude.units_update_callback(self.amplitude.units.currentIndex()) # force firing callback (which updates values) in case units are not changed
+
+        self.pre_sweep.units.setCurrentIndex(file_output.pre_sweep.units.currentIndex())
+        self.pre_sweep.units_update_callback(self.pre_sweep.units.currentIndex())
+        
+        self.post_sweep.units.setCurrentIndex(file_output.post_sweep.units.currentIndex())
+        self.post_sweep.units_update_callback(self.post_sweep.units.currentIndex())
+        
+        self.output_length.units.setCurrentIndex(file_output.output_length.units.currentIndex())
+        self.output_length.units_update_callback(self.output_length.units.currentIndex())
+
+        self.include_silence.setChecked(clp.project['output']['include_silence']) # potentially fires the length update callback a *third* time
+        
+        self.sample_rate.update_callback(new_rate=clp.project['output']['sample_rate']) # potentially updates length a **fourth** time
+        
+        self.channel.update_callback(channel=clp.project['output']['channel']) 
+
 
 
 class InputParameters(QCollapsible):
@@ -946,7 +988,10 @@ class DeviceInput(QFrame):
 
         # Host API dropdown
         self.api = CLParamDropdown('Host API', DeviceIO.HOST_APIS)
-        api_index = self.api.dropdown.findText(clp.project['input']['api'])
+        if 'api' in clp.project['input']:
+            api_index = self.api.dropdown.findText(clp.project['input']['api'])
+        else:
+            api_index = -1
         if api_index != -1:
             self.api.dropdown.setCurrentIndex(api_index)
         else:
@@ -971,7 +1016,10 @@ class DeviceInput(QFrame):
                 default_device = DeviceIO.get_default_input_device(clp.project['input']['api'])
                 index = self.device.dropdown.findText(default_device)
             self.device.dropdown.setCurrentIndex(index)
-        set_device_index(clp.project['input']['device'])
+        if 'device' in clp.project['input']:
+            set_device_index(clp.project['input']['device'])
+        else:
+            set_device_index('')
         clp.project['input']['device'] = self.device.dropdown.currentText()
         layout.addWidget(self.device)
         def update_device(index):
