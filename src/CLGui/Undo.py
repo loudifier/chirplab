@@ -5,11 +5,16 @@ class UndoStack():
         self.history = [] # list of each undo/redo step, each element is a list of [undo_callback, undo_value, redo_callback, redo_value]
         self.index = -1 # index should always point to the element in history that will be executed when undo() is called. -1 > empy history
 
+        self.paused = False # when True, push to undo history is ignored
+
         # references to undo/redo menu items. Main window will set these
         self.undo_action = None
         self.redo_action = None
 
     def push(self, undo_callback, undo_value, redo_callback, redo_value):
+        if self.paused:
+            return
+
         # discard steps after current point, in case index is not at the end of the stack
         self.history = self.history[:self.index+1]
         self.redo_action.setEnabled(False)
