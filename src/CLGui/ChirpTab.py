@@ -1,5 +1,5 @@
 import CLProject as clp
-from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, QCollapsible, QHSeparator, CalibrationDialog
+from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, QCollapsible, QHSeparator, CalibrationDialog, undo_stack
 from CLAnalysis import generate_stimulus, read_audio_file, read_response, generate_output_stimulus, generate_stimulus_file, audio_file_info, write_audio_file
 import numpy as np
 from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QVBoxLayout
@@ -263,6 +263,8 @@ class OutputParameters(QCollapsible):
         self.device_output = DeviceOutput(chirp_tab) # todo: do something to delay initializing hardware if starting in file mode?
         self.file_output = FileOutput(chirp_tab)
         def update_output_mode(index):
+            undo_paused = undo_stack.paused # keep track of whether mode update should be pushed to undo stack
+            undo_stack.paused = True
             if index:
                 clp.project['output']['mode'] = 'device'
                 self.file_output.hide()
@@ -282,6 +284,13 @@ class OutputParameters(QCollapsible):
             chirp_tab.io_changed.emit() # main window listens for io_changed, updates analyze/generate button text
             # todo: pretty sure io_changed was a workaround for previous implmenetation of creating a new set of parameter controls when switching between file and device mode
             # could/should probably remove signal and change text directly from mode update function (also update for output mode)
+            if not undo_paused:
+                undo_stack.paused = False
+                undo_stack.push(undo_output_mode, (index+1)%2, undo_output_mode, index)
+        def undo_output_mode(index):
+            undo_stack.paused = True
+            self.mode_dropdown.setCurrentIndex(index)
+            undo_stack.paused = False
         self.mode_dropdown.currentIndexChanged.connect(update_output_mode)
         
         self.output_frame = QFrame()
@@ -818,6 +827,8 @@ class InputParameters(QCollapsible):
         self.device_input = DeviceInput(chirp_tab)
         self.file_input = FileInput(chirp_tab)
         def update_input_mode(index):
+            undo_paused = undo_stack.paused # keep track of whether mode update should be pushed to undo stack
+            undo_stack.paused = True
             if index:
                 clp.project['input']['mode'] = 'device'
                 self.file_input.hide()
@@ -832,6 +843,13 @@ class InputParameters(QCollapsible):
                 self.file_input.show()
 
             chirp_tab.io_changed.emit() # todo: probably could/should be removed. See update_output_mode comments
+            if not undo_paused:
+                undo_stack.paused = False
+                undo_stack.push(undo_input_mode, (index+1)%2, undo_input_mode, index)
+        def undo_input_mode(index):
+            undo_stack.paused = True
+            self.mode_dropdown.setCurrentIndex(index)
+            undo_stack.paused = False
         self.mode_dropdown.currentIndexChanged.connect(update_input_mode)
 
         self.input_frame = QFrame()
