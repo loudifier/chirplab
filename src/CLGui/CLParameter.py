@@ -23,6 +23,7 @@ class CLParameter(QWidget):
             self.value = self.text_box.text()
             if self.update_callback is not None:
                 self.update_callback(self.value)
+            undo_stack.push(self.undo_redo, self.last_value, self.undo_redo, self.value)
             self.last_value = self.value # if callback is not defined or update completes, just update last_value. If there is an issue during callback, assume revert sets current value to last_value
         self.text_box.editingFinished.connect(editingFinished)
         
@@ -36,10 +37,18 @@ class CLParameter(QWidget):
                 self.units = QComboBox()
                 self.units.addItems(unit)
                 self.layout.addWidget(self.units)
-                def indexChanged(index):
+                self.units.last_index = 0
+                def unitsIndexChanged(index):
                     if self.units_update_callback is not None:
                         self.units_update_callback(index)
-                self.units.currentIndexChanged.connect(indexChanged)
+                    undo_stack.push(units_undo_redo, self.units.last_index, units_undo_redo, index)
+                    self.units.last_index = index
+                self.units.currentIndexChanged.connect(unitsIndexChanged)
+                def units_undo_redo(index):
+                    self.units.setCurrentIndex(index)
+                    self.units.last_index = index
+                    if self.units_update_callback is not None:
+                            self.units_update_callback(index)
         
         # define external callback functions to handle parameter updates
         self.update_callback = None
@@ -52,6 +61,12 @@ class CLParameter(QWidget):
     
     def revert(self):
         self.set_value(self.last_value)
+
+    def undo_redo(self, value): # undo and redo are identical, use the same function
+        self.set_value(value)
+        self.last_value = value
+        if self.update_callback is not None:
+                self.update_callback(self.value)
       
         
 class CLParamNum(QWidget):
@@ -181,11 +196,13 @@ class CLParamDropdown(QWidget):
         self.layout.addWidget(self.dropdown)
 
         self.value = self.dropdown.currentText()
+        self.last_value = self.value # only used when editable
         self.last_index = 0
         def indexChanged(index):
             self.value = self.dropdown.currentText()
-            if not self.update_callback is None:
+            if self.update_callback is not None:
                 self.update_callback(index)
+            undo_stack.push(self.undo_redo, [self.last_value, self.last_index], self.undo_redo, [self.value, index])
             self.last_value = self.value
             self.last_index = self.dropdown.currentIndex()
         self.dropdown.currentIndexChanged.connect(indexChanged)
@@ -194,7 +211,6 @@ class CLParamDropdown(QWidget):
         if self.editable:
             self.dropdown.setEditable(True)
             self.dropdown.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-            self.last_value = self.value
 
             def editingFinished():
                 # just clicking the dropdown fires editingFinished(). Ignore if value isn't actually changed to avoid firing multiple times
@@ -219,10 +235,18 @@ class CLParamDropdown(QWidget):
                 self.units = QComboBox()
                 self.units.addItems(unit)
                 self.layout.addWidget(self.units)
-                def unitIndexChanged(index):
+                self.units.last_index = 0
+                def unitsIndexChanged(index):
                     if not self.units_update_callback is None:
                         self.units_update_callback(index)
-                self.units.currentIndexChanged.connect(unitIndexChanged)
+                    undo_stack.push(units_undo_redo, self.units.last_index, units_undo_redo, index)
+                    self.units.last_index = index
+                self.units.currentIndexChanged.connect(unitsIndexChanged)
+                def units_undo_redo(index):
+                    self.units.setCurrentIndex(index)
+                    self.units.last_index = index
+                    if self.units_update_callback is not None:
+                            self.units_update_callback(index)
         
         # define external callback functions to handle parameter updates
         self.update_callback = None
@@ -234,6 +258,22 @@ class CLParamDropdown(QWidget):
         if self.editable:
             self.set_value(self.last_value)
         self.dropdown.blockSignals(False)
+
+    def undo_redo(self, value_index): # value_index is a list of [value, index]
+        if value_index[1] == -1:
+            # text was manually edited
+            self.set_value(value_index[0])
+        else:
+            # dropdown was selected
+            self.dropdown.blockSignals(True)
+            self.dropdown.setCurrentIndex(value_index[1])
+            self.dropdown.blockSignals(False)
+            self.value = self.dropdown.currentText()
+            self.last_value = self.value
+            self.last_index = value_index[1]
+
+        if self.update_callback is not None:
+                self.update_callback(value_index[1])
 
 
 class CLParamFile(QWidget):
@@ -434,18 +474,20 @@ class FreqPointsParams(QWidget):
         
         self.update_callback = None
         
-        
 
-# not enough additional functionality to justify a CL combo class            
-#class CLParamCheckbox(QWidget):
-#    def __init__(self, label_text, checked=False, enabled=True):
-#        super().__init__()
+class CLParamCheckbox(QCheckBox):
+    def __init__(self, label_text):
+        super().__init__()
+        
+        def check_state_changed(checked):
+            undo_stack.push(undo_check_state, not checked, undo_check_state, checked)
+            if self.update_callback is not None:
+                self.update_callback(checked)
+        self.stateChanged.connect(check_state_changed)
 
-#        self.checkbox = QCheckBox(label_text)
+        def undo_check_state(checked):
+            undo_stack.paused = True
+            self.checkbox.setChecked(checked)
+            undo_stack.paused = False
         
-        # update callback here
-        
-#        self.label = QLabel(label_text)
-#        self.layout.addWidget(self.label)
-        
-#        self.update_callback = None
+        self.update_callback = None
