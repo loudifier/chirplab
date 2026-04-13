@@ -194,7 +194,6 @@ class ChirpParameters(QCollapsible):
         chirp_tab.update_sample_rate = update_sample_rate
         def sample_rate_str2num(str_rate):
             if 'input' in str_rate:
-               self.sample_rate.last_value = 'use input rate'
                self.sample_rate.dropdown.setCurrentIndex(0)
                return clp.IO['input']['sample_rate']
             try:
@@ -204,7 +203,6 @@ class ChirpParameters(QCollapsible):
                 return 0
             num_rate = round(float(EngNumber(str_rate)))
             num_rate = min(max(num_rate, clp.MIN_SAMPLE_RATE), clp.MAX_SAMPLE_RATE)
-            self.sample_rate.last_value = str(EngNumber(num_rate))
             self.sample_rate.dropdown.setCurrentText(str(EngNumber(num_rate))) # todo: handle corner case where this can fire recalculation when clicking the dropdown after typing in a sample rate 
             return num_rate
         
@@ -723,7 +721,6 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
                 self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
                 self.sample_rate.value = self.sample_rate.last_value
         self.sample_rate.update_callback = update_sample_rate
-        #update_sample_rate(new_rate=clp.project['output']['sample_rate']) # don't update sample rate on init, to avoid colliding with file output
         def sample_rate_str2num(str_rate):
             try:
                 EngNumber(str_rate) # if the input text can't be construed as a number return 0
