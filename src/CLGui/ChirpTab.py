@@ -1,8 +1,8 @@
 import CLProject as clp
-from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, QCollapsible, QHSeparator, CalibrationDialog, undo_stack
+from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, CLParamCheckBox, QCollapsible, QHSeparator, CalibrationDialog, undo_stack
 from CLAnalysis import generate_stimulus, read_audio_file, read_response, generate_output_stimulus, generate_stimulus_file, audio_file_info, write_audio_file
 import numpy as np
-from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QVBoxLayout
+from qtpy.QtWidgets import QPushButton, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QVBoxLayout
 from qtpy.QtCore import Signal, Slot, QObject
 import pyqtgraph as pg
 from engineering_notation import EngNumber
@@ -375,13 +375,18 @@ class FileOutput(QFrame):
         self.post_sweep.units_update_callback = update_post_sweep_units
         
         # include leading silence checkbox
-        self.include_silence = QCheckBox('Include leading silence')
+        self.include_silence = CLParamCheckBox('Include leading silence')
         self.include_silence.setChecked(clp.project['output']['include_silence'])
         layout.addWidget(self.include_silence)
         def update_include_silence(checked):
             clp.project['output']['include_silence'] = bool(checked)
+            undo_stack.push(undo_include_silence, not checked, undo_include_silence, checked)
             update_output_length()
-        self.include_silence.stateChanged.connect(update_include_silence)
+        self.include_silence.update_callback = update_include_silence
+        def undo_include_silence(checked):
+            undo_stack.paused = True
+            self.include_silence.setChecked(checked)
+            undo_stack.paused = False
         
         # total length text box (non-interactive) - s/sample dropdown
         def calc_output_length(unit='samples'):
@@ -540,7 +545,9 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         layout.addWidget(self.refresh)
         def refresh_devices():
             DeviceIO.restart_pyaudio()
+            undo_stack.paused = True
             update_api(self.api.dropdown.currentIndex())
+            undo_stack.paused = False
             # todo: also refresh input devices
         self.refresh.clicked.connect(refresh_devices)
 
@@ -662,7 +669,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         self.post_sweep.units_update_callback = update_post_sweep_units
         
         # include leading silence checkbox
-        self.include_silence = QCheckBox('Include leading silence')
+        self.include_silence = CLParamCheckBox('Include leading silence')
         self.include_silence.setChecked(clp.project['output']['include_silence'])
         layout.addWidget(self.include_silence)
         def update_include_silence(checked):
@@ -670,7 +677,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             update_output_length()
             if clp.project['input']['mode'] == 'device' and clp.project['input']['use_output_length']:
                 chirp_tab.input_params.device_input.update_auto_length(True)
-        self.include_silence.stateChanged.connect(update_include_silence)
+        self.include_silence.update_callback = update_include_silence
         
         # total length text box (non-interactive) - s/sample dropdown
         def calc_output_length(unit='samples'):
@@ -1024,7 +1031,9 @@ class DeviceInput(QFrame):
         layout.addWidget(self.refresh)
         def refresh_devices():
             DeviceIO.restart_pyaudio()
+            undo_stack.paused = True
             update_api(self.api.dropdown.currentIndex())
+            undo_stack.paused = False
             # todo: also refresh output devices
         self.refresh.clicked.connect(refresh_devices)
 
@@ -1087,7 +1096,7 @@ class DeviceInput(QFrame):
         self.device.update_callback = update_device
         
         # auto capture length checkbox
-        self.auto_length = QCheckBox('auto')
+        self.auto_length = CLParamCheckBox('auto')
         self.auto_length.setChecked(clp.project['input']['use_output_length'])
         def update_auto_length(checked):
             clp.project['input']['use_output_length'] = checked
@@ -1095,7 +1104,7 @@ class DeviceInput(QFrame):
             if checked:
                 clp.project['input']['capture_length'] = calc_output_length('seconds')
                 update_capture_length_units(self.capture_length.units.currentIndex())
-        self.auto_length.stateChanged.connect(update_auto_length)
+        self.auto_length.update_callback = update_auto_length
         def calc_output_length(unit='samples'):
             sig_length = round(clp.project['output']['pre_sweep']*clp.project['output']['sample_rate'])
             sig_length += round(clp.project['chirp_length']*clp.project['output']['sample_rate'])
