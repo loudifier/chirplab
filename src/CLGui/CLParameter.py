@@ -475,9 +475,9 @@ class FreqPointsParams(QWidget):
         self.update_callback = None
         
 
-class CLParamCheckbox(QCheckBox):
-    def __init__(self, label_text):
-        super().__init__()
+class CLParamCheckBox(QCheckBox):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         
         def check_state_changed(checked):
             undo_stack.push(undo_check_state, not checked, undo_check_state, checked)
@@ -487,7 +487,7 @@ class CLParamCheckbox(QCheckBox):
 
         def undo_check_state(checked):
             undo_stack.paused = True
-            self.checkbox.setChecked(checked)
+            self.setChecked(checked)
             undo_stack.paused = False
         
         self.update_callback = None
