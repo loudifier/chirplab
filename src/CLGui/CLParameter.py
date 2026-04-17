@@ -377,14 +377,14 @@ class FreqPointsParams(QWidget):
             if self.update_callback is not None:
                 self.update_callback()
         self.min.update_callback = update_min_freq
-        self.min_auto = QCheckBox('auto')
+        self.min_auto = CLParamCheckBox('auto')
         def update_min_auto(checked):
             params['min_auto'] = bool(checked)
             self.min.spin_box.setEnabled(not bool(checked))
             if self.calc_min_auto is not None:
                 new_min = self.calc_min_auto() # get automatic min freq from containing measurement
                 self.min.spin_box.setValue(new_min) # set value in spin_box directly to trigger recalculation
-        self.min_auto.stateChanged.connect(update_min_auto)
+        self.min_auto.update_callback = update_min_auto
         self.calc_min_auto = None
         self.min_auto.setChecked(params['min_auto'])
         self.min.layout.addWidget(self.min_auto)
@@ -400,14 +400,14 @@ class FreqPointsParams(QWidget):
             if self.update_callback is not None:
                 self.update_callback()
         self.max.update_callback = update_max_freq
-        self.max_auto = QCheckBox('auto')
+        self.max_auto = CLParamCheckBox('auto')
         def update_max_auto(checked):
             params['max_auto'] = bool(checked)
             self.max.spin_box.setEnabled(not bool(checked))
             if self.calc_max_auto is not None:
                 new_max = self.calc_max_auto() # get automatic max freq from containing measurement
                 self.max.spin_box.setValue(new_max) # set value in spin_box directly to trigger recalculation
-        self.max_auto.stateChanged.connect(update_max_auto)
+        self.max_auto.update_callback = update_max_auto
         self.calc_max_auto = None
         self.max_auto.setChecked(params['max_auto'])
         self.max.layout.addWidget(self.max_auto)
@@ -453,13 +453,13 @@ class FreqPointsParams(QWidget):
                 self.update_callback()
         self.num_points.update_callback = update_num_points
         
-        self.round_points = QCheckBox('Round points to nearest Hz')
+        self.round_points = CLParamCheckBox('Round points to nearest Hz')
         self.layout.addWidget(self.round_points)
         def update_round_points(checked):
             params['round_points'] = bool(checked)
             if self.update_callback is not None:
                 self.update_callback()
-        self.round_points.stateChanged.connect(update_round_points)
+        self.round_points.update_callback = update_round_points
         
         
         def update_min_max():
