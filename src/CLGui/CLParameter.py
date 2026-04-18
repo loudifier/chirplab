@@ -106,16 +106,14 @@ class CLParamNum(QWidget):
         #self.layout.update()
         self.layout.addWidget(self.spin_box)
         self.spin_box.setValue(self.value) # value can only be changed after adding to layout
-        def valueChanged(new_val): # can also catch textChanged. textChanged and valueChanged are both called everytime a character is typed, not just editing finished. Might be worth catching textChanged and only validate on editing finished 
+        def valueChanged(new_val): # also catches textChanged. Only fires if the value is actually different, e.g. '1.0' edited to '1.00' does not fire
             if self.numtype == 'int':
                 new_val = int(round(new_val))
-            #self.spin_box.setValue(self.value) # fires an extra callback, call self.set_value() instead
             self.set_value(min(max(new_val, self.min), self.max)) # update if rounded or changed to min/max
             if self.update_callback is not None:
                 self.update_callback(self.value)
             undo_stack.push(self.undo_redo, self.last_value, self.undo_redo, self.value)
             self.last_value = self.value
-        
         self.spin_box.valueChanged.connect(valueChanged)
         
         # Only add a unit label if the unit is specified
@@ -498,3 +496,17 @@ class CLParamCheckBox(QCheckBox):
             undo_stack.paused = False
         
         self.update_callback = None
+
+
+# potential future updates to handling and updating widget focus
+# call .setFocus() or .clearFocus() on widgets to highlight what was changed by undo/redo
+# subclass editable text fields to catch CTRL+Z and pass it
+#class CLLineEdit(QLineEdit):
+#    def keyPressEvent(self, event):
+#        if event.key()==(Qt.Key_Control and Qt.Key_Z):
+#            # Do additional checks for the particular situation. 
+#            # Only pass command to undo stack if current text is unchanged, otherwise let normal text field undo, stuff like that
+#            # A bunch of edge cases that need to be thought through
+#            undo_stack.undo_action.trigger()
+#        else:
+#            super().keyPressEvent(event)
