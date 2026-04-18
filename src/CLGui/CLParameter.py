@@ -291,10 +291,12 @@ class CLParamFile(QWidget):
         self.last_value = self.value # keep track of last value, to revert back to in case new entry fails data validation
         self.layout.addWidget(self.text_box)
         def editingFinished():
-            self.value = self.text_box.text()
-            if self.update_callback is not None:
-                self.update_callback(self.value)
-            self.last_value = self.value # if callback is not defined or update completes, just update last_value. If there is an issue during callback, assume revert sets current value to last_value
+            if self.text_box.text() != self.value:
+                self.value = self.text_box.text()
+                if self.update_callback is not None:
+                    self.update_callback(self.value)
+                undo_stack.push(self.undo_redo, self.last_value, self.undo_redo, self.value)
+                self.last_value = self.value # if callback is not defined or update completes, just update last_value. If there is an issue during callback, assume revert sets current value to last_value
         self.text_box.editingFinished.connect(editingFinished)
         
         self.button = QPushButton('Browse...')
@@ -349,8 +351,13 @@ class CLParamFile(QWidget):
         
         if file_dialog.exec():
             file_path = file_dialog.selectedFiles()[0]
-            self.set_value(file_path)
+            self.text_box.setText(file_path)
             self.text_box.editingFinished.emit()
+
+    def undo_redo(self, value):
+        self.set_value(value)
+        if self.update_callback is not None:
+            self.update_callback(self.value)
             
 
 # collection of UI elements for configuring and generating a list of frequency points
