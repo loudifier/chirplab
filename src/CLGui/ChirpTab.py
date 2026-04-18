@@ -989,12 +989,12 @@ class FileInput(QFrame):
             else:
                 channel_index = clp.project['input']['channel'] - 1
             
-            # rebuild channel dropdown list (updates trigger callback, which resets output channel to 0/'all')
-            self.channel.dropdown.clear()
+            # rebuild channel dropdown list
+            self.channel.dropdown.blockSignals(True)
+            self.channel.dropdown.clear() # wipes out current index
             self.channel.dropdown.addItems([str(chan) for chan in range(1, clp.IO['input']['channels']+1)])
-            
-            # set correct output channel
-            self.channel.dropdown.setCurrentIndex(channel_index)            
+            self.channel.dropdown.setCurrentIndex(channel_index) # set correct index
+            self.channel.dropdown.blockSignals(False)
         self.num_channels.update_callback = update_num_channels
         
         # input channel dropdown        
