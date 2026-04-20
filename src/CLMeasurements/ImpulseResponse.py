@@ -411,6 +411,11 @@ class ImpulseResponse(CLMeasurement):
         self.update_truncate_length_units(self.truncate_length.units.currentIndex())
         self.update_num_channels(clp.IO['input']['channels'])
 
+    # ImpulseResponse doesn't support CSV export, return None
+    def get_measurement_data(self, include_noise=True):
+        return None
+    # todo: do something to be able to handle multi-file exports
+
     # time series measurement output requires some base CLMeasurement methods to be overridden
     def save_measurement_data(self, out_path=''):
         out_ir = np.copy(self.out_ir[self.out_start_sample:self.out_end_sample])
@@ -427,6 +432,7 @@ class ImpulseResponse(CLMeasurement):
                 out_path = Path(out_path) / Path(Path(clp.project_file).stem + '_' + self.params['name'] + '.wav') # add default file name to directory
             # else leave provided file name/path as-is
 
+        print('saving ' + str(out_path))
         write_audio_file(out_ir, out_path, clp.project['sample_rate'], self.params['output']['bit_depth'])
 
     def format_graph(self):

@@ -125,6 +125,9 @@ def main():
                     if output_data[i] is None:
                         # create initial dataframe output with X axis
                         output_data[i] = clp.measurements[i].get_measurement_data(include_noise=False)
+                        if output_data[i] is None:
+                            # measurement type doesn't support multi-file processing, skip
+                            continue
                         # rename output column to reflect input file
                         output_data[i] = output_data[i].rename(columns={output_data[i].columns[1]: column_name})
                     else:
@@ -137,6 +140,10 @@ def main():
         # now that data for each measurement has been built up for each input file, loop through measurements again and save output data
         # largely the same structure as CLMeasurement.save_measurement_data. todo: should this logic be DRYed out and/or moved somewhere else?
         for i in range(len(clp.measurements)):
+            if output_data[i] is None:
+                # measurement type doesn't support multi-file processing, skip
+                continue
+            
             out_path = Path(out_dir) / Path(Path(clp.project_file).stem + '_' + clp.measurements[i].params['name'] + '.csv')
 
             with open(out_path, 'w', newline='') as out_file:
