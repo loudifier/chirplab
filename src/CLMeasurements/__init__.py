@@ -49,16 +49,25 @@ class CLMeasurement():
         # to desired output unit and stored in self.out_data. If a noise sample is present and the measurement is able to 
         # estimate the measurement noise floor the noise floor estimate will be stored in self.out_noise
         pass # override with individual measurement measure() method
+    
+    # get_measurement_data() customized in:
+    # - ImpulseResponse
+    def get_measurement_data(self, include_noise=True):
+        # return X/Y measurement data as a pandas dataframe, typically for csv outputs like save_measurement_data or multi-file/multi-channel command-line outputs
+        # measurements that do not support CSV export should return None
+        # assumes measurement data will be self.out_points and possibly self.out_noise along self.out_freqs
+        out_frame = pd.DataFrame({'Frequency (Hz)':self.out_freqs, self.params['output']['unit']:self.out_points})
+        if include_noise and any(self.out_noise):
+            out_frame['measurement noise floor'] = self.out_noise
+        return out_frame
         
+
     # save_measurement_data() customized in:
     # - ImpulseResponse
     def save_measurement_data(self, out_path=''):
         # default behavior saves a csv of the most recent measured data
         # can be overridden by measurements that output data in different formats, like ImpulseResponse outputting a .wav file
-        # assumes measurement data will be self.out_points and possibly self.out_noise along self.out_freqs
-        out_frame = pd.DataFrame({'Frequency (Hz)':self.out_freqs, self.params['output']['unit']:self.out_points})
-        if clp.project['save_noise'] and any(self.out_noise):
-            out_frame['measurement noise floor'] = self.out_noise
+        out_frame = self.get_measurement_data(clp.project['save_noise'])
         
         if not out_path:
             # no path given, output a csv using the project and measurement name in the current directory

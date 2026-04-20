@@ -2,7 +2,8 @@ import CLProject as clp
 from pyqtgraph.Qt import mkQApp
 from qtpy.QtCore import Qt
 import sys
-from pathlib import Path 
+from pathlib import Path
+from glob import glob
 from CLGui import MainWindow
 from CLAnalysis import check_sox, read_audio_file, audio_file_info, generate_stimulus, read_response, FormatNotSupportedError, generate_stimulus_file
 import argparse
@@ -14,7 +15,7 @@ def main():
     parser.add_argument('project', nargs='?', help='path to ChirpLab project file to open or process (required for command-line mode)')
     parser.add_argument('-s', '--stimulus', help='generate a stimulus file using the output settings of the given project file')
     parser.add_argument('-c', action='store_true', help='process input project file and output data in command-line mode. Additional arguments override project parameters when running in command-line mode')
-    parser.add_argument('-i', '--input', help='override input file')
+    parser.add_argument('-i', '--input', help='override input file. When running in command-line mode, use wildcards (*) to analyze multiple input files')
     parser.add_argument('--channel', help='override which channel from input file is analyzed')
     parser.add_argument('-o', '--output', help='override measurement data output directory')
     args = parser.parse_args() # todo: clean up help print formatting
@@ -71,7 +72,12 @@ def main():
 
         # process command-line overrides
         if args.input:
-            clp.project['input']['file'] = args.input
+            if '*' in args.input: # todo: this only covers Windows. Handle unix-style wildcard expansion happening in the shell and passing a list of files directly
+                input_files = glob(args.input)
+            else:
+                input_files = [args.input]
+        else:
+            input_files = [clp.project['input']['file']]
 
         if args.output:
             out_dir = args.output
@@ -83,26 +89,63 @@ def main():
         
         # initialize measurements from project
         init_measurements()
-        
-        # get stimulus and response signals
         generate_stimulus()
-        try:
-            clp.signals['raw_response'] = read_audio_file(clp.project['input']['file'])
 
-            file_info = audio_file_info(clp.project['input']['file'])
-            clp.IO['input']['length_samples'] = file_info['length_samples']
-            clp.IO['input']['sample_rate'] = file_info['sample_rate']
-            clp.IO['input']['channels'] = file_info['channels']
-            clp.IO['input']['numtype'] = file_info['numtype']
-
-            read_response()
-        except (FileNotFoundError, FormatNotSupportedError) as e:
-            print(e)
+        # get input file(s) and loop through them
+        if len(input_files) < 1:
+            print('input file(s) not found')
             sys.exit(1)
-        for measurement in clp.measurements:
-            measurement.measure()
-            measurement.save_measurement_data(out_dir)
-            # todo: throw a warning that some output files will be overwritten if multiple measurements have the same name
+
+        if len(input_files) > 1:
+            # initialize blank output data list
+            output_data = [None] * len(clp.measurements)
+
+        for input_file in input_files:
+            print('Measuring ' + input_file)
+            try:
+                clp.signals['raw_response'] = read_audio_file(input_file)
+
+                file_info = audio_file_info(input_file)
+                clp.IO['input']['length_samples'] = file_info['length_samples']
+                clp.IO['input']['sample_rate'] = file_info['sample_rate']
+                clp.IO['input']['channels'] = file_info['channels']
+                clp.IO['input']['numtype'] = file_info['numtype']
+
+                read_response()
+            except (FileNotFoundError, FormatNotSupportedError) as e:
+                print(e)
+                sys.exit(1)
+            for i in range(len(clp.measurements)):
+                clp.measurements[i].measure()
+                if len(input_files) == 1: # single input file mode. Output standard measurement data
+                    clp.measurements[i].save_measurement_data(out_dir)
+                    # todo: throw a warning that some output files will be overwritten if multiple measurements have the same name
+                else:
+                    column_name = input_file # todo: consider trimming to just file name or otherwise removing parts of the path from file names
+                    if output_data[i] is None:
+                        # create initial dataframe output with X axis
+                        output_data[i] = clp.measurements[i].get_measurement_data(include_noise=False)
+                        # rename output column to reflect input file
+                        output_data[i] = output_data[i].rename(columns={output_data[i].columns[1]: column_name})
+                    else:
+                        # add data from each file
+                        output_data[i][column_name] = clp.measurements[i].get_measurement_data(include_noise=False).iloc[:,-1]
+
+        if len(input_files) == 1:
+            sys.exit()
+
+        # now that data for each measurement has been built up for each input file, loop through measurements again and save output data
+        # largely the same structure as CLMeasurement.save_measurement_data. todo: should this logic be DRYed out and/or moved somewhere else?
+        for i in range(len(clp.measurements)):
+            out_path = Path(out_dir) / Path(Path(clp.project_file).stem + '_' + clp.measurements[i].params['name'] + '.csv')
+
+            with open(out_path, 'w', newline='') as out_file:
+                print('saving ' + str(out_path))
+                out_file.write(clp.measurements[i].params['name'] + ',' + clp.measurements[i].params['output']['unit'] + '\n')
+                output_data[i].to_csv(out_file, index=False)
+
+
+                    
         
         # exit before launching GUI
         sys.exit()
