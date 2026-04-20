@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from glob import glob
 from CLGui import MainWindow
-from CLAnalysis import check_sox, read_audio_file, audio_file_info, generate_stimulus, read_response, FormatNotSupportedError, generate_stimulus_file
+from CLAnalysis import check_sox, read_audio_file, audio_file_info, generate_stimulus, read_response, FormatNotSupportedError, generate_stimulus_file, channel_list_str2int
 import argparse
 import numpy as np
 from CLMeasurements import init_measurements
@@ -16,7 +16,7 @@ def main():
     parser.add_argument('-s', '--stimulus', help='generate a stimulus file using the output settings of the given project file')
     parser.add_argument('-c', action='store_true', help='process input project file and output data in command-line mode. Additional arguments override project parameters when running in command-line mode')
     parser.add_argument('-i', '--input', help='override input file. When running in command-line mode, use wildcards (*) to analyze multiple input files')
-    parser.add_argument('--channel', help='override which channel from input file is analyzed')
+    parser.add_argument('--channel', help='override which channel from input file is analyzed. When running in command-line mode, multiple input channels can be analyzed with "all" or with a comma-separated list, with ranges indicated with hyphens. e.g. 1,3,5-7 --> channels 1, 3, 5, 6, and 7')
     parser.add_argument('-o', '--output', help='override measurement data output directory')
     args = parser.parse_args() # todo: clean up help print formatting
 
@@ -85,7 +85,9 @@ def main():
             out_dir = Path(args.project).parent
 
         if args.channel:
-            clp.project['input']['channel'] = int(args.channel)
+            channel_list = channel_list_str2int(args.channel)
+        else:
+            channel_list = [clp.project['input']['channel']]
         
         # initialize measurements from project
         init_measurements()
@@ -96,12 +98,11 @@ def main():
             print('input file(s) not found')
             sys.exit(1)
 
-        if len(input_files) > 1:
-            # initialize blank output data list
-            output_data = [None] * len(clp.measurements)
+        # initialize blank output data list (only used for multi-file/channel processing)
+        output_data = [None] * len(clp.measurements)
 
         for input_file in input_files:
-            print('Measuring ' + input_file)
+            print('Measuring ' + input_file) # todo: status printing across multiple files, input channels, and measurements could be better
             try:
                 clp.signals['raw_response'] = read_audio_file(input_file)
 
@@ -110,40 +111,57 @@ def main():
                 clp.IO['input']['sample_rate'] = file_info['sample_rate']
                 clp.IO['input']['channels'] = file_info['channels']
                 clp.IO['input']['numtype'] = file_info['numtype']
-
-                read_response()
             except (FileNotFoundError, FormatNotSupportedError) as e:
                 print(e)
                 sys.exit(1)
-            for i in range(len(clp.measurements)):
-                clp.measurements[i].measure()
-                if len(input_files) == 1: # single input file mode. Output standard measurement data
-                    clp.measurements[i].save_measurement_data(out_dir)
-                    # todo: throw a warning that some output files will be overwritten if multiple measurements have the same name
-                else:
-                    column_name = input_file # todo: consider trimming to just file name or otherwise removing parts of the path from file names
-                    if output_data[i] is None:
-                        # create initial dataframe output with X axis
-                        output_data[i] = clp.measurements[i].get_measurement_data(include_noise=False)
-                        if output_data[i] is None:
-                            # measurement type doesn't support multi-file processing, skip
-                            continue
-                        # rename output column to reflect input file
-                        output_data[i] = output_data[i].rename(columns={output_data[i].columns[1]: column_name})
-                    else:
-                        # add data from each file
-                        output_data[i][column_name] = clp.measurements[i].get_measurement_data(include_noise=False).iloc[:,-1]
 
-        if len(input_files) == 1:
+            if channel_list == 'all':
+                # build channel list for every input file, allowing analysis of all channels from files with different number of channels
+                input_channels = list(range(1, clp.IO['input']['channels']+1))
+            else:
+                input_channels = channel_list
+            for input_channel in input_channels:
+                clp.project['input']['channel'] = input_channel
+                read_response()
+
+                for i in range(len(clp.measurements)):
+                    clp.measurements[i].measure()
+                    if len(input_files) == 1 and len(input_channels) == 1: # single input file and single input channel. Output standard measurement data
+                        clp.measurements[i].save_measurement_data(out_dir)
+                        # todo: throw a warning that some output files will be overwritten if multiple measurements have the same name
+                    else:
+                        column_file = ''
+                        if len(input_files) > 1:
+                            column_file = input_file # todo: consider trimming to just file name or otherwise removing parts of the path from file names. If there are duplicate names it could result in duplicate dataframe column names messing things up
+                        column_channel = ''
+                        if len(input_channels) > 1:
+                            column_channel = 'ch' + str(input_channel)
+                        if column_file and column_channel:
+                            column_name = column_file + ':' + column_channel
+                        else:
+                            column_name = column_file + column_channel
+                        if output_data[i] is None:
+                            # create initial dataframe output with X axis
+                            output_data[i] = clp.measurements[i].get_measurement_data(include_noise=False)
+                            if output_data[i] is None:
+                                # measurement type doesn't support multi-file/channel processing, skip
+                                continue
+                            # rename output column to reflect input file/channel
+                            output_data[i] = output_data[i].rename(columns={output_data[i].columns[1]: column_name})
+                        else:
+                            # add data from each file/channel
+                            output_data[i][column_name] = clp.measurements[i].get_measurement_data(include_noise=False).iloc[:,-1]
+
+        if len(input_files) == 1 and len(input_channels) == 1:
             sys.exit()
 
-        # now that data for each measurement has been built up for each input file, loop through measurements again and save output data
+        # now that data for each measurement has been built up for each input file/channel, loop through measurements again and save output data
         # largely the same structure as CLMeasurement.save_measurement_data. todo: should this logic be DRYed out and/or moved somewhere else?
         for i in range(len(clp.measurements)):
             if output_data[i] is None:
                 # measurement type doesn't support multi-file processing, skip
                 continue
-            
+
             out_path = Path(out_dir) / Path(Path(clp.project_file).stem + '_' + clp.measurements[i].params['name'] + '.csv')
 
             with open(out_path, 'w', newline='') as out_file:

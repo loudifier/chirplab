@@ -391,3 +391,25 @@ def check_sox():
         if result.returncode:
             print('Chirplab requires SoX for audio processing. SoX is usually available via standard sources, e.g. `sudo apt install sox`')
             sys.exit()
+
+def channel_list_str2int(channel_list_str):
+    # convert text input describing a collection of channels to a list of integers
+    # input format is single numbers separated by commas, with channel ranges indicated by dash
+    # e.g. '1,3,5-7' --> [1,3,5,6,7]
+    # if 'all' is anywhere in the input string the output is 'all'
+    if 'all' in channel_list_str:
+        return 'all'
+    
+    # first split input list by commas
+    channel_list_str = channel_list_str.split(',')
+
+    # build integer channel list from string list and expand ranges
+    channel_list_int = []
+    for channel_str in channel_list_str:
+        range_split = channel_str.split('-')
+        if len(range_split) == 1:
+            channel_list_int += [int(channel_str)]
+        else:
+            channel_list_int += list(range(int(range_split[0]), int(range_split[1])+1))
+
+    return sorted(set(channel_list_int)) # should probably do a LOT more cleanup/validation, considering this is coming from user command-line input
