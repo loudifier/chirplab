@@ -890,10 +890,22 @@ class InputParameters(QCollapsible):
         self.cal_button = QPushButton('Calibrate...')
         self.cal_params.addWidget(self.cal_button)
         def open_cal_dialog():
+            last_FS_per_Pa = self.FS_per_Pa.value
+            last_FS_per_V = self.FS_per_V.value
             cal_dialog = CalibrationDialog(chirp_tab)
+            undo_stack.paused = True
             if cal_dialog.exec():
-                chirp_tab.analyze()
+                if (self.FS_per_Pa.value != last_FS_per_Pa) or (self.FS_per_V.value != last_FS_per_V):
+                    chirp_tab.analyze()
+                    undo_stack.paused = False
+                    undo_stack.push(undo_cal_dialog, [last_FS_per_Pa, last_FS_per_V], undo_cal_dialog, [self.FS_per_Pa.value, self.FS_per_V.value])
+            undo_stack.paused = False
         self.cal_button.clicked.connect(open_cal_dialog)
+
+        def undo_cal_dialog(cal_values):
+            self.FS_per_Pa.set_value(cal_values[0])
+            self.FS_per_V.set_value(cal_values[1])
+            chirp_tab.analyze()
 
 
         self.expand()
