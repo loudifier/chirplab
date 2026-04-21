@@ -15,8 +15,8 @@ def main():
     parser.add_argument('project', nargs='?', help='path to ChirpLab project file to open or process (required for command-line mode)')
     parser.add_argument('-s', '--stimulus', help='generate a stimulus file using the output settings of the given project file')
     parser.add_argument('-c', action='store_true', help='process input project file and output data in command-line mode. Additional arguments override project parameters when running in command-line mode')
-    parser.add_argument('-i', '--input', help='override input file. When running in command-line mode, use wildcards (*) to analyze multiple input files')
-    parser.add_argument('--channel', help='override which channel from input file is analyzed. When running in command-line mode, multiple input channels can be analyzed with "all" or with a comma-separated list, with ranges indicated with hyphens. e.g. 1,3,5-7 --> channels 1, 3, 5, 6, and 7')
+    parser.add_argument('-i', '--input', nargs='+', help='override input file. When running in command-line mode, multiple input files can be analyzed by providing a space-separated list or using wildcards (*)')
+    parser.add_argument('--channel', help='override which channel from input file is analyzed. When running in command-line mode, multiple input channels can be analyzed with "all" or with a comma-separated list of channels, with ranges indicated by hyphens. e.g. 1,3,5-7 --> channels 1, 3, 5, 6, and 7')
     parser.add_argument('-o', '--output', help='override measurement data output directory')
     args = parser.parse_args() # todo: clean up help print formatting
 
@@ -71,11 +71,11 @@ def main():
             sys.exit()
 
         # process command-line overrides
-        if args.input:
-            if '*' in args.input: # todo: this only covers Windows. Handle unix-style wildcard expansion happening in the shell and passing a list of files directly
-                input_files = glob(args.input)
-            else:
-                input_files = [args.input]
+        if args.input: # input will be a list because of nargs='+' above
+            input_files = []
+            for input_arg in args.input:
+                input_files += glob(input_arg) # handle windows not globbing files, or wilcards being passed inside quotes on unix-like systems
+            input_files = set(input_files)
         else:
             input_files = [clp.project['input']['file']]
 
