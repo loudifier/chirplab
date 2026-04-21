@@ -109,7 +109,10 @@ class CLParamNum(QWidget):
         def valueChanged(new_val): # also catches textChanged. Only fires if the value is actually different, e.g. '1.0' edited to '1.00' does not fire
             if self.numtype == 'int':
                 new_val = int(round(new_val))
-            self.set_value(min(max(new_val, self.min), self.max)) # update if rounded or changed to min/max
+            self.value = min(max(new_val, self.min), self.max) # update if rounded or changed to min/max
+            self.spin_box.blockSignals(True)
+            self.spin_box.setValue(self.value)
+            self.spin_box.blockSignals(False)
             if self.update_callback is not None:
                 self.update_callback(self.value)
             undo_stack.push(self.undo_redo, self.last_value, self.undo_redo, self.value)
@@ -156,7 +159,7 @@ class CLParamNum(QWidget):
         self.spin_box.blockSignals(True)
         self.spin_box.setValue(self.value)
         self.spin_box.blockSignals(False)
-        #self.last_value = new_value # don't update last_value here, so it can be recalled by update callback if needed
+        self.last_value = new_value
         
     def revert(self):
         self.set_value(self.last_value)
