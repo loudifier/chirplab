@@ -39,9 +39,9 @@ class MainWindow(QMainWindow):
             self.tabs.prev_tab = self.tabs.currentIndex()
             self.tabs.last_tab_clicked = index
             if not index: # chirp tab
-                remove_measurement.setEnabled(False)
+                remove_measurement_action.setEnabled(False)
             elif index < self.tabs.count()-1: # measurement tab
-                remove_measurement.setEnabled(True)
+                remove_measurement_action.setEnabled(True)
             # don't check for add measurement tab, handle in tab_changed
         self.tabs.tabBarClicked.connect(tabs_clicked)
         
@@ -184,48 +184,62 @@ class MainWindow(QMainWindow):
         measurement_menu = menubar.addMenu(' &Measurement')
         measurement_menu.setStyle(MenuProxyStyle(measurement_menu.style()))
         
-        add_measurement = QAction('&Add Measurement', self, shortcut=QKeySequence('Ctrl+A'))
-        measurement_menu.addAction(add_measurement)
+        add_measurement_action = QAction('&Add Measurement', self, shortcut=QKeySequence('Ctrl+A'))
+        measurement_menu.addAction(add_measurement_action)
         def add_measurement_dialog():
             if AddMeasurementDialog(self).exec():
-                remove_measurement.setEnabled(True) # if measurement is added its tab will be activated
-        add_measurement.triggered.connect(add_measurement_dialog)
+                remove_measurement_action.setEnabled(True) # if measurement is added its tab will be activated
+        add_measurement_action.triggered.connect(add_measurement_dialog)
         def add_new_measurement(measurement_type, name, params=None):
             type_index = CLMeasurements.MEASUREMENT_TYPES.index(measurement_type)
-            clp.measurements.append(getattr(CLMeasurements, CLMeasurements.MEASUREMENT_TYPES[type_index])(name, params))
-            clp.project['measurements'].append(clp.measurements[-1].params)
-            clp.measurements[-1].init_tab() 
-            clp.measurements[-1].format_graph()
-            clp.measurements[-1].measure()
-            clp.measurements[-1].plot()
-            self.tabs.insertTab(self.tabs.count()-1, clp.measurements[-1].tab, name)
-            self.tabs.setCurrentIndex(self.tabs.count()-2)
-            clp.measurements[-1].param_section.expand() # todo: figure out why measurement params sections do not actually expand in .init_tab(). Works fine for some measurements but not others, and there are only problems when adding a new measurment to the current project, not when opening/initializing a project.
+            new_measurement = getattr(CLMeasurements, CLMeasurements.MEASUREMENT_TYPES[type_index])(name, params)
+            new_measurement.init_tab() 
+            add_measurement(new_measurement)
+            undo_stack.push(remove_measurement, new_measurement, add_measurement, new_measurement)
         self.add_new_measurement = add_new_measurement
         
-        remove_measurement = QAction('&Remove Current Measurement', self, shortcut=QKeySequence('Ctrl+R'))
-        remove_measurement.setEnabled(False)
-        measurement_menu.addAction(remove_measurement)
-        def remove_measurement_prompt(checked=True):
+        def add_measurement(measurement):
+            # called when adding a measurement, undoing removing a measurement, or redoing adding a measurement
+            clp.measurements.append(measurement)
+            clp.project['measurements'].append(measurement.params)
+            measurement.format_graph()
+            measurement.measure()
+            measurement.plot()
+            self.tabs.insertTab(self.tabs.count()-1, measurement.tab, measurement.params['name']) # would be nice to put back in its original place when redoing adding measurement, but requires keeping track of tab movement in undo stack
+            self.tabs.setCurrentIndex(self.tabs.count()-2)
+            remove_measurement_action.setEnabled(True)
+            measurement.param_section.expand() # todo: figure out why measurement params sections do not actually expand in .init_tab(). Works fine for some measurements but not others, and there are only problems when adding a new measurment to the current project, not when opening/initializing a project.
+
+        remove_measurement_action = QAction('&Remove Current Measurement', self, shortcut=QKeySequence('Ctrl+R'))
+        remove_measurement_action.setEnabled(False)
+        measurement_menu.addAction(remove_measurement_action)
+        def remove_measurement_prompt():
             remove_message = QMessageBox()
             remove_message.setWindowTitle('Remove Measurement?')
             remove_message.setText("Are you sure you want to remove the '" + clp.measurements[self.tabs.currentIndex()-1].params['name'] + "' measurement?")
             remove_message.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
             button = remove_message.exec()
             if button == QMessageBox.Yes:
-                if button:
-                    tab_index = self.tabs.currentIndex()
-                    self.tabs.blockSignals(True) # removing a tab activates the tab to the right. Keep add measurement dialog from firing
-                    self.tabs.removeTab(self.tabs.currentIndex())
-                    self.tabs.setCurrentIndex(tab_index-1)
-                    self.tabs.blockSignals(False)
-                    if not self.tabs.currentIndex(): # ended up back on the chirp tab
-                        remove_measurement.setEnabled(False)
-                    clp.measurements.pop(tab_index-1)
-                    clp.project['measurements'].pop(tab_index-1)
+                tab_index = self.tabs.currentIndex()
+                undo_stack.push(add_measurement, clp.measurements[tab_index-1], remove_measurement, clp.measurements[tab_index-1])
+                remove_measurement(clp.measurements[tab_index-1])
             return button
-        remove_measurement.triggered.connect(remove_measurement_prompt)
-        
+        remove_measurement_action.triggered.connect(remove_measurement_prompt)
+
+        def remove_measurement(measurement):
+            # called when removing a measurement, undoing adding a measurement, or redoing removing a measurement
+            tab_index = self.tabs.indexOf(measurement.tab)
+            self.tabs.blockSignals(True) # removing a tab activates the tab to the right. Keep add measurement dialog from firing
+            self.tabs.removeTab(self.tabs.currentIndex())
+            self.tabs.setCurrentIndex(tab_index-1)
+            self.tabs.blockSignals(False)
+            if not self.tabs.currentIndex(): # ended up back on the chirp tab
+                remove_measurement_action.setEnabled(False)
+            
+            measurement_index = clp.measurements.index(measurement)
+            clp.measurements.pop(measurement_index)
+            clp.project['measurements'].pop(measurement_index)
+
         measurement_menu.addSeparator()
 
         load_preset = QAction('Add Measurement From Preset', self)
@@ -491,6 +505,7 @@ class LockableTabBar(QTabBar):
         self.tab_moved_from = 0
         self.tab_moved_to = 0
         def tab_moved(to_index, from_index): # the documentation for the tabMoved signal has from/to backwards
+            # fires every time a tab is moved one place, even during a single held mouse click
             self.tab_was_moved = True # set flag for mouseReleaseEvent handler to check if the move was valid
             self.tab_moved_from = from_index # keep track of which tab was actually moved
             self.tab_moved_to = to_index
@@ -498,7 +513,22 @@ class LockableTabBar(QTabBar):
             if to_index not in self.locked_tabs(): # if move is valid, reorder list of measurements
                 clp.project['measurements'].insert(to_index-1, clp.project['measurements'].pop(from_index-1)) # reorder project parameters so they can be saved/loaded in the correct order
                 clp.measurements.insert(to_index-1, clp.measurements.pop(from_index-1)) # reorder actual measurement objects for cases where they are referenced by index
+                
+                # todo: implement undo/redo for moving tabs. Lots of state to keep track of...
+                # need to update handling of event that is fired when tab is moved to beginning/end of list and back during a single click
+                # avoid accumulating multiple undo steps if moving more than one place
+                #if len(undo_stack.history) and undo_stack.history[undo_stack.index][0] is undo_reorder_tabs:
+                #    undo_stack.history[undo_stack.index][1][0] = to_index
+                #else:
+                #    undo_stack.push(undo_reorder_tabs, [to_index, from_index], undo_reorder_tabs, [from_index,to_index])
         self.tabMoved.connect(tab_moved)
+
+        #def undo_reorder_tabs(indexes):
+        #    self.blockSignals(True)
+        #    self.parent().insertTab(indexes[1], self.parent().widget(indexes[0]), self.tabText(indexes[0]))
+        #    self.setCurrentIndex(indexes[1])
+        #    self.blockSignals(False)
+
     
     def locked_tabs(self):
         # lock the chirp tab and add measurement tab
