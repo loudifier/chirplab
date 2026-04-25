@@ -14,13 +14,13 @@ working_directory = '.' # directory to start any browse dialogs in, updated base
 # signals updated from chirp tab and used for analysis in measurements. Stimulus, response, impulse response, etc.
 signals = {}
 
-# information to keep track of input and output file or device. For now only keeping track of input file or device information, project output parameters are sufficient for outputting to files or sound cards. May need to use IO['output'] at some point if outputting to some other interface.
+# information to keep track of input and output file or device.
 IO = {'input':{'length_samples':0,
                'sample_rate':0,
                'channels':0,
                'numtype':'',
                'delay': 0}, # detected chirp time offset in samples from the start of the signal (at the most recently calculated project analysis sample rate, *not* the raw input sample rate)
-      'output':{}}
+      'output':{'channels': 0}} # hardware and file output both use project settings, except for num channels
 
 # list of measurement objects (to be defined and instantiated based on measurement parameters in project dict)
 measurements = []

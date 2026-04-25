@@ -1,7 +1,7 @@
 # individual measurement imports at bottom of file
 import CLProject as clp
 import numpy as np
-from CLGui import CLTab, QCollapsible, QHSeparator
+from CLGui import CLTab, QCollapsible, QHSeparator, undo_stack
 from qtpy.QtWidgets import QLineEdit
 import pyqtgraph as pg
 from pathvalidate import is_valid_filename
@@ -95,17 +95,26 @@ class CLMeasurement():
             if not is_valid_measurement_name(new_name):
                 self.name_box.setText(self.name_box.last_value)
                 return
+            if new_name == self.name_box.last_value:
+                return
                 
             self.params['name'] = new_name
             self.format_graph()
+            undo_stack.push(undo_update_name, self.name_box.last_value, undo_update_name, new_name)
             self.name_box.last_value = self.params['name']
             
-            # updating the tab title is a little sketchy... come back later to see if there is a more elegant soltuion?
+            # updating the tab title is a little sketchy... come back later to see if there is a more elegant solution?
             tab_group = self.tab.parent().parent()
             tab_index = tab_group.indexOf(self.tab)
             tab_group.setTabText(tab_index, self.params['name'])
         self.name_box.editingFinished.connect(update_name)
         
+        def undo_update_name(undo_name):
+            self.name_box.setText(undo_name)
+            undo_stack.paused = True
+            update_name()
+            undo_stack.paused = False
+
         # add collapsible sections to measurement config panel. Fill out sections for individual measurements
         self.param_section = QCollapsible(type(self).measurement_type_name + ' Measurement Parameters')
         self.param_section.expand()

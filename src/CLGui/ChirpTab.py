@@ -1,8 +1,8 @@
 import CLProject as clp
-from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, QCollapsible, QHSeparator, CalibrationDialog
+from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, CLParamCheckBox, QCollapsible, QHSeparator, CalibrationDialog, undo_stack
 from CLAnalysis import generate_stimulus, read_audio_file, read_response, generate_output_stimulus, generate_stimulus_file, audio_file_info, write_audio_file
 import numpy as np
-from qtpy.QtWidgets import QPushButton, QCheckBox, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QVBoxLayout
+from qtpy.QtWidgets import QPushButton, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QVBoxLayout
 from qtpy.QtCore import Signal, Slot, QObject
 import pyqtgraph as pg
 from engineering_notation import EngNumber
@@ -194,7 +194,6 @@ class ChirpParameters(QCollapsible):
         chirp_tab.update_sample_rate = update_sample_rate
         def sample_rate_str2num(str_rate):
             if 'input' in str_rate:
-               self.sample_rate.last_value = 'use input rate'
                self.sample_rate.dropdown.setCurrentIndex(0)
                return clp.IO['input']['sample_rate']
             try:
@@ -204,7 +203,6 @@ class ChirpParameters(QCollapsible):
                 return 0
             num_rate = round(float(EngNumber(str_rate)))
             num_rate = min(max(num_rate, clp.MIN_SAMPLE_RATE), clp.MAX_SAMPLE_RATE)
-            self.sample_rate.last_value = str(EngNumber(num_rate))
             self.sample_rate.dropdown.setCurrentText(str(EngNumber(num_rate))) # todo: handle corner case where this can fire recalculation when clicking the dropdown after typing in a sample rate 
             return num_rate
         
@@ -258,30 +256,47 @@ class OutputParameters(QCollapsible):
         self.mode_dropdown = QComboBox()
         self.addWidget(self.mode_dropdown)
         self.mode_dropdown.addItems(['File','Device'])
+        if clp.project['output']['mode'] == 'device':
+            self.mode_dropdown.setCurrentIndex(1)
+        self.device_output = DeviceOutput(chirp_tab) # todo: do something to delay initializing hardware if starting in file mode?
+        self.file_output = FileOutput(chirp_tab)
         def update_output_mode(index):
-            # inelegant to recreate the panel each time the mode is updated, but FileOutput/DeviceOutput both change shared clp.project and actually switching still feels fast in the GUI
-            # todo: check for weird memory leaks or corner cases with .replaceWidget() and .close(). Searching for anything related to replacing/deleting widgets seems to show a lot of different approaches with differing results
-            # todo: thise needs to be completely reworked for undo/redo
-            current_widget = self.output_frame.layout().itemAt(0).widget()
+            undo_paused = undo_stack.paused # keep track of whether mode update should be pushed to undo stack
+            undo_stack.paused = True
             if index:
                 clp.project['output']['mode'] = 'device'
-                self.device_output = DeviceOutput(chirp_tab)
-                self.output_frame.layout().replaceWidget(current_widget, self.device_output)
+                self.file_output.hide()
+                self.device_output.sync(self.file_output)
+                self.output_frame.layout().replaceWidget(self.file_output, self.device_output)
+                self.device_output.show()
                 if clp.project['input']['mode'] == 'device':
                     chirp_tab.input_params.device_input.capture_button.setText('Play and Capture')
             else:
                 clp.project['output']['mode'] = 'file'
-                self.file_output = FileOutput(chirp_tab)
-                self.output_frame.layout().replaceWidget(current_widget, self.file_output)
+                self.device_output.hide()
+                self.file_output.sync(self.device_output)
+                self.output_frame.layout().replaceWidget(self.device_output, self.file_output)
+                self.file_output.show()
                 if clp.project['input']['mode'] == 'device':
                     chirp_tab.input_params.device_input.capture_button.setText('Capture Response')
-            current_widget.close()
-            chirp_tab.io_changed.emit()
+            chirp_tab.io_changed.emit() # main window listens for io_changed, updates analyze/generate button text
+            # todo: pretty sure io_changed was a workaround for previous implmenetation of creating a new set of parameter controls when switching between file and device mode
+            # could/should probably remove signal and change text directly from mode update function (also update for output mode)
+            if not undo_paused:
+                undo_stack.paused = False
+                undo_stack.push(undo_output_mode, (index+1)%2, undo_output_mode, index)
+        def undo_output_mode(index):
+            undo_stack.paused = True
+            self.mode_dropdown.setCurrentIndex(index)
+            undo_stack.paused = False
         self.mode_dropdown.currentIndexChanged.connect(update_output_mode)
         
         self.output_frame = QFrame()
         QVBoxLayout(self.output_frame)
-        self.output_frame.layout().addWidget(QFrame())
+        if clp.project['output']['mode'] == 'file':
+            self.output_frame.layout().addWidget(self.file_output)
+        else:
+            self.output_frame.layout().addWidget(self.device_output)
         self.addWidget(self.output_frame)
 
         # update_output_mode call moved to after InputParameters are created in ChirpTab init. Avoids potentially referencing chirp_tab.input_params before it exists
@@ -360,13 +375,18 @@ class FileOutput(QFrame):
         self.post_sweep.units_update_callback = update_post_sweep_units
         
         # include leading silence checkbox
-        self.include_silence = QCheckBox('Include leading silence')
+        self.include_silence = CLParamCheckBox('Include leading silence')
         self.include_silence.setChecked(clp.project['output']['include_silence'])
         layout.addWidget(self.include_silence)
         def update_include_silence(checked):
             clp.project['output']['include_silence'] = bool(checked)
+            undo_stack.push(undo_include_silence, not checked, undo_include_silence, checked)
             update_output_length()
-        self.include_silence.stateChanged.connect(update_include_silence)
+        self.include_silence.update_callback = update_include_silence
+        def undo_include_silence(checked):
+            undo_stack.paused = True
+            self.include_silence.setChecked(checked)
+            undo_stack.paused = False
         
         # total length text box (non-interactive) - s/sample dropdown
         def calc_output_length(unit='samples'):
@@ -492,6 +512,27 @@ class FileOutput(QFrame):
         self.output_file_button.clicked.connect(generate_output_file)
         self.generate_output_file = generate_output_file
 
+    def sync(self, device_output):
+        # update any elements that may have been changed while output was set to file mode
+        self.amplitude.units.setCurrentIndex(device_output.amplitude.units.currentIndex()) # fires callback if units are changed
+        self.amplitude.units_update_callback(self.amplitude.units.currentIndex()) # force firing callback (which updates values) in case units are not changed
+
+        self.pre_sweep.units.setCurrentIndex(device_output.pre_sweep.units.currentIndex())
+        self.pre_sweep.units_update_callback(self.pre_sweep.units.currentIndex())
+        
+        self.post_sweep.units.setCurrentIndex(device_output.post_sweep.units.currentIndex())
+        self.post_sweep.units_update_callback(self.post_sweep.units.currentIndex())
+        
+        self.output_length.units.setCurrentIndex(device_output.output_length.units.currentIndex())
+        self.output_length.units_update_callback(self.output_length.units.currentIndex())
+
+        self.include_silence.setChecked(clp.project['output']['include_silence'])
+        
+        self.sample_rate.set_value(clp.project['output']['sample_rate'])
+        self.sample_rate.update_callback(-1)
+        
+        self.channel.update_callback(channel=clp.project['output']['channel']) 
+
 
 class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, but trying to DRY it out introduces a lot of weird coupling. Simpler to keep it separate
     def __init__(self, chirp_tab):
@@ -504,13 +545,18 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         layout.addWidget(self.refresh)
         def refresh_devices():
             DeviceIO.restart_pyaudio()
+            undo_stack.paused = True
             update_api(self.api.dropdown.currentIndex())
+            undo_stack.paused = False
             # todo: also refresh input devices
         self.refresh.clicked.connect(refresh_devices)
 
         # Host API dropdown
         self.api = CLParamDropdown('Host API', DeviceIO.HOST_APIS)
-        api_index = self.api.dropdown.findText(clp.project['output']['api'])
+        if 'api' in clp.project['output']:
+            api_index = self.api.dropdown.findText(clp.project['output']['api'])
+        else:
+            api_index = -1
         if api_index != -1:
             self.api.dropdown.setCurrentIndex(api_index)
         else:
@@ -535,9 +581,13 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
                 default_device = DeviceIO.get_default_output_device(clp.project['output']['api'])
                 index = self.device.dropdown.findText(default_device)
             self.device.dropdown.setCurrentIndex(index)
-        set_device_index(clp.project['output']['device'])
+        if 'device' in clp.project['output']:
+            set_device_index(clp.project['output']['device'])
+        else:
+            set_device_index('')
         clp.project['output']['device'] = self.device.dropdown.currentText()
-        clp.project['output']['num_channels'] = DeviceIO.get_num_output_channels(clp.project['output']['device'], clp.project['output']['api'])
+        #clp.project['output']['num_channels'] = DeviceIO.get_num_output_channels(clp.project['output']['device'], clp.project['output']['api'])
+        clp.IO['output']['channels'] = DeviceIO.get_num_output_channels(clp.project['output']['device'], clp.project['output']['api'])
         layout.addWidget(self.device)
         def update_device(index):
             set_device_index(self.device.dropdown.currentText())
@@ -619,7 +669,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         self.post_sweep.units_update_callback = update_post_sweep_units
         
         # include leading silence checkbox
-        self.include_silence = QCheckBox('Include leading silence')
+        self.include_silence = CLParamCheckBox('Include leading silence')
         self.include_silence.setChecked(clp.project['output']['include_silence'])
         layout.addWidget(self.include_silence)
         def update_include_silence(checked):
@@ -627,7 +677,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             update_output_length()
             if clp.project['input']['mode'] == 'device' and clp.project['input']['use_output_length']:
                 chirp_tab.input_params.device_input.update_auto_length(True)
-        self.include_silence.stateChanged.connect(update_include_silence)
+        self.include_silence.update_callback = update_include_silence
         
         # total length text box (non-interactive) - s/sample dropdown
         def calc_output_length(unit='samples'):
@@ -678,7 +728,6 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
                 self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
                 self.sample_rate.value = self.sample_rate.last_value
         self.sample_rate.update_callback = update_sample_rate
-        update_sample_rate(new_rate=clp.project['output']['sample_rate'])
         def sample_rate_str2num(str_rate):
             try:
                 EngNumber(str_rate) # if the input text can't be construed as a number return 0
@@ -694,20 +743,23 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         # output channel
         self.channel = CLParamDropdown('Output Channel', ['all'])
         def set_num_channels(num_channels):
-            clp.project['output']['num_channels'] = num_channels
+            #clp.project['output']['num_channels'] = num_channels
+            clp.IO['output']['channels'] = num_channels
             self.channel.dropdown.blockSignals(True)
             self.channel.dropdown.clear()
             self.channel.dropdown.addItem('all')
             self.channel.dropdown.addItems([str(chan) for chan in range(1, num_channels+1)])
             self.channel.dropdown.blockSignals(False)
-        set_num_channels(clp.project['output']['num_channels'])
+        #set_num_channels(clp.project['output']['num_channels'])
+        set_num_channels(clp.IO['output']['channels'])
         layout.addWidget(self.channel)
         def update_channel(index=-1, channel=None):
             if index==-1:
                 if channel=='all':
                     index=0
                 else:
-                    if channel > clp.project['output']['num_channels']:
+                    #if channel > clp.project['output']['num_channels']:
+                    if channel > clp.IO['output']['channels']:
                         index=0
                     else:
                         index=channel
@@ -721,7 +773,9 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
 
         # play button
         self.play = QPushButton('Play Stimulus')
-        # gray out and change text if current selected device seems to be invalid
+        # todo: gray out and change text if current selected device seems to be invalid (also handle for capture)
+        # todo: disable undo/redo while playing (also handle for capture)
+        # todo: allow user to cancel playback (also handle for capture)
         layout.addWidget(self.play)
         self.play_start_time = time()
         def play_stimulus():
@@ -742,6 +796,28 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
                 chirp_tab.input_params.setEnabled(True)
             chirp_tab.play_finished.emit()
 
+    def sync(self, file_output):
+        # update any elements that may have been changed while output was set to file mode
+        # todo: refresh devices?
+        self.amplitude.units.setCurrentIndex(file_output.amplitude.units.currentIndex()) # fires callback if units are changed
+        self.amplitude.units_update_callback(self.amplitude.units.currentIndex()) # force firing callback (which updates values) in case units are not changed
+
+        self.pre_sweep.units.setCurrentIndex(file_output.pre_sweep.units.currentIndex())
+        self.pre_sweep.units_update_callback(self.pre_sweep.units.currentIndex())
+        
+        self.post_sweep.units.setCurrentIndex(file_output.post_sweep.units.currentIndex())
+        self.post_sweep.units_update_callback(self.post_sweep.units.currentIndex())
+        
+        self.output_length.units.setCurrentIndex(file_output.output_length.units.currentIndex())
+        self.output_length.units_update_callback(self.output_length.units.currentIndex())
+
+        self.include_silence.setChecked(clp.project['output']['include_silence']) # potentially fires the length update callback a *third* time
+        
+        self.sample_rate.update_callback(new_rate=clp.project['output']['sample_rate']) # potentially updates length a **fourth** time
+        
+        self.channel.update_callback(channel=clp.project['output']['channel']) 
+
+
 
 class InputParameters(QCollapsible):
     def __init__(self, chirp_tab):
@@ -750,23 +826,34 @@ class InputParameters(QCollapsible):
         self.mode_dropdown = QComboBox()
         self.addWidget(self.mode_dropdown)
         self.mode_dropdown.addItems(['File', 'Device'])
+        if clp.project['input']['mode'] == 'device':
+            self.mode_dropdown.setCurrentIndex(1)
+        self.device_input = DeviceInput(chirp_tab)
+        self.file_input = FileInput(chirp_tab)
         def update_input_mode(index):
-            clp.IO['input']['length_samples'] = 0
-            clp.IO['input']['sample_rate'] = 0
-            clp.IO['input']['channels'] = 0
-            clp.IO['input']['numtype'] = 0
-            
-            current_widget = self.input_frame.layout().itemAt(0).widget()
+            undo_paused = undo_stack.paused # keep track of whether mode update should be pushed to undo stack
+            undo_stack.paused = True
             if index:
                 clp.project['input']['mode'] = 'device'
-                self.device_input = DeviceInput(chirp_tab)
-                self.input_frame.layout().replaceWidget(current_widget, self.device_input)
+                self.file_input.hide()
+                self.device_input.sync()
+                self.input_frame.layout().replaceWidget(self.file_input, self.device_input)
+                self.device_input.show()
             else:
                 clp.project['input']['mode'] = 'file'
-                self.file_input = FileInput(chirp_tab)
-                self.input_frame.layout().replaceWidget(current_widget, self.file_input)
-            current_widget.close()
-            chirp_tab.io_changed.emit()
+                self.device_input.hide()
+                self.file_input.sync()
+                self.input_frame.layout().replaceWidget(self.device_input, self.file_input)
+                self.file_input.show()
+
+            chirp_tab.io_changed.emit() # todo: probably could/should be removed. See update_output_mode comments
+            if not undo_paused:
+                undo_stack.paused = False
+                undo_stack.push(undo_input_mode, (index+1)%2, undo_input_mode, index)
+        def undo_input_mode(index):
+            undo_stack.paused = True
+            self.mode_dropdown.setCurrentIndex(index)
+            undo_stack.paused = False
         self.mode_dropdown.currentIndexChanged.connect(update_input_mode)
 
         self.input_frame = QFrame()
@@ -775,9 +862,9 @@ class InputParameters(QCollapsible):
         self.addWidget(self.input_frame)
 
         if clp.project['input']['mode'] == 'file':
-            update_input_mode(0)
+            self.input_frame.layout().addWidget(self.file_input)
         else:
-            update_input_mode(1)
+            self.input_frame.layout().addWidget(self.device_input)
 
 
         # calibration parameters section
@@ -803,10 +890,22 @@ class InputParameters(QCollapsible):
         self.cal_button = QPushButton('Calibrate...')
         self.cal_params.addWidget(self.cal_button)
         def open_cal_dialog():
+            last_FS_per_Pa = self.FS_per_Pa.value
+            last_FS_per_V = self.FS_per_V.value
             cal_dialog = CalibrationDialog(chirp_tab)
+            undo_stack.paused = True
             if cal_dialog.exec():
-                chirp_tab.analyze()
+                if (self.FS_per_Pa.value != last_FS_per_Pa) or (self.FS_per_V.value != last_FS_per_V):
+                    chirp_tab.analyze()
+                    undo_stack.paused = False
+                    undo_stack.push(undo_cal_dialog, [last_FS_per_Pa, last_FS_per_V], undo_cal_dialog, [self.FS_per_Pa.value, self.FS_per_V.value])
+            undo_stack.paused = False
         self.cal_button.clicked.connect(open_cal_dialog)
+
+        def undo_cal_dialog(cal_values):
+            self.FS_per_Pa.set_value(cal_values[0])
+            self.FS_per_V.set_value(cal_values[1])
+            chirp_tab.analyze()
 
 
         self.expand()
@@ -902,12 +1001,12 @@ class FileInput(QFrame):
             else:
                 channel_index = clp.project['input']['channel'] - 1
             
-            # rebuild channel dropdown list (updates trigger callback, which resets output channel to 0/'all')
-            self.channel.dropdown.clear()
+            # rebuild channel dropdown list
+            self.channel.dropdown.blockSignals(True)
+            self.channel.dropdown.clear() # wipes out current index
             self.channel.dropdown.addItems([str(chan) for chan in range(1, clp.IO['input']['channels']+1)])
-            
-            # set correct output channel
-            self.channel.dropdown.setCurrentIndex(channel_index)            
+            self.channel.dropdown.setCurrentIndex(channel_index) # set correct index
+            self.channel.dropdown.blockSignals(False)
         self.num_channels.update_callback = update_num_channels
         
         # input channel dropdown        
@@ -928,6 +1027,10 @@ class FileInput(QFrame):
         self.analyze_button.clicked.connect(analyze)
         self.analyze = analyze
 
+    def sync(self):
+        # update clp.IO['input'] to reflect file input after switching from device input
+        self.update_input_file(clp.project['input']['file'])
+
 
 class DeviceInput(QFrame):
     def __init__(self, chirp_tab):
@@ -940,13 +1043,18 @@ class DeviceInput(QFrame):
         layout.addWidget(self.refresh)
         def refresh_devices():
             DeviceIO.restart_pyaudio()
+            undo_stack.paused = True
             update_api(self.api.dropdown.currentIndex())
+            undo_stack.paused = False
             # todo: also refresh output devices
         self.refresh.clicked.connect(refresh_devices)
 
         # Host API dropdown
         self.api = CLParamDropdown('Host API', DeviceIO.HOST_APIS)
-        api_index = self.api.dropdown.findText(clp.project['input']['api'])
+        if 'api' in clp.project['input']:
+            api_index = self.api.dropdown.findText(clp.project['input']['api'])
+        else:
+            api_index = -1
         if api_index != -1:
             self.api.dropdown.setCurrentIndex(api_index)
         else:
@@ -971,7 +1079,10 @@ class DeviceInput(QFrame):
                 default_device = DeviceIO.get_default_input_device(clp.project['input']['api'])
                 index = self.device.dropdown.findText(default_device)
             self.device.dropdown.setCurrentIndex(index)
-        set_device_index(clp.project['input']['device'])
+        if 'device' in clp.project['input']:
+            set_device_index(clp.project['input']['device'])
+        else:
+            set_device_index('')
         clp.project['input']['device'] = self.device.dropdown.currentText()
         layout.addWidget(self.device)
         def update_device(index):
@@ -997,7 +1108,7 @@ class DeviceInput(QFrame):
         self.device.update_callback = update_device
         
         # auto capture length checkbox
-        self.auto_length = QCheckBox('auto')
+        self.auto_length = CLParamCheckBox('auto')
         self.auto_length.setChecked(clp.project['input']['use_output_length'])
         def update_auto_length(checked):
             clp.project['input']['use_output_length'] = checked
@@ -1005,7 +1116,7 @@ class DeviceInput(QFrame):
             if checked:
                 clp.project['input']['capture_length'] = calc_output_length('seconds')
                 update_capture_length_units(self.capture_length.units.currentIndex())
-        self.auto_length.stateChanged.connect(update_auto_length)
+        self.auto_length.update_callback = update_auto_length
         def calc_output_length(unit='samples'):
             sig_length = round(clp.project['output']['pre_sweep']*clp.project['output']['sample_rate'])
             sig_length += round(clp.project['chirp_length']*clp.project['output']['sample_rate'])
@@ -1187,3 +1298,8 @@ class DeviceInput(QFrame):
             else:
                 self.save.setEnabled(False) # disable button if it is accidentally left enabled after raw response is cleared
         self.save.clicked.connect(save_capture)
+
+    def sync(self):
+        # update clp.IO['input'] to reflect device input after switching from file input
+        # refresh devices?
+        self.api.update_callback(self.api.dropdown.currentIndex())

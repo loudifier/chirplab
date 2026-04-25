@@ -1,12 +1,11 @@
 import CLProject as clp
 from CLAnalysis import freq_points, interpolate, resample, find_offset
-from CLGui import CLParamDropdown, FreqPointsParams
+from CLGui import CLParamDropdown, FreqPointsParams, CLParamCheckBox
 from scipy.fftpack import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
 from CLMeasurements import CLMeasurement
 from scipy.stats import linregress
-from qtpy.QtWidgets import QCheckBox
 
 # good resource about phase and group delay: http://cjs-labs.com/sitebuildercontent/sitebuilderfiles/GroupDelay.pdf
 
@@ -278,24 +277,24 @@ class PhaseResponse(CLMeasurement):
         self.update_num_channels(clp.IO['input']['channels'])
 
         # unwrap phase checkbox
-        self.unwrap = QCheckBox('Unwrap phase')
+        self.unwrap = CLParamCheckBox('Unwrap phase')
         self.unwrap.setChecked(self.params['unwrap'])
         self.param_section.addWidget(self.unwrap)
         def update_unwrap(checked):
             self.params['unwrap'] = checked
             self.measure()
             self.plot()
-        self.unwrap.stateChanged.connect(update_unwrap)
+        self.unwrap.update_callback = update_unwrap
 
         # auto invert checkbox
-        self.auto_invert = QCheckBox('Auto invert')
+        self.auto_invert = CLParamCheckBox('Auto invert')
         self.auto_invert.setChecked(self.params['auto_invert'])
         self.param_section.addWidget(self.auto_invert)
         def update_auto_invert(checked):
             self.params['auto_invert'] = checked
             self.measure()
             self.plot()
-        self.auto_invert.stateChanged.connect(update_auto_invert)
+        self.auto_invert.update_callback = update_auto_invert
 
 
         self.output_unit = CLParamDropdown('Units', self.OUTPUT_UNITS, '')

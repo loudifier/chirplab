@@ -34,8 +34,9 @@ class QHSeparator(QFrame):
 
 
 
+from CLGui.Undo import undo_stack
 from CLGui.CLTab import CLTab
-from CLGui.CLParameter import CLParameter, CLParamNum, CLParamDropdown, CLParamFile, FreqPointsParams
+from CLGui.CLParameter import CLParameter, CLParamNum, CLParamDropdown, CLParamFile, FreqPointsParams, CLParamCheckBox
 from CLGui.QCollapsible.QCollapsible import QCollapsible
 from CLGui.CalibrationDialog import CalibrationDialog
 from CLGui.ChirpTab import ChirpTab

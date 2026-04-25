@@ -1,6 +1,7 @@
 import CLProject as clp
 from qtpy.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, QComboBox, QDoubleSpinBox, QAbstractSpinBox, QPushButton, QFileDialog, QCheckBox
 import numpy as np
+from CLGui import undo_stack
 
 # collection of combination classes for displaying and entering configuration parameters
 # typically a label on the left, text box or similar element in the middle, and sometimes a unit label or dropdown on the right
@@ -22,6 +23,7 @@ class CLParameter(QWidget):
             self.value = self.text_box.text()
             if self.update_callback is not None:
                 self.update_callback(self.value)
+            undo_stack.push(self.undo_redo, self.last_value, self.undo_redo, self.value)
             self.last_value = self.value # if callback is not defined or update completes, just update last_value. If there is an issue during callback, assume revert sets current value to last_value
         self.text_box.editingFinished.connect(editingFinished)
         
@@ -35,10 +37,18 @@ class CLParameter(QWidget):
                 self.units = QComboBox()
                 self.units.addItems(unit)
                 self.layout.addWidget(self.units)
-                def indexChanged(index):
+                self.units.last_index = 0
+                def unitsIndexChanged(index):
                     if self.units_update_callback is not None:
                         self.units_update_callback(index)
-                self.units.currentIndexChanged.connect(indexChanged)
+                    undo_stack.push(units_undo_redo, self.units.last_index, units_undo_redo, index)
+                    self.units.last_index = index
+                self.units.currentIndexChanged.connect(unitsIndexChanged)
+                def units_undo_redo(index):
+                    self.units.setCurrentIndex(index)
+                    self.units.last_index = index
+                    if self.units_update_callback is not None:
+                            self.units_update_callback(index)
         
         # define external callback functions to handle parameter updates
         self.update_callback = None
@@ -51,6 +61,12 @@ class CLParameter(QWidget):
     
     def revert(self):
         self.set_value(self.last_value)
+
+    def undo_redo(self, value): # undo and redo are identical, use the same function
+        self.set_value(value)
+        self.last_value = value
+        if self.update_callback is not None:
+                self.update_callback(self.value)
       
         
 class CLParamNum(QWidget):
@@ -90,13 +106,16 @@ class CLParamNum(QWidget):
         #self.layout.update()
         self.layout.addWidget(self.spin_box)
         self.spin_box.setValue(self.value) # value can only be changed after adding to layout
-        def valueChanged(new_val): # can also catch textChanged. textChanged and valueChanged are both called everytime a character is typed, not just editing finished. Might be worth catching textChanged and only validate on editing finished 
+        def valueChanged(new_val): # also catches textChanged. Only fires if the value is actually different, e.g. '1.0' edited to '1.00' does not fire
             if self.numtype == 'int':
                 new_val = int(round(new_val))
-            #self.spin_box.setValue(self.value) # fires an extra callback, call self.set_value() instead
-            self.set_value(min(max(new_val, self.min), self.max)) # update if rounded or changed to min/max
-            if not self.update_callback is None:
+            self.value = min(max(new_val, self.min), self.max) # update if rounded or changed to min/max
+            self.spin_box.blockSignals(True)
+            self.spin_box.setValue(self.value)
+            self.spin_box.blockSignals(False)
+            if self.update_callback is not None:
                 self.update_callback(self.value)
+            undo_stack.push(self.undo_redo, self.last_value, self.undo_redo, self.value)
             self.last_value = self.value
         self.spin_box.valueChanged.connect(valueChanged)
         
@@ -110,10 +129,19 @@ class CLParamNum(QWidget):
                 self.units = QComboBox()
                 self.units.addItems(unit)
                 self.layout.addWidget(self.units)
+                self.units.last_index = 0
                 def unitsIndexChanged(index):
-                    if not self.units_update_callback is None:
+                    if self.units_update_callback is not None:
                         self.units_update_callback(index)
+                    undo_stack.push(units_undo_redo, self.units.last_index, units_undo_redo, index)
+                    self.units.last_index = index
                 self.units.currentIndexChanged.connect(unitsIndexChanged)
+                def units_undo_redo(index):
+                    self.units.setCurrentIndex(index)
+                    self.units.last_index = index
+                    if self.units_update_callback is not None:
+                            self.units_update_callback(index)
+
         
         # define external callback functions to handle parameter updates
         self.update_callback = None
@@ -131,7 +159,7 @@ class CLParamNum(QWidget):
         self.spin_box.blockSignals(True)
         self.spin_box.setValue(self.value)
         self.spin_box.blockSignals(False)
-        #self.last_value = new_value # don't update last_value here, so it can be recalled by update callback if needed
+        self.last_value = new_value
         
     def revert(self):
         self.set_value(self.last_value)
@@ -148,6 +176,12 @@ class CLParamNum(QWidget):
             self.spin_box.setDecimals(0)
             # default step value should still be 1
 
+    def undo_redo(self, value): # undo and redo are identical, use the same function
+        self.set_value(value)
+        self.last_value = value
+        if self.update_callback is not None:
+                self.update_callback(self.value)
+
 
 class CLParamDropdown(QWidget):
     def __init__(self, label_text, item_list, unit=None, editable=False):
@@ -163,11 +197,13 @@ class CLParamDropdown(QWidget):
         self.layout.addWidget(self.dropdown)
 
         self.value = self.dropdown.currentText()
+        self.last_value = self.value # only used when editable
         self.last_index = 0
         def indexChanged(index):
             self.value = self.dropdown.currentText()
-            if not self.update_callback is None:
+            if self.update_callback is not None:
                 self.update_callback(index)
+            undo_stack.push(self.undo_redo, [self.last_value, self.last_index], self.undo_redo, [self.value, index])
             self.last_value = self.value
             self.last_index = self.dropdown.currentIndex()
         self.dropdown.currentIndexChanged.connect(indexChanged)
@@ -176,7 +212,6 @@ class CLParamDropdown(QWidget):
         if self.editable:
             self.dropdown.setEditable(True)
             self.dropdown.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-            self.last_value = self.value
 
             def editingFinished():
                 # just clicking the dropdown fires editingFinished(). Ignore if value isn't actually changed to avoid firing multiple times
@@ -201,10 +236,18 @@ class CLParamDropdown(QWidget):
                 self.units = QComboBox()
                 self.units.addItems(unit)
                 self.layout.addWidget(self.units)
-                def unitIndexChanged(index):
+                self.units.last_index = 0
+                def unitsIndexChanged(index):
                     if not self.units_update_callback is None:
                         self.units_update_callback(index)
-                self.units.currentIndexChanged.connect(unitIndexChanged)
+                    undo_stack.push(units_undo_redo, self.units.last_index, units_undo_redo, index)
+                    self.units.last_index = index
+                self.units.currentIndexChanged.connect(unitsIndexChanged)
+                def units_undo_redo(index):
+                    self.units.setCurrentIndex(index)
+                    self.units.last_index = index
+                    if self.units_update_callback is not None:
+                            self.units_update_callback(index)
         
         # define external callback functions to handle parameter updates
         self.update_callback = None
@@ -216,6 +259,22 @@ class CLParamDropdown(QWidget):
         if self.editable:
             self.set_value(self.last_value)
         self.dropdown.blockSignals(False)
+
+    def undo_redo(self, value_index): # value_index is a list of [value, index]
+        if value_index[1] == -1:
+            # text was manually edited
+            self.set_value(value_index[0])
+        else:
+            # dropdown was selected
+            self.dropdown.blockSignals(True)
+            self.dropdown.setCurrentIndex(value_index[1])
+            self.dropdown.blockSignals(False)
+            self.value = self.dropdown.currentText()
+            self.last_value = self.value
+            self.last_index = value_index[1]
+
+        if self.update_callback is not None:
+                self.update_callback(value_index[1])
 
 
 class CLParamFile(QWidget):
@@ -233,10 +292,12 @@ class CLParamFile(QWidget):
         self.last_value = self.value # keep track of last value, to revert back to in case new entry fails data validation
         self.layout.addWidget(self.text_box)
         def editingFinished():
-            self.value = self.text_box.text()
-            if self.update_callback is not None:
-                self.update_callback(self.value)
-            self.last_value = self.value # if callback is not defined or update completes, just update last_value. If there is an issue during callback, assume revert sets current value to last_value
+            if self.text_box.text() != self.value:
+                self.value = self.text_box.text()
+                if self.update_callback is not None:
+                    self.update_callback(self.value)
+                undo_stack.push(self.undo_redo, self.last_value, self.undo_redo, self.value)
+                self.last_value = self.value # if callback is not defined or update completes, just update last_value. If there is an issue during callback, assume revert sets current value to last_value
         self.text_box.editingFinished.connect(editingFinished)
         
         self.button = QPushButton('Browse...')
@@ -291,8 +352,13 @@ class CLParamFile(QWidget):
         
         if file_dialog.exec():
             file_path = file_dialog.selectedFiles()[0]
-            self.set_value(file_path)
+            self.text_box.setText(file_path)
             self.text_box.editingFinished.emit()
+
+    def undo_redo(self, value):
+        self.set_value(value)
+        if self.update_callback is not None:
+            self.update_callback(self.value)
             
 
 # collection of UI elements for configuring and generating a list of frequency points
@@ -319,14 +385,14 @@ class FreqPointsParams(QWidget):
             if self.update_callback is not None:
                 self.update_callback()
         self.min.update_callback = update_min_freq
-        self.min_auto = QCheckBox('auto')
+        self.min_auto = CLParamCheckBox('auto')
         def update_min_auto(checked):
             params['min_auto'] = bool(checked)
             self.min.spin_box.setEnabled(not bool(checked))
             if self.calc_min_auto is not None:
                 new_min = self.calc_min_auto() # get automatic min freq from containing measurement
                 self.min.spin_box.setValue(new_min) # set value in spin_box directly to trigger recalculation
-        self.min_auto.stateChanged.connect(update_min_auto)
+        self.min_auto.update_callback = update_min_auto
         self.calc_min_auto = None
         self.min_auto.setChecked(params['min_auto'])
         self.min.layout.addWidget(self.min_auto)
@@ -342,14 +408,14 @@ class FreqPointsParams(QWidget):
             if self.update_callback is not None:
                 self.update_callback()
         self.max.update_callback = update_max_freq
-        self.max_auto = QCheckBox('auto')
+        self.max_auto = CLParamCheckBox('auto')
         def update_max_auto(checked):
             params['max_auto'] = bool(checked)
             self.max.spin_box.setEnabled(not bool(checked))
             if self.calc_max_auto is not None:
                 new_max = self.calc_max_auto() # get automatic max freq from containing measurement
                 self.max.spin_box.setValue(new_max) # set value in spin_box directly to trigger recalculation
-        self.max_auto.stateChanged.connect(update_max_auto)
+        self.max_auto.update_callback = update_max_auto
         self.calc_max_auto = None
         self.max_auto.setChecked(params['max_auto'])
         self.max.layout.addWidget(self.max_auto)
@@ -395,13 +461,13 @@ class FreqPointsParams(QWidget):
                 self.update_callback()
         self.num_points.update_callback = update_num_points
         
-        self.round_points = QCheckBox('Round points to nearest Hz')
+        self.round_points = CLParamCheckBox('Round points to nearest Hz')
         self.layout.addWidget(self.round_points)
         def update_round_points(checked):
             params['round_points'] = bool(checked)
             if self.update_callback is not None:
                 self.update_callback()
-        self.round_points.stateChanged.connect(update_round_points)
+        self.round_points.update_callback = update_round_points
         
         
         def update_min_max():
@@ -416,18 +482,34 @@ class FreqPointsParams(QWidget):
         
         self.update_callback = None
         
-        
 
-# not enough additional functionality to justify a CL combo class            
-#class CLParamCheckbox(QWidget):
-#    def __init__(self, label_text, checked=False, enabled=True):
-#        super().__init__()
+class CLParamCheckBox(QCheckBox):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        def check_state_changed(checked):
+            undo_stack.push(undo_check_state, not checked, undo_check_state, checked)
+            if self.update_callback is not None:
+                self.update_callback(checked)
+        self.stateChanged.connect(check_state_changed)
 
-#        self.checkbox = QCheckBox(label_text)
+        def undo_check_state(checked):
+            undo_stack.paused = True
+            self.setChecked(checked)
+            undo_stack.paused = False
         
-        # update callback here
-        
-#        self.label = QLabel(label_text)
-#        self.layout.addWidget(self.label)
-        
-#        self.update_callback = None
+        self.update_callback = None
+
+
+# potential future updates to handling and updating widget focus
+# call .setFocus() or .clearFocus() on widgets to highlight what was changed by undo/redo
+# subclass editable text fields to catch CTRL+Z and pass it
+#class CLLineEdit(QLineEdit):
+#    def keyPressEvent(self, event):
+#        if event.key()==(Qt.Key_Control and Qt.Key_Z):
+#            # Do additional checks for the particular situation. 
+#            # Only pass command to undo stack if current text is unchanged, otherwise let normal text field undo, stuff like that
+#            # A bunch of edge cases that need to be thought through
+#            undo_stack.undo_action.trigger()
+#        else:
+#            super().keyPressEvent(event)
