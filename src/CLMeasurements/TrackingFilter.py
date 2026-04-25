@@ -1,6 +1,6 @@
 import CLProject as clp
 from CLAnalysis import chirp_time_to_freq, freq_points, interpolate, FS_to_unit, max_in_intervals
-from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams, QCollapsible, QHSeparator
+from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams, QCollapsible, QHSeparator, undo_stack
 import numpy as np
 from CLMeasurements import CLMeasurement
 from Biquad import Biquad, lowpass_coeff, highpass_coeff, bandpass_coeff, notch_coeff
@@ -261,13 +261,16 @@ class TrackingFilter(CLMeasurement):
         # list of clump of controls to configure each filter
         self.filters_params = [None]*len(self.params['filters'])
         for f in range(len(self.params['filters'])):
-            self.filters_params[f] = FilterParams(self.params['filters'][f], self)
+            self.filters_params[f] = FilterParams(self.params['filters'][f], self, f>0)
             self.filters_section.addWidget(self.filters_params[f])
 
         # button to remove the last filter from the list
         self.remove_filter_button = QPushButton('Remove filter')
-        def remove_filter():
+        def remove_filter(undo_redo=False):
                 self.filters_section.removeWidget(self.filters_params[-1])
+                self.filters_params[-1].setParent(None)
+                if not undo_redo: # pushed() signal includes a bool for button checked state, which defaults to False. Set undo_redo to True when pushing to undo stack
+                    undo_stack.push(add_filter, self.filters_params[-1], remove_filter, True)
                 self.filters_params.pop()
                 self.params['filters'].pop()
                 if len(self.params['filters']) == 1: # always leave at least one filter
@@ -277,24 +280,23 @@ class TrackingFilter(CLMeasurement):
         self.remove_filter_button.clicked.connect(remove_filter)
         if len(self.params['filters']) > 1:
             self.filters_section.addWidget(self.remove_filter_button)
-            
-        # button (and horizontal separator) to add another filter to the filter bank
-        self.add_button_separator = QHSeparator()
-        self.filters_section.addWidget(self.add_button_separator)
 
         self.add_filter_button = QPushButton('Add filter')
         self.filters_section.addWidget(self.add_filter_button)
-        def add_filter():
-            self.params['filters'].append({'type': 'highpass',
-                                          'multiplier': 10,
-                                          'Q': 0.707})
-            self.filters_params.append(FilterParams(self.params['filters'][-1], self))
+        def add_filter(filt_params=None):
+            if filt_params:
+                self.params['filters'].append(filt_params.params)
+                self.filters_params.append(filt_params) # add_filter called from undoing remove filter or redoing add filter
+            else:
+                self.params['filters'].append({'type': 'highpass', # add_filter called by clicking button
+                                            'multiplier': 10,
+                                            'Q': 0.707})
+                self.filters_params.append(FilterParams(self.params['filters'][-1], self))
+                undo_stack.push(remove_filter, True, add_filter, self.filters_params[-1])
             self.filters_section.removeWidget(self.add_filter_button)
-            self.filters_section.removeWidget(self.add_button_separator)
             self.filters_section.removeWidget(self.remove_filter_button)
             self.filters_section.addWidget(self.filters_params[-1])
             self.filters_section.addWidget(self.remove_filter_button)
-            self.filters_section.addWidget(self.add_button_separator)
             self.filters_section.addWidget(self.add_filter_button)
             self.measure()
             self.plot()
@@ -340,37 +342,40 @@ class TrackingFilter(CLMeasurement):
 
 class FilterParams(QFrame):
     # pass in the parameters dict for the filter so they can be updated, and the parent TrackingFilter to make it easy to call measure() and plot()
-    def __init__(self, params, measurement):
+    def __init__(self, params, measurement, add_separator=True):
         super().__init__()
+
+        self.params = params
 
         layout = QVBoxLayout(self)
 
-        layout.addWidget(QHSeparator())
+        if add_separator:
+            layout.addWidget(QHSeparator())
 
         self.type = CLParamDropdown('Filter type', measurement.FILTER_TYPES)
-        type_index = self.type.dropdown.findText(params['type'])
+        type_index = self.type.dropdown.findText(self.params['type'])
         self.type.dropdown.setCurrentIndex(type_index)
         layout.addWidget(self.type)
         def update_type(index):
-            params['type'] = measurement.FILTER_TYPES[index]
+            self.params['type'] = measurement.FILTER_TYPES[index]
             measurement.measure()
             measurement.plot()
         self.type.update_callback = update_type
         
-        self.multiplier = CLParamNum('Frequency', params['multiplier'], 'x chirp fundamental', 0.01)
+        self.multiplier = CLParamNum('Frequency', self.params['multiplier'], 'x chirp fundamental', 0.01)
         self.multiplier.spin_box.setStepType(QAbstractSpinBox.StepType.DefaultStepType)
         layout.addWidget(self.multiplier)
         def update_multiplier(new_val):
-            params['multiplier'] = new_val
+            self.params['multiplier'] = new_val
             measurement.measure()
             measurement.plot()
         self.multiplier.update_callback = update_multiplier
 
-        self.Q = CLParamNum('Q', params['Q'], '', 0.1)
+        self.Q = CLParamNum('Q', self.params['Q'], '', 0.1)
         self.Q.spin_box.setDecimals(3)
         layout.addWidget(self.Q)
         def update_Q(new_val):
-            params['Q'] = new_val
+            self.params['Q'] = new_val
             measurement.measure()
             measurement.plot()
         self.Q.update_callback = update_Q
