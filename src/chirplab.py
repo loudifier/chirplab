@@ -75,7 +75,7 @@ def main():
             input_files = []
             for input_arg in args.input:
                 input_files += glob(input_arg) # handle windows not globbing files, or wilcards being passed inside quotes on unix-like systems
-            input_files = set(input_files)
+            input_files = sorted(set(input_files))
         else:
             input_files = [clp.project['input']['file']]
 
