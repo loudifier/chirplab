@@ -88,7 +88,7 @@ def main():
             channel_list = channel_list_str2int(args.channel)
         else:
             channel_list = [clp.project['input']['channel']]
-        
+
         # initialize measurements from project
         init_measurements()
         generate_stimulus()
@@ -123,6 +123,10 @@ def main():
             for input_channel in input_channels:
                 clp.project['input']['channel'] = input_channel
                 read_response()
+
+                if not clp.project['save_noise'] or len(input_files) > 1 or len(channel_list) > 1:
+                    # clear noise to skip calculations if it won't be saved
+                    clp.signals['noise'] = []
 
                 for i in range(len(clp.measurements)):
                     clp.measurements[i].measure()
