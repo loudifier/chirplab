@@ -1,13 +1,8 @@
 import CLProject as clp
-from CLAnalysis import freq_points, interpolate, resample, find_offset
-from CLGui import CLParamDropdown, FreqPointsParams
-from scipy.fft import fft, ifft, fftfreq
-from scipy.signal.windows import hann
+from CLAnalysis import freq_points, interpolate
+from scipy.fft import fftfreq
 import numpy as np
 from CLMeasurements import CLMeasurement, PhaseResponse
-from scipy.stats import linregress
-from qtpy.QtWidgets import QCheckBox
-from copy import deepcopy
 
 # good resource about phase and group delay: http://cjs-labs.com/sitebuildercontent/sitebuilderfiles/GroupDelay.pdf
 # UI and parameters are mostly a copy of PhaseResponse, calculation calls PhaseResponse
@@ -94,6 +89,7 @@ class GroupDelay(CLMeasurement):
         
         
     def init_tab(self):
+        from CLGui import CLParamDropdown, FreqPointsParams
         super().init_tab()
 
         # timing mode dropdown

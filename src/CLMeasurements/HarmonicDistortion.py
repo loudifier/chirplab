@@ -1,6 +1,5 @@
 import CLProject as clp
 from CLAnalysis import logchirp, chirp_freq_to_time, freq_points, interpolate, FS_to_unit
-from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams
 from scipy.fft import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
@@ -155,6 +154,7 @@ class HarmonicDistortion(CLMeasurement):
     
         
     def init_tab(self):
+        from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams
         super().init_tab()
 
         self.start_harmonic = CLParamNum('Lowest harmonic', self.params['start_harmonic'], '', 2, 40, 'int')

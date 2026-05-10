@@ -1,6 +1,5 @@
 import CLProject as clp
 from CLAnalysis import chirp_time_to_freq, freq_points, interpolate, FS_to_unit, fftconv, max_in_intervals
-from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams
 import numpy as np
 from CLMeasurements import CLMeasurement, FrequencyResponse
 import pandas as pd
@@ -190,6 +189,7 @@ class ResidualDistortion(CLMeasurement):
     
         
     def init_tab(self):
+        from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams
         super().init_tab()
 
         # dropdown to select analysis mode

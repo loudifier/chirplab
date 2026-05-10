@@ -41,3 +41,4 @@ from CLGui.QCollapsible.QCollapsible import QCollapsible
 from CLGui.CalibrationDialog import CalibrationDialog
 from CLGui.ChirpTab import ChirpTab
 from CLGui.MainWindow import MainWindow
+from CLGui.WindowParamSection import WindowParamsSection

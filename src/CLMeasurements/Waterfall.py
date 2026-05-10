@@ -1,15 +1,13 @@
 import CLProject as clp
 from CLAnalysis import freq_points, interpolate, FS_to_unit
-from CLGui import CLParamDropdown, QCollapsible, CLParamNum, FreqPointsParams
 from scipy.fft import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
 from CLMeasurements import CLMeasurement
 import pandas as pd
 from pathlib import Path
-import pyqtgraph as pg
+#import pyqtgraph as pg
 #import pyqtgraph.opengl as gl
-from CLMeasurements.FrequencyResponse import WindowParamsSection
 #from vispy import scene
 #from vispy.scene import visuals
 # matplotlib stuff at the bottom
@@ -163,6 +161,7 @@ class Waterfall(CLMeasurement):
 
         
     def init_tab(self):
+        from CLGui import CLParamDropdown, CLParamNum, FreqPointsParams, WindowParamsSection
         super().init_tab()
 
         # plot 3D by default. Need to replace 2D plot with 3D plot
@@ -383,43 +382,43 @@ def hex2float(hex_color, alpha=1.0):
     return (r, g, b, alpha)
 
 
+if clp.gui_mode: # skip importing and configuring matplotlib when running in command-line mode
+    import matplotlib.ticker as mticker
+    from engineering_notation import EngNumber
+    def log_tick_formatter(val, pos=None):
+        return EngNumber(10**val)
 
-import matplotlib.ticker as mticker
-from engineering_notation import EngNumber
-def log_tick_formatter(val, pos=None):
-    return EngNumber(10**val)
+    # matplotlib stuff, mostly copied from pythonguis.com
+    # this was originally in CLTab.py but removed as part of the switch from mpl to pyqtgraph. Maybe put it back in CLTab for other measurements that need a 3D plot
+    # speed stuff mostly helps when plotting time series signals (like on the ChirpTab), probably doesn't make much of a difference for relatively sparse surface plots
+    import matplotlib
+    matplotlib.use('QtAgg') # 'Qt5Agg' is only use for backwards compatibility to force Qt5
 
-# matplotlib stuff, mostly copied from pythonguis.com
-# this was originally in CLTab.py but removed as part of the switch from mpl to pyqtgraph. Maybe put it back in CLTab for other measurements that need a 3D plot
-# speed stuff mostly helps when plotting time series signals (like on the ChirpTab), probably doesn't make much of a difference for relatively sparse surface plots
-import matplotlib
-matplotlib.use('QtAgg') # 'Qt5Agg' is only use for backwards compatibility to force Qt5
+    #matplotlib speed settings
+    #matplotlib.style.use('default') # settings are persistent in Spyder. use('default') to reset
+    # agg.path.chunksize = 0
+    # path.simplify = True
+    # path.simplify_threshold = 1/9
 
-#matplotlib speed settings
-#matplotlib.style.use('default') # settings are persistent in Spyder. use('default') to reset
-# agg.path.chunksize = 0
-# path.simplify = True
-# path.simplify_threshold = 1/9
+    #matplotlib.style.use('fast') # fast, but sometimes leaves holes in stimulus/response plots. Equivalent to:
+    matplotlib.rcParams['agg.path.chunksize'] = 10000
+    matplotlib.rcParams['path.simplify'] = True
+    matplotlib.rcParams['path.simplify_threshold'] = 1.0
 
-#matplotlib.style.use('fast') # fast, but sometimes leaves holes in stimulus/response plots. Equivalent to:
-matplotlib.rcParams['agg.path.chunksize'] = 10000
-matplotlib.rcParams['path.simplify'] = True
-matplotlib.rcParams['path.simplify_threshold'] = 1.0
+    matplotlib.rcParams["figure.autolayout"] = True # default to tight_layout
 
-matplotlib.rcParams["figure.autolayout"] = True # default to tight_layout
+    # chunksize and simplify_threshold have some interdependency. Increasing one or the other is fine, marginally improves performance. Increasing both improves performance more but introduces artefacts.
+    #matplotlib.rcParams['agg.path.chunksize'] = 100
+    #matplotlib.rcParams['path.simplify'] = True
+    #matplotlib.rcParams['path.simplify_threshold'] = 1.0
 
-# chunksize and simplify_threshold have some interdependency. Increasing one or the other is fine, marginally improves performance. Increasing both improves performance more but introduces artefacts.
-#matplotlib.rcParams['agg.path.chunksize'] = 100
-#matplotlib.rcParams['path.simplify'] = True
-#matplotlib.rcParams['path.simplify_threshold'] = 1.0
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+    from matplotlib.figure import Figure
 
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
-from matplotlib.figure import Figure
+    class MplCanvas(FigureCanvasQTAgg):
 
-class MplCanvas(FigureCanvasQTAgg):
-
-    def __init__(self, parent=None, width=5, height=4, dpi=100): # DPI doesn't seem to make artefacts better/worse, Qt or actual display DPI might.
-        fig = Figure(figsize=(width, height), dpi=dpi)
-        self.axes = fig.add_subplot(111, projection='3d')
-        matplotlib.rcParams['axes3d.mouserotationstyle'] = 'azel'
-        super(MplCanvas, self).__init__(fig)
+        def __init__(self, parent=None, width=5, height=4, dpi=100): # DPI doesn't seem to make artefacts better/worse, Qt or actual display DPI might.
+            fig = Figure(figsize=(width, height), dpi=dpi)
+            self.axes = fig.add_subplot(111, projection='3d')
+            matplotlib.rcParams['axes3d.mouserotationstyle'] = 'azel'
+            super(MplCanvas, self).__init__(fig)

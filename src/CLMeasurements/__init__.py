@@ -1,9 +1,6 @@
 # individual measurement imports at bottom of file
 import CLProject as clp
 import numpy as np
-from CLGui import CLTab, QCollapsible, QHSeparator, undo_stack
-from qtpy.QtWidgets import QLineEdit
-import pyqtgraph as pg
 from pathvalidate import is_valid_filename
 from importlib import import_module
 import pandas as pd
@@ -85,6 +82,8 @@ class CLMeasurement():
 
 
     def init_tab(self):
+        from CLGui import CLTab, QCollapsible, QHSeparator, undo_stack
+        from qtpy.QtWidgets import QLineEdit
         self.tab = CLTab()
         
         self.name_box = QLineEdit(self.params['name'])
@@ -145,6 +144,7 @@ class CLMeasurement():
     # - ImpulseResponse
     # - Waterfall
     def plot(self):
+        import pyqtgraph as pg
         # basic plot, could be much more complex for different measurement types (like waterfalls)
         
         self.tab.graph.clear()

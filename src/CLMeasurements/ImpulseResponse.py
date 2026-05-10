@@ -2,14 +2,9 @@ import CLProject as clp
 from CLMeasurements import CLMeasurement
 from scipy.fft import fft, ifft
 from scipy.signal.windows import hann
-from CLGui.CLParameter import CLParamDropdown, CLParamNum
-from CLMeasurements.FrequencyResponse import WindowParamsSection, ms_to_samples, samples_to_ms
 import numpy as np
-import pyqtgraph as pg
-from qtpy.QtWidgets import QCheckBox
-from qtpy.QtCore import Qt
 from pathlib import Path
-from CLAnalysis import write_audio_file, resample, find_offset
+from CLAnalysis import write_audio_file, resample, find_offset, ms_to_samples, samples_to_ms
 
 class ImpulseResponse(CLMeasurement):
     measurement_type_name = 'Impulse Response'
@@ -182,6 +177,11 @@ class ImpulseResponse(CLMeasurement):
         return 0
 
     def init_tab(self):
+        from CLGui.CLParameter import CLParamDropdown, CLParamNum
+        from CLGui import WindowParamsSection
+        import pyqtgraph as pg
+        from qtpy.QtWidgets import QCheckBox
+        from qtpy.QtCore import Qt
         super().init_tab()
 
         self.window_mode = CLParamDropdown('Windowing mode', self.WINDOW_MODES, '')

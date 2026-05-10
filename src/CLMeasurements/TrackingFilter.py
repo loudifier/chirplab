@@ -1,11 +1,9 @@
 import CLProject as clp
 from CLAnalysis import chirp_time_to_freq, freq_points, interpolate, FS_to_unit, max_in_intervals
-from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams, QCollapsible, QHSeparator, undo_stack
 import numpy as np
 from CLMeasurements import CLMeasurement
 from Biquad import Biquad, lowpass_coeff, highpass_coeff, bandpass_coeff, notch_coeff
 import pandas as pd
-from qtpy.QtWidgets import QFrame, QVBoxLayout, QAbstractSpinBox, QPushButton
 
 # tracking filter implementation to perform measurements roughly equivalent to Audio Precision's Rub and Buzz Peak Ratio and Crest Factor. https://www.ap.com/fileadmin-ap/technical-library/appnote-rub-buzz.pdf
 # for a Peak Ratio-style measurement, apply a highpass filter at 5-30x the fundamental and measure the 'filtered peak' signal relative to the 'fundamental RS' or 'unfiltered RMS' signal
@@ -183,7 +181,49 @@ class TrackingFilter(CLMeasurement):
     
         
     def init_tab(self):
+        from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams, QCollapsible, QHSeparator, undo_stack
+        from qtpy.QtWidgets import QFrame, QVBoxLayout, QAbstractSpinBox, QPushButton
         super().init_tab()
+
+        class FilterParams(QFrame):
+            # pass in the parameters dict for the filter so they can be updated, and the parent TrackingFilter to make it easy to call measure() and plot()
+            def __init__(self, params, measurement, add_separator=True):
+                super().__init__()
+
+                self.params = params
+
+                layout = QVBoxLayout(self)
+
+                if add_separator:
+                    layout.addWidget(QHSeparator())
+
+                self.type = CLParamDropdown('Filter type', measurement.FILTER_TYPES)
+                type_index = self.type.dropdown.findText(self.params['type'])
+                self.type.dropdown.setCurrentIndex(type_index)
+                layout.addWidget(self.type)
+                def update_type(index):
+                    self.params['type'] = measurement.FILTER_TYPES[index]
+                    measurement.measure()
+                    measurement.plot()
+                self.type.update_callback = update_type
+                
+                self.multiplier = CLParamNum('Frequency', self.params['multiplier'], 'x chirp fundamental', 0.01)
+                self.multiplier.spin_box.setStepType(QAbstractSpinBox.StepType.DefaultStepType)
+                layout.addWidget(self.multiplier)
+                def update_multiplier(new_val):
+                    self.params['multiplier'] = new_val
+                    measurement.measure()
+                    measurement.plot()
+                self.multiplier.update_callback = update_multiplier
+
+                self.Q = CLParamNum('Q', self.params['Q'], '', 0.1)
+                self.Q.spin_box.setDecimals(3)
+                layout.addWidget(self.Q)
+                def update_Q(new_val):
+                    self.params['Q'] = new_val
+                    measurement.measure()
+                    measurement.plot()
+                self.Q.update_callback = update_Q
 
         # dropdown to select measured signal
         self.measured_signal = CLParamDropdown('Measured signal', self.SIGNALS)
@@ -339,43 +379,3 @@ class TrackingFilter(CLMeasurement):
     def calc_auto_max_freq(self):
         # todo: make this function smarter. Does it make sense to just divide stop_freq by max filter frequency multiplier?
         return clp.project['stop_freq']
-
-class FilterParams(QFrame):
-    # pass in the parameters dict for the filter so they can be updated, and the parent TrackingFilter to make it easy to call measure() and plot()
-    def __init__(self, params, measurement, add_separator=True):
-        super().__init__()
-
-        self.params = params
-
-        layout = QVBoxLayout(self)
-
-        if add_separator:
-            layout.addWidget(QHSeparator())
-
-        self.type = CLParamDropdown('Filter type', measurement.FILTER_TYPES)
-        type_index = self.type.dropdown.findText(self.params['type'])
-        self.type.dropdown.setCurrentIndex(type_index)
-        layout.addWidget(self.type)
-        def update_type(index):
-            self.params['type'] = measurement.FILTER_TYPES[index]
-            measurement.measure()
-            measurement.plot()
-        self.type.update_callback = update_type
-        
-        self.multiplier = CLParamNum('Frequency', self.params['multiplier'], 'x chirp fundamental', 0.01)
-        self.multiplier.spin_box.setStepType(QAbstractSpinBox.StepType.DefaultStepType)
-        layout.addWidget(self.multiplier)
-        def update_multiplier(new_val):
-            self.params['multiplier'] = new_val
-            measurement.measure()
-            measurement.plot()
-        self.multiplier.update_callback = update_multiplier
-
-        self.Q = CLParamNum('Q', self.params['Q'], '', 0.1)
-        self.Q.spin_box.setDecimals(3)
-        layout.addWidget(self.Q)
-        def update_Q(new_val):
-            self.params['Q'] = new_val
-            measurement.measure()
-            measurement.plot()
-        self.Q.update_callback = update_Q

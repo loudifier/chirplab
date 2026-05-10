@@ -6,7 +6,6 @@ import tempfile
 from pathlib import Path
 import subprocess
 from scipy.io import wavfile
-import pandas as pd
 from qtpy.QtWidgets import QErrorMessage, QMessageBox
 import sys
 import requests
@@ -413,3 +412,9 @@ def channel_list_str2int(channel_list_str):
             channel_list_int += list(range(int(range_split[0]), int(range_split[1])+1))
 
     return sorted(set(channel_list_int)) # should probably do a LOT more cleanup/validation, considering this is coming from user command-line input
+
+# helpers to make sample length calculations cleaner, comes up a lot in windowing
+def ms_to_samples(ms):
+    return round((ms / 1000) * clp.project['sample_rate']) # may need to change round to floor to avoid off-by-one errors
+def samples_to_ms(samples):
+    return 1000 * samples / clp.project['sample_rate']

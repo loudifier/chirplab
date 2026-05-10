@@ -1,13 +1,9 @@
 import CLProject as clp
-from pyqtgraph.Qt import mkQApp
-from qtpy.QtCore import Qt
 import sys
 from pathlib import Path
 from glob import glob
-from CLGui import MainWindow
 from CLAnalysis import check_sox, read_audio_file, audio_file_info, generate_stimulus, read_response, FormatNotSupportedError, generate_stimulus_file, channel_list_str2int
 import argparse
-import numpy as np
 from CLMeasurements import init_measurements
 
 def main():
@@ -27,6 +23,9 @@ def main():
 
     else:
         clp.gui_mode = True
+        from pyqtgraph.Qt import mkQApp
+        from qtpy.QtCore import Qt
+        from CLGui import MainWindow
 
         if clp.IS_BUNDLED and sys.platform == 'win32': # hide console window when bundled, in GUI mode, on Windows 11, when started by double-clicking
             # todo: see if there is a way to keep the console window from flashing up (and/or see if https://github.com/pyinstaller/pyinstaller/issues/8022 has been resolved)
