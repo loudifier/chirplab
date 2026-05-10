@@ -1,6 +1,6 @@
 import CLProject as clp
 from CLMeasurements import CLMeasurement
-from scipy.fftpack import fft, ifft
+from scipy.fft import fft, ifft
 from scipy.signal.windows import hann
 from CLGui.CLParameter import CLParamDropdown, CLParamNum
 from CLMeasurements.FrequencyResponse import WindowParamsSection, ms_to_samples, samples_to_ms

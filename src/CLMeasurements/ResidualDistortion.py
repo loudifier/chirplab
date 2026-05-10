@@ -4,7 +4,7 @@ from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams
 import numpy as np
 from CLMeasurements import CLMeasurement, FrequencyResponse
 import pandas as pd
-from scipy.fftpack import fft, ifft
+from scipy.fft import fft, ifft
 from scipy.signal.windows import hann
 from CLMeasurements.HarmonicDistortion import harmonic_impulse_time
 

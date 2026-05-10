@@ -1,7 +1,7 @@
 import CLProject as clp
 from CLAnalysis import freq_points, interpolate, resample, find_offset
 from CLGui import CLParamDropdown, FreqPointsParams, CLParamCheckBox
-from scipy.fftpack import fft, ifft, fftfreq
+from scipy.fft import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
 from CLMeasurements import CLMeasurement

@@ -1,7 +1,7 @@
 import CLProject as clp
 from CLAnalysis import logchirp, chirp_freq_to_time, freq_points, interpolate, FS_to_unit
 from CLGui import CLParamNum, CLParamDropdown, FreqPointsParams
-from scipy.fftpack import fft, ifft, fftfreq
+from scipy.fft import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
 from CLMeasurements import CLMeasurement, FrequencyResponse

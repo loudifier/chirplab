@@ -11,7 +11,7 @@ from qtpy.QtWidgets import QErrorMessage, QMessageBox
 import sys
 import requests
 from zipfile import ZipFile
-from scipy.fftpack import fft, ifft
+from scipy.fft import fft, ifft
 
 
 # module with helper functions for chirp analysis, mostly math stuff
