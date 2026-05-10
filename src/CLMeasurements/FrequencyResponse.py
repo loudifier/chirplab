@@ -1,7 +1,7 @@
 import CLProject as clp
 from CLAnalysis import freq_points, interpolate, FS_to_unit
 from CLGui import CLParamDropdown, QCollapsible, CLParamNum, FreqPointsParams
-from scipy.fftpack import fft, ifft, fftfreq
+from scipy.fft import fft, ifft, fftfreq
 from scipy.signal.windows import hann
 import numpy as np
 from CLMeasurements import CLMeasurement
@@ -19,6 +19,7 @@ class FrequencyResponse(CLMeasurement):
     MAX_WINDOW_START = 1000 # fixed impulse response window can start up to 1s before t0
     MAX_WINDOW_END = 10000 # IR window can end up to 10s after t0
     OUTPUT_UNITS = ['dBFS', 'dB', 'dBSPL', 'dBV', 'FS', 'Pa', 'V']
+    MIN_ADAPTIVE_WINDOW = 1.0 # set a 1ms minimum (maybe make this configurable) to avoid issues with phase/alignment skew, especially at higher frequencies when SNR is usually good anyway
     
     def __init__(self, name, params=None):
         if params is None:
@@ -131,21 +132,30 @@ class FrequencyResponse(CLMeasurement):
             for freq in range(len(out_freqs)):
                 # use a window sized appropriately for the target frequency
                 wavelength_ms = 1000 * 1/out_freqs[freq]
-                
-                # set a 1ms minimum (maybe make this configurable) to avoid issues with phase/alignment skew, especially at higher frequencies when SNR is usually good anyway
-                wavelength_ms = max(1.0, wavelength_ms)
-                
+                wavelength_ms = max(self.MIN_ADAPTIVE_WINDOW, wavelength_ms)
+
+                adaptive_ir = np.concatenate((ir[:4*ms_to_samples(wavelength_ms)], ir[-2*ms_to_samples(wavelength_ms):])) # zero-pad by 2x before/after window. Results in much smaller windows for faster processing, with reasonable frequency resolution for interpolation
+
+                fr_freqs = fftfreq(len(adaptive_ir), 1/clp.project['sample_rate'])
+                fr_freqs = fr_freqs[1:int(len(fr_freqs)/2)-1]
+
                 # calculate windowed frequency response with window size for target frequency
-                fr = calc_windowed_fr(ir, wavelength_ms, wavelength_ms, 2*wavelength_ms, wavelength_ms)
-                
+                fr = calc_windowed_fr(adaptive_ir, wavelength_ms, wavelength_ms, 2*wavelength_ms, wavelength_ms)
+            
                 # trim to positive half of spectrum for interpolation
                 fr = fr[1:int(len(fr)/2)-1]
-                
+            
                 # take magnitude of complex frequency response
                 fr = np.abs(fr)
-                
-                # get target frequency
-                out_fr[freq] = interpolate(fr_freqs, fr, out_freqs[freq])
+            
+                if wavelength_ms > self.MIN_ADAPTIVE_WINDOW:
+                    # get target frequency
+                    out_fr[freq] = interpolate(fr_freqs, fr, out_freqs[freq])
+                else:
+                    # remaining frequency output points will use the same window, so get them all
+                    out_fr[freq:] = interpolate(fr_freqs, fr, out_freqs[freq:])
+                    break
+
             
             return out_freqs, out_fr
         
