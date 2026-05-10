@@ -6,7 +6,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
 - [x] WAV file input and output
 - [x] Audio interface/sound card input and output
 - [ ] ASIO input and output
-    - Open source software typically does not include support for ASIO interfaces. From a cursory reading of the Steinberg, PyAudio, and PortAudio licenses, it should be safe to distribute Chirplab compiled with ASIO support, as long as the ASIO libraries themselves are not redistributed. Major OSS programs like Audacity don't distribute binaries with ASIO support due to being distributed under GPL, and GPL is incompatible with the Steinberg license. At minimum, the process to compile PyAudio or otherwise make ASIO interfaces available in Chirplab should be clearly documented.
+    - Steinberg now distributes ASIO libraries under GPLv3, which is cool, but not necessarily helpful because Chirplab is distributed under the MIT license. From a cursory reading of the Steinberg, PyAudio, and PortAudio licenses, it should be safe to distribute Chirplab compiled with ASIO support under the original Steinberg license, as long as the ASIO SDK itself is not redistributed. At minimum, the process to compile PyAudio or otherwise make ASIO interfaces available in Chirplab should be clearly documented.
 - [ ] Other audio file formats
     - Technically, any audio file format that SoX understands is already supported by manually entering the full filename and extension and/or using the 'All files' filter in the input file picker.
 - [ ] Native file I/O without using SoX as an intermediary
@@ -15,13 +15,14 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - https://github.com/bastibe/python-soundfile seems to be the most common alternative to SciPy wavfile. See if it works for floating point files exceeding full scale. Would still need some sort of resampling solution...
 - [ ] Multi-channel/Multi-file/Multi-capture support
     - Analyzing additional signals is trivial on top of implementing the actual signal analysis in any given measurement, but managing the UI and how the user *expects* multi-channel analysis to work gets very complex very quickly. How multiple measurement inputs are selected, how outputs are displayed with or without measurement noise floor(s), storing measurement outputs and adding new measurement traces, and handling a geometrically expanding set of UI interactions can derail the development of other features and measurements.
+    - Command-line mode supports multi-file and multi-channel analysis using the file and channel override flags
 
 ## Measurements
 - [x] Frequency Response
     - [x] Raw, fixed window, and adaptive windowing modes
     - [ ] Fixed window impulse response/energy time curve visualizer GUI
     - [ ] Option for windowing GUI elements to express times in distance (probably only meters for simplicity)
-    - [ ] Option to output dB normalized to a set frequency
+    - [x] Option to output dB normalized to a set frequency
 - [x] Harmonic Distortion
     - [ ] Option to set fundamental frequency response measurement parameters (e.g. use raw or fixed window for faster processing)
     - [ ] Experiment with adaptive windowing and/or add parameters for harmonic impulse windowing (likely very slow)
@@ -101,15 +102,16 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] GUI dialog for entering/editing the points
     - [ ] Fix plotting when there is only 1 output point, handle corner cases where points are duplicated, not sorted, etc.
 - [ ] Performance optimization to improve batch file processing
-    - [ ] Compilation, caching, etc to improve Python startup and processing time. Numba seems like the lowest-friction option to try first
+    - [ ] Compilation, caching, etc to improve Python startup and processing time. Numba seems like the lowest-friction option to try first. Nuitka also looks interesting.
     - [ ] Delay GUI imports until needed to keep CLI from having to import Qt libraries
     - [ ] Look into alternatives to or just rolling simplified versions of stuff from Pandas? CSV export is dead simple, there is probably a lighter weight option for XLS(X), and there may be a faster (if slightly more complex) way to implement DataFrame.rolling() with NumPy. Double check import time, installation size, execution speed first, may not be worth the effort
     - [ ] pyFFTW exists
-- [ ] Pilot tone. Required by some commercial audio software, need to investigate to determine what measurements actually require precise timing that can't be determined by cross correlation
+- [ ] Pilot tone. Required by some commercial audio software for open-loop measurements, need to investigate to determine what measurements actually require precise timing that can't be determined by cross correlation
 - [ ] Input and/or output EQ. Similar to multi-channel/multi-file analysis, this is heavily dependant on interface, but with added complications of how filtering is implemented (direct amplitude vs time, FIR filtering, biquad sum-of-sections, how an EQ table is interpolated, etc... Some interesting methods (and extra analysis of Farina method) in http://winmls.com/2004/swen-muller-aes-swp-english.pdf)
 - [x] Options to exclude noise floor from graphs or measurement outputs
     - Currently a global project option. Should there be individual settings per measurement? The granularity of adding options at multiple levels adds UI overhead
 - [ ] Chirp fade in/out. Aesthetically pleasing, but hard start/stop usually works well in practice. Would need some thought about how the parameters would clearly communicate how they work (to avoid the situation with other software that extends past the specified chirp range or lets you start a log chirp at 0Hz...)
+    - Experiment with stimulus reference that extends below and above chirp range (like harmonic distortion extending up to Nyquist). Might improve accuracy at beginning and end of chirp
 
 ## Graphical User Interface
 - [x] Chirp settings, input and output tab
@@ -123,14 +125,15 @@ Features in each subheading are ordered roughly in order of prioritization. This
         - [x] Graph colors are blue/orange by default, avoid red/green
         - [ ] Qt elements are pretty good about keyboard controls and I tried to include hotkeys for all standard options, but there are a lot of UI elements, so I may have missed some
         - [ ] I am not familiar with screen readers, but I believe Qt should have good support natively
+        - [ ] Translations?
     - [ ] Proper scaling over a wide range of DPI. Mostly works, but graph exports seem small
     - [ ] Speed up plotting, particularly chirp tab updating every time a chirp parameter spinbox is clicked
         - pyqtgraph downsampling and setting pen width to 1 helps a lot. Also try the skip finite check
         - see if there is a good way to pause the graph updating, plot all of the data, then draw at once. Might be able to avoid a triple redraw when updating stimulus, response, and noise together. Seems like the bottleneck is .drawLines(), so it might not be any faster (probably also not much faster to .setData())
-        - maybe add a short delay of ~1s before recalculating to allow spamming a spin box and recalculating with whatever value the user lands on
+        - maybe add a short delay of ~1s before recalculating to allow spamming a spin box and recalculating with whatever value the user lands on. Apparently this is called "debouncing" in the webdev world
         - look into fastplotlib. Looks promising, surface meshes are on the roadmap
     - [ ] Bundle Windows exe in such a way that GUI launches without console window and CLI/GUI both output to stdout. Current solution still flashes console window when launching GUI. https://pyinstaller.org/en/stable/feature-notes.html#automatic-hiding-and-minimization-of-console-window-under-windows
-- [ ] Undo/redo - a lot of work with many edge cases that need to be handled, but would be really nice to have
+- [x] Undo/redo - complete, but there probably some bugs and unhandled corner cases
 - [ ] Customize pyqtgraph. Right-click menu with reset and dialog to set ranges and scales, click on trace to show point values, etc.
 - [ ] Check for and prompt user to save last device capture when closing Chirplab or opening another project
 - [x] Help menu in menubar
@@ -141,8 +144,8 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Additional overrides?
 - [x] Generate stimulus file from project file settings
 - [ ] Measure calibration tone from a file and apply the calibration to a project file
-- [ ] Handle wildcards (and/or some sort of list entry?) for multiple input files in file override
-- [ ] handle list or range for channel override
+- [x] Handle wildcards (and/or some sort of list entry?) for multiple input files in file override
+- [x] handle list or range for channel override
 
 ## Other
 - [x] Build automation. Github actions automatically bundle Windows exe on push and add bundle to releases

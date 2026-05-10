@@ -1,4 +1,7 @@
 # Chirplab
+
+<picture><img alt="100% organic" title="Chirplab is developed without the use of AI. No GPUs were harmed in the making of this app" src=img/100pct_organic.svg></picture>
+
 Chirplab is an audio and acoustics measurement suite based on fast open-loop log-swept sine chirp generation, capture, and analysis.
 
 <picture><img alt="Chirplab logo" src="img/splash.png"></picture>
