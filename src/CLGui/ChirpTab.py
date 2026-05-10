@@ -1175,7 +1175,7 @@ class DeviceInput(QFrame):
                 self.sample_rate.dropdown.setCurrentText(self.sample_rate.last_value)
                 self.sample_rate.value = self.sample_rate.last_value
         self.sample_rate.update_callback = update_sample_rate
-        update_sample_rate(new_rate=clp.project['input']['sample_rate'])
+        
         def sample_rate_str2num(str_rate):
             try:
                 EngNumber(str_rate) # if the input text can't be construed as a number return 0
@@ -1185,6 +1185,8 @@ class DeviceInput(QFrame):
             num_rate = round(float(EngNumber(str_rate)))
             num_rate = min(max(num_rate, clp.MIN_SAMPLE_RATE), clp.MAX_SAMPLE_RATE)
             return num_rate
+        
+        update_sample_rate(new_rate=clp.project['input']['sample_rate'])
 
         # no control over bit depth, use float32 for everything. I suspect PortAudio silently converts formats internally so there isn't any point in even displaying it
 
