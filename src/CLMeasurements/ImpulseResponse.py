@@ -179,9 +179,7 @@ class ImpulseResponse(CLMeasurement):
     def init_tab(self):
         from CLGui.CLParameter import CLParamDropdown, CLParamNum
         from CLGui import WindowParamsSection
-        import pyqtgraph as pg
         from qtpy.QtWidgets import QCheckBox
-        from qtpy.QtCore import Qt
         super().init_tab()
 
         self.window_mode = CLParamDropdown('Windowing mode', self.WINDOW_MODES, '')
@@ -441,6 +439,8 @@ class ImpulseResponse(CLMeasurement):
         self.tab.graph.setLabel('left', 'Impulse Response')
 
     def plot(self):
+        import pyqtgraph as pg
+        from qtpy.QtCore import Qt
         self.tab.graph.clear()
         
         plot_pen = pg.mkPen(color=clp.PLOT_COLORS[0], width=clp.PLOT_PEN_WIDTH)
