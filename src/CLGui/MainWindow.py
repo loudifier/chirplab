@@ -396,7 +396,7 @@ class MainWindow(QMainWindow):
                 if file_type.casefold() == '.png'.casefold() or tab_index==0: # save graph image with default pyqtgraph settings # todo: add handlers for other image formats? # todo: really should move image export to CLMeasurement so measurements can do custom image exports
                     if not isinstance(clp.measurements[self.tabs.currentIndex()-1].tab.graph, pg.PlotWidget): # assume the graph is a matplotlib canvas
                         try:
-                            clp.measurements[self.tabs.currentIndex()-1].tab.graph.axes.get_figure().savefig(file_path)
+                            clp.measurements[self.tabs.currentIndex()-1].tab.graph.axes.get_figure().savefig(file_path, dpi=300)
                         except PermissionError as ex:
                             error_box = QErrorMessage()
                             error_box.showMessage('Error writing measurement data \n' + str(ex))

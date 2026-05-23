@@ -38,12 +38,12 @@ class Waterfall(CLMeasurement):
         super().__init__(name, params)
 
         if len(params)<3: # populate default measurement parameters if none are provided
-            self.params['window_start'] = 5 # for fixed window, amount of time in ms included before beginning of impulse response
-            self.params['fade_in'] = 5 # beginning of fixed window ramps up with a half Hann window of width fade_in (must be <= window_start)
-            self.params['window_end'] = 10
-            self.params['fade_out'] = 1
+            self.params['window_start'] = 50 # for fixed window, amount of time in ms included before beginning of impulse response
+            self.params['fade_in'] = 50 # beginning of fixed window ramps up with a half Hann window of width fade_in (must be <= window_start)
+            self.params['window_end'] = 100
+            self.params['fade_out'] = 50
             self.params['start_time'] =  0 # negative time in ms before t0 to calculate the first time slice. e.g. -10 to start 10ms before t0
-            self.params['end_time'] = 10 # time in ms after t0 to calculate the last time slice
+            self.params['end_time'] = 200 # time in ms after t0 to calculate the last time slice
             self.params['num_slices'] = 21 # the number of time slices to calculate the waterfall response over. Slice interval = (end_time - start_time) / num_slices
             
             self.params['output'] = { # dict containing parameters for output points, frequency range, resolution, etc.
@@ -334,7 +334,7 @@ class Waterfall(CLMeasurement):
 
         log_freqs = np.log10(self.out_freqs)
         x, y = np.meshgrid(log_freqs, self.out_times)
-        self.tab.graph.axes.plot_surface(x, y, self.out_points, antialiased=False, linewidth=0)
+        self.tab.graph.axes.plot_surface(x, y, self.out_points, antialiased=False, linewidth=0.25, rstride=1, cstride=1, cmap='turbo', edgecolor='black')
         self.tab.graph.axes.set_zlabel('Amplitude (' + self.params['output']['unit'] + ')')
         self.tab.graph.draw_idle()
         
