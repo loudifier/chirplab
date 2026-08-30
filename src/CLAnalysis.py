@@ -1,7 +1,7 @@
 import CLProject as clp
 import math
 import numpy as np
-from scipy.signal import fftconvolve
+from scipy.signal import fftconvolve, filtfilt
 import tempfile
 from pathlib import Path
 import subprocess
@@ -11,6 +11,7 @@ import sys
 import requests
 from zipfile import ZipFile
 from scipy.fft import fft, ifft
+from Biquad import highpass_coeff
 
 
 # module with helper functions for chirp analysis, mostly math stuff
@@ -254,6 +255,12 @@ def find_offset(input_sig, find_sig):
     # for two 1D input arrays where a signal similar to find_sig is expected to be somewhere in input_sig, find the position of find_sig in input_sig and return the index of the start of find_sig
     # implemented using cross correlation through fft convolution
     correlation = fftconvolve(input_sig, find_sig[::-1]) # reverse 1 signal for *cross* correlation
+
+    # high pass filter the correlation. Helps ensure time alignment focuses on higher frequencies where timing is more sensitive.
+    # todo: Kind of kludgy, arrived at this solution through experimentation. Need to check if it could mess up other responses. Search through literature for other strategies that may be more robust (including non correlation-based)
+    b, a = highpass_coeff(1000, 0.707, clp.project['sample_rate']) # see how highpassing at 1k works for chirps that don't extend that high. Maybe use something like max(1000, clp.project['stop_freq')])
+    correlation = filtfilt(b, a, correlation) # apply the filter forward and backward to cancel out group delay (and apply effective 4th-order responsse) 
+
     return np.argmax(np.abs(correlation)) - len(find_sig) # cross correlation peaks at point where signals align, offset by reversed signal
 
 def save_xlsx(measurements, out_path):
