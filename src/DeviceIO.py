@@ -1,24 +1,20 @@
-import pyaudio
+import os
+os.environ['SD_ENABLE_ASIO'] = '1'
+import sounddevice as sd
 import CLProject as clp
 import numpy as np
 import sys
 
-pa = pyaudio.PyAudio()
-
 def get_api_names():
-    num_apis = pa.get_host_api_count()
-    api_names = []
-    for i in range(num_apis):
-        api = pa.get_host_api_info_by_index(i)
-        api_names.append(api['name'])
-    return api_names
+    return [api['name'] for api in sd.query_hostapis()]
 
 # List of host APIs that are supported. By default only make use of MME and WASAPI
 if sys.platform == 'win32':
     # MME is the highest-level Windows audio API, the one used by most programs that don't need to know or care about the actual hardware being used. Limited to 2 channels, worst-case latency, automatic resampling, volume control can't be bypassed, etc.
     # WASAPI is the base audio API on Windows. All audio on Windows goes through WASAPI (except for stuff like ASIO that specifically bypasses WASAPI). Channels, sammple rates, and formats are RAW, no resampling. Latency can be competitive with ASIO (but it depends on a lot of factors)
-    # DirectSound and WDM are older APIs. DirectSound provides high level resampling and other convenience features, primarily for DirectX games. I believe it still has unique use-cases for games and media apps, but none which are particularly relevant to audio measurements. WDM used to provide direct access to devices for low latency. Now they DirectSound and WDM go through WASAPI for backwards compatibility with older software targeting those APIs
-    HOST_APIS = ['MME', 'Windows WASAPI']
+    # DirectSound and WDM are older APIs. DirectSound provides high level resampling and other convenience features, primarily for DirectX games. I believe it still has unique use-cases for games and media apps, but none which are particularly relevant to audio measurements. WDM used to provide direct access to devices for low latency. Now DirectSound and WDM go through WASAPI for backwards compatibility with older software targeting those APIs
+    # ASIO is a proprietary protocol from Steinberg, which has been open sourced under the GPL. It completely bypasses WASAPI and the standard Windows APIs, and generally provides more control and lower latency for pro audio interfaces.
+    HOST_APIS = ['MME', 'Windows WASAPI', 'ASIO']
 elif 'linux' in sys.platform:
     # ALSA is the base auio API for most Linux distros, similar to WASAPI but with feature bloat over the years. Instead use JACK if at all possible
     # JACK is an audio processing server in the traditional Linux modular server-client model. It started as a compatibility layer to overcome some of the limitations of ALSA and has grown to be the de facto standard audio interface for serious audio in Linux. PipeAudio is theoretically backwards compatible with JACK, but documentation and examples are hard to find
@@ -34,7 +30,7 @@ def restart_pyaudio():
     pa.terminate()
     pa = pyaudio.PyAudio()
 
-def win2utf8(win_str):
+def win2utf8(win_str): # todo: this is an issue with PyAudio, check if sounddevice already handles it
     # convert mangled text incorrectly decoded as Windows-1252 to utf-8
     # handles '®' symbol in device names, probably also '™' and similar symbols
     # https://www.i18nqa.com/debug/utf8-debug.html
@@ -46,15 +42,15 @@ def api_name_to_index(name):
 
 def get_device_names(input_or_output='', api=''):
     apis = get_api_names()
-    num_devices = pa.get_device_count()
+    num_devices = len(sd.query_devices())
     devices = []
     for i in range(num_devices):
-        device = pa.get_device_info_by_index(i)
-        if api and api != apis[device['hostApi']]:
+        device = sd.query_devices(i)
+        if api and api != apis[device['hostapi']]:
             continue # skip device if API is specified and device uses a different API
-        if input_or_output=='input' and not device['maxInputChannels']:
+        if input_or_output=='input' and not device['max_input_channels']:
             continue # skip device if input is specified and device does not have any input channels
-        if input_or_output=='output' and not device['maxOutputChannels']:
+        if input_or_output=='output' and not device['max_output_channels']:
             continue # skip device if input is specified and device does not have any input channels
         devices.append(win2utf8(device['name']))
     return devices
@@ -64,39 +60,40 @@ def device_name_to_index(device_name, api_name=''): # API needs to be specified 
         api_name = HOST_APIS[0]
     api_index = api_name_to_index(api_name)
 
-    num_devices = pa.get_device_count()
+    num_devices = len(sd.query_devices())
     for i in range(num_devices):
-        device = pa.get_device_info_by_index(i)
-        if device['hostApi']==api_index and win2utf8(device['name'])==device_name:
+        device = sd.query_devices(i)
+        if device['hostapi']==api_index and win2utf8(device['name'])==device_name:
             return i
         
 def get_default_input_device(api_name=''):
     if not api_name:
-        return(win2utf8(pa.get_default_input_device_info()['name']))
-    device_index = pa.get_host_api_info_by_index(api_name_to_index(api_name))['defaultInputDevice']
-    return(win2utf8(pa.get_device_info_by_index(device_index)['name']))
+        return(win2utf8(sd.query_devices(sd.default.device[0])['name']))
+    device_index = sd.query_hostapis(api_name_to_index(api_name))['default_input_device']
+    return(win2utf8(sd.query_devices(device_index)['name']))
 
 def get_default_output_device(api_name=''):
     if not api_name:
-        return(win2utf8(pa.get_default_output_device_info()['name']))
-    device_index = pa.get_host_api_info_by_index(api_name_to_index(api_name))['defaultOutputDevice']
-    return(win2utf8(pa.get_device_info_by_index(device_index)['name']))
+        return(win2utf8(sd.query_devices(sd.default.device[1])['name']))
+    device_index = sd.query_hostapis(api_name_to_index(api_name))['default_output_device']
+    return(win2utf8(sd.query_devices(device_index)['name']))
 
 def is_sample_rate_valid(sample_rate, device_name, api_name):
     device_index = device_name_to_index(device_name, api_name)
-    device = pa.get_device_info_by_index(device_index)
-    if device['maxInputChannels'] > device['maxOutputChannels']: # theoretically, devices with both input and output channels support the same sample rates for input and output
+    device = sd.query_devices(device_index)
+    if device['max_input_channels'] > device['max_output_channels']: # theoretically, devices with both input and output channels support the same sample rates for input and output
         # input device
         try:
-            return pa.is_format_supported(rate=sample_rate, input_device=device_index, input_channels=device['maxInputChannels'], input_format=pyaudio.paFloat32)
+            return sd.check_input_settings(device=device_index, channels=device['max_input_channels'], samplerate=sample_rate) is None
         except ValueError:
             return False
     else:
         # output device
         try:
-            return pa.is_format_supported(rate=sample_rate, output_device=device_index, output_channels=device['maxOutputChannels'], output_format=pyaudio.paFloat32)
+            return sd.check_output_settings(device=device_index, channels=device['max_output_channels'], samplerate=sample_rate) is None
         except ValueError:
             return False
+    
 
 def get_valid_standard_sample_rates(device_name, api_name):
     valid_rates = []
@@ -107,13 +104,13 @@ def get_valid_standard_sample_rates(device_name, api_name):
 
 def get_num_input_channels(device_name, api_name):
     device_index = device_name_to_index(device_name, api_name)
-    device = pa.get_device_info_by_index(device_index)
-    return device['maxInputChannels']
+    device = sd.query_devices(device_index)
+    return device['max_input_channels']
 
 def get_num_output_channels(device_name, api_name):
     device_index = device_name_to_index(device_name, api_name)
-    device = pa.get_device_info_by_index(device_index)
-    return device['maxOutputChannels']
+    device = sd.query_devices(device_index)
+    return device['max_output_channels']
 
 def play(out_signal, sample_rate, device_name, api_name, active_callback=None, finished_callback=None):
     # assumes width of out_signal equals the number of output channels to play back
@@ -183,17 +180,3 @@ def stream_input(sample_rate, device_name, api_name, stream_callback, samples_pe
         return pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, input=True, input_device_index=device_index, stream_callback=callback)
     else:
         return pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, input=True, input_device_index=device_index, stream_callback=callback, frames_per_buffer=samples_per_chunk)
-
-
-# run directly to print out APIs and devices for debugging purposes
-if __name__ == '__main__':
-    num_apis = pa.get_host_api_count()
-    api_names = []
-    for i in range(num_apis):
-        print(pa.get_host_api_info_by_index(i))
-
-    print('')
-
-    num_devices = pa.get_device_count()
-    for i in range(num_devices):
-        print(pa.get_device_info_by_index(i))
