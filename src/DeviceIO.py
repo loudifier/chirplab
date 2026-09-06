@@ -85,13 +85,13 @@ def is_sample_rate_valid(sample_rate, device_name, api_name):
         # input device
         try:
             return sd.check_input_settings(device=device_index, channels=device['max_input_channels'], samplerate=sample_rate) is None
-        except ValueError:
+        except sd.PortAudioError:
             return False
     else:
         # output device
         try:
             return sd.check_output_settings(device=device_index, channels=device['max_output_channels'], samplerate=sample_rate) is None
-        except ValueError:
+        except sd.PortAudioError:
             return False
     
 
@@ -118,32 +118,26 @@ def play(out_signal, sample_rate, device_name, api_name, active_callback=None, f
     num_channels = out_signal.shape[1]
     
     out_signal = out_signal.astype(np.float32)
-    out_signal = out_signal.ravel()
 
-    chunk_count = 0
-    last_chunk = False
-    def play_callback(in_data, frame_count, time_info, status):
-        nonlocal chunk_count
-        data = out_signal[chunk_count*frame_count*num_channels:chunk_count*frame_count*num_channels+frame_count*num_channels]
-        chunk_count += 1
+    play_position = 0
+    def play_callback(indata, frames, time, status):
+        nonlocal play_position
 
-        nonlocal last_chunk
-        if last_chunk:
-            if finished_callback is not None:
-                finished_callback()
-            return (data, pyaudio.paComplete)
+        if (play_position + frames) < len(out_signal):
+            indata[:] = out_signal[play_position:play_position + frames, :]
+            play_position += frames
 
-        if len(data)<(frame_count*num_channels):
-            # pad last frame so the play callback will be called one last time
-            data = np.append(data, np.zeros(frame_count*num_channels - len(data)))
-            last_chunk = True
+            if active_callback is not None:
+                active_callback()
 
-        if active_callback is not None:
-            active_callback()
+        else:
+            indata[:] = np.vstack((out_signal[play_position:], np.zeros((frames - (len(out_signal) - play_position), num_channels)).astype(np.float32)))
 
-        return (data, pyaudio.paContinue)
+            raise sd.CallbackStop()
+        
 
-    stream = pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, output=True, output_device_index=device_index, stream_callback=play_callback)
+    stream = sd.OutputStream(samplerate=sample_rate, device=device_index, channels=num_channels, callback=play_callback, finished_callback=finished_callback)
+    stream.start()
 
 def record(record_length_samples, sample_rate, device_name, api_name, active_callback=None, finished_callback=None):
     device_index = device_name_to_index(device_name, api_name)

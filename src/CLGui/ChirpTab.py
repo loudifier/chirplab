@@ -779,7 +779,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         layout.addWidget(self.play)
         self.play_start_time = time()
         def play_stimulus():
-            stimulus = generate_output_stimulus()
+            stimulus = generate_output_stimulus(DeviceIO.get_num_output_channels(clp.project['output']['device'], clp.project['output']['api']))
             DeviceIO.play(stimulus, clp.project['output']['sample_rate'], clp.project['output']['device'], clp.project['output']['api'], active_callback=while_playing, finished_callback=when_play_finished)
             self.play_start_time = time()
             chirp_tab.output_params.setEnabled(False)
