@@ -1258,7 +1258,7 @@ class DeviceInput(QFrame):
             chirp_tab.analyze()
 
             self.save.setEnabled(True)
-            chirp_tab.capture_finished.emit()
+            chirp_tab.capture_finished.emit() # todo: accidentally commented this out while debugging, and everything seemed to still work... Check if it is redundant, causing analyze() to be called multiple times, etc.
         
         # need to go through signal and slot to actually get data from PyAudio thread back into Qt thread
         # in order to work a signal must be a member of an instance of QObject. todo: figure out if there is a simpler/cleaner way (creating signal in DeviceInput.__init__() and calling .connect outside of DeviceInput doesn't seem to work)

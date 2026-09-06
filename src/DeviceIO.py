@@ -120,18 +120,18 @@ def play(out_signal, sample_rate, device_name, api_name, active_callback=None, f
     out_signal = out_signal.astype(np.float32)
 
     play_position = 0
-    def play_callback(indata, frames, time, status):
+    def play_callback(outdata, frames, time, status):
         nonlocal play_position
 
         if (play_position + frames) < len(out_signal):
-            indata[:] = out_signal[play_position:play_position + frames, :]
+            outdata[:] = out_signal[play_position:play_position + frames, :]
             play_position += frames
 
             if active_callback is not None:
                 active_callback()
 
         else:
-            indata[:] = np.vstack((out_signal[play_position:], np.zeros((frames - (len(out_signal) - play_position), num_channels)).astype(np.float32)))
+            outdata[:] = np.vstack((out_signal[play_position:], np.zeros((frames - (len(out_signal) - play_position), num_channels)).astype(np.float32)))
 
             raise sd.CallbackStop()
         
@@ -141,25 +141,31 @@ def play(out_signal, sample_rate, device_name, api_name, active_callback=None, f
 
 def record(record_length_samples, sample_rate, device_name, api_name, active_callback=None, finished_callback=None):
     device_index = device_name_to_index(device_name, api_name)
-    num_channels = pa.get_device_info_by_index(device_index)['maxInputChannels']
+    num_channels = get_num_input_channels(device_name, api_name)
     
-    record_frames = []
+    record_frames = np.zeros((record_length_samples, num_channels))
+    record_position = 0
 
-    def record_callback(in_data, frame_count, time_info, status):
-        if len(record_frames)*frame_count < record_length_samples:
-            record_frames.append(np.frombuffer(in_data, dtype=np.float32)) # todo: append() in a loop is usually a faux pas. Run some experiments with pre-allocating and/or doing things directly with numpy instead of lists
+    def record_callback(indata, frames, time, status):
+        nonlocal record_position
 
+        if (record_position + frames) < record_length_samples:
+            record_frames[record_position:record_position + frames] = indata
+            record_position += frames
+            
             if active_callback is not None:
                 active_callback()
-            
-            return (None, pyaudio.paContinue)
         
         else:
-            if finished_callback is not None:
-                finished_callback(np.hstack(record_frames).reshape(-1 , num_channels)) # is there a more direct way to asynchronously output data? Returning record_frames ends the recording early and waiting for the recording to finish blocks GUI thread
-            return (None, pyaudio.paComplete)
+            record_frames[record_position:] = indata[:record_length_samples - record_position]
 
-    stream = pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, input=True, input_device_index=device_index, stream_callback=record_callback)
+            if finished_callback is not None:
+                finished_callback(record_frames)
+
+            raise sd.CallbackStop()
+
+    stream = sd.InputStream(samplerate=sample_rate, device=device_index, channels=num_channels, callback=record_callback)
+    stream.start()
 
 def stream_input(sample_rate, device_name, api_name, stream_callback, samples_per_chunk=None):
     device_index = device_name_to_index(device_name, api_name)
