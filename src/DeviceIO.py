@@ -25,10 +25,9 @@ else:
     # Core Audio is the Mac audio API. Thinner and more expensive than other APIs. Incompatible with headphone jacks.
     HOST_APIS = ['Core Audio']
 
-def restart_pyaudio():
-    global pa
-    pa.terminate()
-    pa = pyaudio.PyAudio()
+def refresh_device_list():
+    sd._terminate()
+    sd._initialize()
 
 def win2utf8(win_str): # todo: this is an issue with PyAudio, check if sounddevice already handles it
     # convert mangled text incorrectly decoded as Windows-1252 to utf-8

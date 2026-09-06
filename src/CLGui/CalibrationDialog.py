@@ -12,7 +12,7 @@ import DeviceIO
 
 # todo: this whole class is kind of messy. Could be cleaned up and probably also optimized for faster plotting
 class CalibrationDialog(QDialog):
-    # set up signal/slot to transfer device input data from PyAudio thread to Qt thread
+    # set up signal/slot to transfer device input data from audio thread to Qt thread
     class StreamReceiver(QObject):
         frame_received = Signal(np.ndarray)
     stream_receiver = StreamReceiver()

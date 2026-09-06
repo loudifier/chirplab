@@ -544,7 +544,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         self.refresh = QPushButton('Refresh Device List')
         layout.addWidget(self.refresh)
         def refresh_devices():
-            DeviceIO.restart_pyaudio()
+            DeviceIO.refresh_device_list()
             undo_stack.paused = True
             update_api(self.api.dropdown.currentIndex())
             undo_stack.paused = False
@@ -1042,7 +1042,7 @@ class DeviceInput(QFrame):
         self.refresh = QPushButton('Refresh Device List')
         layout.addWidget(self.refresh)
         def refresh_devices():
-            DeviceIO.restart_pyaudio()
+            DeviceIO.refresh_device_list()
             undo_stack.paused = True
             update_api(self.api.dropdown.currentIndex())
             undo_stack.paused = False
@@ -1260,7 +1260,7 @@ class DeviceInput(QFrame):
             self.save.setEnabled(True)
             chirp_tab.capture_finished.emit() # todo: accidentally commented this out while debugging, and everything seemed to still work... Check if it is redundant, causing analyze() to be called multiple times, etc.
         
-        # need to go through signal and slot to actually get data from PyAudio thread back into Qt thread
+        # need to go through signal and slot to actually get data from audio thread back into Qt thread
         # in order to work a signal must be a member of an instance of QObject. todo: figure out if there is a simpler/cleaner way (creating signal in DeviceInput.__init__() and calling .connect outside of DeviceInput doesn't seem to work)
         class CaptureReceiver(QObject):
             capture_finished = Signal(np.ndarray) 
