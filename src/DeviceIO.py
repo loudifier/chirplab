@@ -139,33 +139,33 @@ def play(out_signal, sample_rate, device_name, api_name, active_callback=None, f
     stream = sd.OutputStream(samplerate=sample_rate, device=device_index, channels=num_channels, callback=play_callback, finished_callback=finished_callback)
     stream.start()
 
-def record(record_length_samples, sample_rate, device_name, api_name, active_callback=None, finished_callback=None):
-    device_index = device_name_to_index(device_name, api_name)
+def record(record_length_samples, sample_rate, device_name, api_name, active_callback=None, finished_callback=None, frame_size=None):
     num_channels = get_num_input_channels(device_name, api_name)
     
     record_frames = np.zeros((record_length_samples, num_channels))
     record_position = 0
 
-    def record_callback(indata, frames, time, status):
+    def record_callback(record_data):
         nonlocal record_position
 
-        if (record_position + frames) < record_length_samples:
-            record_frames[record_position:record_position + frames] = indata
-            record_position += frames
+        frame_size = len(record_data)
+
+        if (record_position + frame_size) < record_length_samples:
+            record_frames[record_position:record_position + frame_size] = record_data
+            record_position += frame_size
             
             if active_callback is not None:
-                active_callback()
+                active_callback(record_data) # send each frame, then send full recording at the end
         
         else:
-            record_frames[record_position:] = indata[:record_length_samples - record_position]
+            record_frames[record_position:] = record_data[:record_length_samples - record_position]
+
+            stream.stop()
 
             if finished_callback is not None:
                 finished_callback(record_frames)
 
-            raise sd.CallbackStop()
-
-    stream = sd.InputStream(samplerate=sample_rate, device=device_index, channels=num_channels, callback=record_callback)
-    stream.start()
+    stream = InputStream(sample_rate, device_name, api_name, record_callback, start=True, frame_size=frame_size)
 
 class InputStream:
     # signal/slot mechanism to transfer device input data from audio thread to Qt thread

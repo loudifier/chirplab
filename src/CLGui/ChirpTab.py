@@ -1224,17 +1224,16 @@ class DeviceInput(QFrame):
         layout.addWidget(self.capture_button)
         self.capture_start_time = time()
         def capture():
-            DeviceIO.record(round(clp.project['input']['capture_length']*clp.project['input']['sample_rate']), clp.project['input']['sample_rate'], clp.project['input']['device'], clp.project['input']['api'], active_callback=while_capturing, finished_callback=capture_receiver.capture_finished.emit)
+            DeviceIO.record(round(clp.project['input']['capture_length']*clp.project['input']['sample_rate']), clp.project['input']['sample_rate'], clp.project['input']['device'], clp.project['input']['api'], active_callback=while_capturing, finished_callback=when_capture_finished)
             self.capture_start_time = time()
             chirp_tab.input_params.setEnabled(False)
             if clp.project['output']['mode'] == 'device':
                 chirp_tab.output_params.device_output.play_stimulus()
         self.capture_button.clicked.connect(capture)
         self.capture = capture
-        def while_capturing():
+        def while_capturing(_=None):
             self.capture_button.setText('Capturing: ' + str(round(time()-self.capture_start_time, 2)) + ' / ' + str(self.capture_length.value))
         
-        @Slot(np.ndarray)
         def when_capture_finished(captured_response):
             if clp.project['output']['mode'] == 'device':
                 self.capture_button.setText('Play and Capture')
@@ -1258,15 +1257,7 @@ class DeviceInput(QFrame):
             chirp_tab.analyze()
 
             self.save.setEnabled(True)
-            chirp_tab.capture_finished.emit() # todo: accidentally commented this out while debugging, and everything seemed to still work... Check if it is redundant, causing analyze() to be called multiple times, etc.
-        
-        # need to go through signal and slot to actually get data from audio thread back into Qt thread
-        # in order to work a signal must be a member of an instance of QObject. todo: figure out if there is a simpler/cleaner way (creating signal in DeviceInput.__init__() and calling .connect outside of DeviceInput doesn't seem to work)
-        class CaptureReceiver(QObject):
-            capture_finished = Signal(np.ndarray) 
-        capture_receiver = CaptureReceiver()
-        capture_receiver.capture_finished.connect(when_capture_finished)
-        
+
         # save last capture button
         self.save = QPushButton('Save Last Capture')
         self.save.setEnabled(False)
