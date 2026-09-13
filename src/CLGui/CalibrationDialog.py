@@ -12,11 +12,6 @@ import DeviceIO
 
 # todo: this whole class is kind of messy. Could be cleaned up and probably also optimized for faster plotting
 class CalibrationDialog(QDialog):
-    # set up signal/slot to transfer device input data from PyAudio thread to Qt thread
-    class StreamReceiver(QObject):
-        frame_received = Signal(np.ndarray)
-    stream_receiver = StreamReceiver()
-
     def __init__(self, chirp_tab):
         super().__init__()
 
@@ -113,7 +108,6 @@ class CalibrationDialog(QDialog):
             self.measure_samples = []
             self.filt = Biquad() # initialize in bypass mode
 
-            @Slot(np.ndarray)
             def stream_callback(input_samples):
                 self.target_length = round(length.value * 1.2 * clp.project['input']['sample_rate'])
 
@@ -159,12 +153,8 @@ class CalibrationDialog(QDialog):
                 else:
                     tone_level.set_value(str(20*np.log10(rms)))
 
-                
-            self.stream_receiver.frame_received.connect(stream_callback)
-
             frame_size = round(clp.project['input']['sample_rate'] / 30) # update 30 times per second (compromising between update rate and processing speed)
-            self.input_stream = DeviceIO.stream_input(clp.project['input']['sample_rate'], clp.project['input']['device'], clp.project['input']['api'], self.stream_receiver.frame_received.emit, frame_size)
-
+            self.input_stream = DeviceIO.InputStream(clp.project['sample_rate'], clp.project['input']['device'], clp.project['input']['api'], stream_callback, start=True, frame_size=frame_size)
 
             def measure(_=None):
                 # measurement will be automatically updated on next stream_callback().
@@ -312,5 +302,5 @@ class CalibrationDialog(QDialog):
     def done(self, result):
         # close input stream when calibration dialog is closed
         if clp.project['input']['mode'] == 'device':
-            self.input_stream.stop_stream()
+            self.input_stream.stop()
         return super().done(result)

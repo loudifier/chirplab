@@ -52,7 +52,7 @@ def generate_stimulus():
         np.zeros(round(clp.project['post_sweep']*clp.project['sample_rate']))])
     # if this is updated at some point probably refactor and also update harmonic_chirp() in ImpulsiveDistortion.measure()
 
-def generate_output_stimulus():
+def generate_output_stimulus(num_channels):
     # generate a multi-channel stimulus signal using the project output parameters
     stimulus = clp.project['output']['amplitude'] * np.concatenate([
         np.zeros(round(clp.project['output']['pre_sweep']*clp.project['output']['sample_rate'])),
@@ -62,9 +62,9 @@ def generate_output_stimulus():
         stimulus = np.concatenate([
             np.zeros(len(stimulus)),
             stimulus])
-    
+
     if clp.project['output']['channel'] == 'all':
-        stimulus = np.tile(stimulus, (clp.project['output']['num_channels'], 1)).transpose()
+        stimulus = np.tile(stimulus, (num_channels, 1)).transpose()
     else:
         stimulus_signal = stimulus
         stimulus = np.zeros((len(stimulus_signal), clp.project['output']['num_channels']))

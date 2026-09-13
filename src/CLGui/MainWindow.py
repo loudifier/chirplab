@@ -639,7 +639,7 @@ class AboutWindow(QDialog):
                 <li>Python</li>
                 <li>NumPy/SciPy</li>
                 <li>Qt/PyQt</li>
-                <li>PyAudio/PortAudio</li>
+                <li>sounddevice/PortAudio</li>
                 <li>pyqtgraph</li>
                 <li>matplotlib</li>
                 <li>PyInstaller</li>
