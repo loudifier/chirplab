@@ -4,6 +4,7 @@ import sounddevice as sd
 import CLProject as clp
 import numpy as np
 import sys
+from qtpy.QtCore import Signal, Slot, QObject
 
 def get_api_names():
     return [api['name'] for api in sd.query_hostapis()]
@@ -166,16 +167,41 @@ def record(record_length_samples, sample_rate, device_name, api_name, active_cal
     stream = sd.InputStream(samplerate=sample_rate, device=device_index, channels=num_channels, callback=record_callback)
     stream.start()
 
-def stream_input(sample_rate, device_name, api_name, stream_callback, samples_per_chunk=None):
-    device_index = device_name_to_index(device_name, api_name)
-    num_channels = pa.get_device_info_by_index(device_index)['maxInputChannels']
+class InputStream:
+    # signal/slot mechanism to transfer device input data from audio thread to Qt thread
+    class StreamReceiver(QObject):
+        frame_received = Signal(np.ndarray)
+        def __init__(self, receive_callback):
+            super().__init__()
+            self.frame_received.connect(receive_callback)
 
-    def callback(in_data, frame_count, time_info, status):
-        stream_callback(np.frombuffer(in_data, dtype=np.float32).reshape(-1, num_channels))
-        return (None, pyaudio.paContinue)
+    def __init__(self, sample_rate, device_name, api_name, active_callback=None, finished_callback=None, start=False, frame_size=None):
+        self.active_callback = active_callback
+        self.finished_callback = finished_callback
 
-    # return handle to stream object. Will continue streaming to callback indefinitely until <stream>.close_stream() is called
-    if samples_per_chunk is None:
-        return pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, input=True, input_device_index=device_index, stream_callback=callback)
-    else:
-        return pa.open(rate=sample_rate, channels=num_channels, format=pyaudio.paFloat32, input=True, input_device_index=device_index, stream_callback=callback, frames_per_buffer=samples_per_chunk)
+        device_index = device_name_to_index(device_name, api_name)
+        num_channels = get_num_input_channels(device_name, api_name)
+
+        @Slot(np.ndarray)
+        def receive_frame(frame_samples):
+            if self.active_callback is not None:
+                self.active_callback(frame_samples)
+
+        self.stream_receiver = self.StreamReceiver(receive_frame)
+
+        def stream_callback(indata, frames, time, status):
+            self.stream_receiver.frame_received.emit(indata)
+            
+        self.stream = sd.InputStream(samplerate=sample_rate, device=device_index, channels=num_channels, callback=stream_callback, blocksize=frame_size)
+        if start:
+            self.stream.start()
+
+    def start(self):
+        self.stream.start()
+
+    def stop(self):
+        self.stream.stop()
+
+        if self.finished_callback is not None:
+            self.finished_callback()
+
