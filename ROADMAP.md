@@ -5,8 +5,8 @@ Features in each subheading are ordered roughly in order of prioritization. This
 ## Input and Output
 - [x] WAV file input and output
 - [x] Audio interface/sound card input and output
-- [ ] ASIO input and output
-    - Steinberg now distributes ASIO libraries under GPLv3, which is cool, but not necessarily helpful because Chirplab is distributed under the MIT license. From a cursory reading of the Steinberg, PyAudio, and PortAudio licenses, it should be safe to distribute Chirplab compiled with ASIO support under the original Steinberg license, as long as the ASIO SDK itself is not redistributed. At minimum, the process to compile PyAudio or otherwise make ASIO interfaces available in Chirplab should be clearly documented.
+- [X] ASIO input and output
+    - This is simple from a technical standpoint, but gets into a slight gray area. Chirplab's hardware IO uses sounddevice, which includes ASIO support as part of its standard distribution... under an MIT license. Steinberg now distributes ASIO libraries under GPLv3, which is nice, but from my understanding it is okay for GPL software to include MIT code but not for MIT software to include GPL code. From a cursory reading of the original Steinberg ASIO licence and PortAudio's ASIO documentation, it is okay to distribute Chirplab compiled with ASIO support under the original Steinberg license, as long as the ASIO SDK itself is not redistributed. For now including ASIO as part of the standard sounddevice packages seems to be in the spirit of the various licenses. If someone from Steinberg, the Free Software Foundation, or ICC happens to read this and has a strong opinion about the matter, please reach out.
 - [ ] Other audio file formats
     - Technically, any audio file format that SoX understands is already supported by manually entering the full filename and extension and/or using the 'All files' filter in the input file picker.
 - [ ] Native file I/O without using SoX as an intermediary
