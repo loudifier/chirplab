@@ -3,7 +3,7 @@ from CLGui import CLTab, CLParameter, CLParamNum, CLParamDropdown, CLParamFile, 
 from CLAnalysis import generate_stimulus, read_audio_file, read_response, generate_output_stimulus, generate_stimulus_file, audio_file_info, write_audio_file
 import numpy as np
 from qtpy.QtWidgets import QPushButton, QAbstractSpinBox, QFileDialog, QComboBox, QFrame, QVBoxLayout
-from qtpy.QtCore import Signal, Slot, QObject
+from qtpy.QtCore import Signal
 import pyqtgraph as pg
 from engineering_notation import EngNumber
 import DeviceIO
@@ -28,6 +28,7 @@ class ChirpTab(CLTab):
         # Chirp parameters section
         self.chirp_params = ChirpParameters(self)
         self.panel.addWidget(self.chirp_params)
+        self.chirp_params.stimulus_updated.connect(self.update_stimulus)
 
         self.panel.addWidget(QHSeparator())
         
@@ -50,7 +51,6 @@ class ChirpTab(CLTab):
             self.output_params.update_output_mode(1)
             self.output_params.expand()
         
-
     def update_stimulus(self):
         # generate new stimulus from chirp and analysis parameters
         generate_stimulus()
@@ -103,6 +103,8 @@ class ChirpTab(CLTab):
 
 
 class ChirpParameters(QCollapsible):
+    stimulus_updated = Signal()
+
     def __init__(self, chirp_tab):
         super().__init__('Chirp Parameters')
 
@@ -115,7 +117,7 @@ class ChirpParameters(QCollapsible):
                 self.start_freq.revert() # revert and do nothing
             else:
                 clp.project['start_freq'] = float(new_value) # apply the new value to the project
-                chirp_tab.update_stimulus() # update the stimulus (which updates the measurements)
+                self.stimulus_updated.emit()
         self.start_freq.update_callback = update_start_freq
         
         self.stop_freq = CLParamNum('Stop Freq', clp.project['stop_freq'], 'Hz', clp.MIN_CHIRP_FREQ, clp.project['sample_rate']/2)
@@ -125,7 +127,7 @@ class ChirpParameters(QCollapsible):
                 self.stop_freq.revert()
             else:
                 clp.project['stop_freq'] = float(new_value)
-                chirp_tab.update_stimulus()
+                self.stimulus_updated.emit()
         self.stop_freq.update_callback = update_stop_freq
         
         self.chirp_length = CLParamNum('Chirp Length', clp.project['chirp_length'], ['Sec','Samples'], clp.MIN_CHIRP_LENGTH, clp.MAX_CHIRP_LENGTH, 'float')
@@ -135,8 +137,7 @@ class ChirpParameters(QCollapsible):
                 clp.project['chirp_length'] = self.chirp_length.value
             else: # convert samples to seconds
                 clp.project['chirp_length'] = self.chirp_length.value / clp.project['sample_rate']
-            chirp_tab.update_output_length()
-            chirp_tab.update_stimulus()
+            self.stimulus_updated.emit()
         self.chirp_length.update_callback = update_chirp_length
         def update_chirp_length_units(index):
             if index==0: # seconds
@@ -189,7 +190,7 @@ class ChirpParameters(QCollapsible):
                 # todo: reduce start/stop freq if they exceed new max
                 update_pre_sweep_units(self.pre_sweep.units.currentIndex())
                 update_post_sweep_units(self.post_sweep.units.currentIndex())
-                chirp_tab.update_stimulus()
+                self.stimulus_updated.emit()
         self.sample_rate.update_callback = update_sample_rate
         chirp_tab.update_sample_rate = update_sample_rate
         def sample_rate_str2num(str_rate):
@@ -206,7 +207,7 @@ class ChirpParameters(QCollapsible):
             self.sample_rate.dropdown.setCurrentText(str(EngNumber(num_rate))) # todo: handle corner case where this can fire recalculation when clicking the dropdown after typing in a sample rate 
             return num_rate
         
-        # pre sweep - s/sample dropdown
+        # pre sweep - seconds/samples dropdown
         self.pre_sweep = CLParamNum('Pre Sweep', clp.project['pre_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
         self.analysis_params.addWidget(self.pre_sweep)
         def update_pre_sweep(new_value):
@@ -214,7 +215,7 @@ class ChirpParameters(QCollapsible):
                 clp.project['pre_sweep'] = new_value
             else: # samples
                 clp.project['pre_sweep'] = new_value / clp.project['sample_rate']
-            chirp_tab.update_stimulus()
+            self.stimulus_updated.emit()
         self.pre_sweep.update_callback = update_pre_sweep
         def update_pre_sweep_units(index):
             if index==0: # sec
@@ -227,7 +228,7 @@ class ChirpParameters(QCollapsible):
                 self.pre_sweep.set_numtype('int')
         self.pre_sweep.units_update_callback = update_pre_sweep_units
         
-        # post sweep - s/sample dropdown
+        # post sweep - seconds/samples dropdown
         self.post_sweep = CLParamNum('Post Sweep', clp.project['post_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
         self.analysis_params.addWidget(self.post_sweep)
         def update_post_sweep(new_value):
@@ -235,7 +236,7 @@ class ChirpParameters(QCollapsible):
                 clp.project['post_sweep'] = new_value
             else: # samples
                 clp.project['post_sweep'] = new_value / clp.project['sample_rate']
-            chirp_tab.update_stimulus()
+            self.stimulus_updated.emit()
         self.post_sweep.update_callback = update_post_sweep
         def update_post_sweep_units(index):
             if index==0: # sec
@@ -280,8 +281,6 @@ class OutputParameters(QCollapsible):
                 if clp.project['input']['mode'] == 'device':
                     chirp_tab.input_params.device_input.capture_button.setText('Capture Response')
             chirp_tab.io_changed.emit() # main window listens for io_changed, updates analyze/generate button text
-            # todo: pretty sure io_changed was a workaround for previous implmenetation of creating a new set of parameter controls when switching between file and device mode
-            # could/should probably remove signal and change text directly from mode update function (also update for output mode)
             if not undo_paused:
                 undo_stack.paused = False
                 undo_stack.push(undo_output_mode, (index+1)%2, undo_output_mode, index)
@@ -332,7 +331,7 @@ class FileOutput(QFrame):
                 self.amplitude.set_value(20*np.log10(clp.project['output']['amplitude']))
         self.amplitude.units_update_callback = update_amplitude_units
             
-        # pre padding - s/sample dropdown
+        # pre padding - seconds/samples dropdown
         self.pre_sweep = CLParamNum('Pre Sweep', clp.project['output']['pre_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
         layout.addWidget(self.pre_sweep)
         def update_pre_sweep(new_value):
@@ -353,7 +352,7 @@ class FileOutput(QFrame):
                 self.pre_sweep.set_numtype('int')
         self.pre_sweep.units_update_callback = update_pre_sweep_units
         
-        # post padding - s/sample dropdown
+        # post padding - seconds/samples dropdown
         self.post_sweep = CLParamNum('Post Sweep', clp.project['output']['post_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
         layout.addWidget(self.post_sweep)
         def update_post_sweep(new_value):
@@ -388,7 +387,7 @@ class FileOutput(QFrame):
             self.include_silence.setChecked(checked)
             undo_stack.paused = False
         
-        # total length text box (non-interactive) - s/sample dropdown
+        # total length text box (non-interactive) - seconds/samples dropdown
         def calc_output_length(unit='samples'):
             sig_length = round(clp.project['output']['pre_sweep']*clp.project['output']['sample_rate'])
             sig_length += round(clp.project['chirp_length']*clp.project['output']['sample_rate'])
@@ -407,7 +406,7 @@ class FileOutput(QFrame):
                 self.output_length.set_value(round(calc_output_length('seconds'),2))
             else:
                 self.output_length.set_value(calc_output_length('samples'))
-        chirp_tab.update_output_length = update_output_length
+        chirp_tab.chirp_params.stimulus_updated.connect(update_output_length)
         def update_output_length_units(index):
             update_output_length()
         self.output_length.units_update_callback = update_output_length_units
@@ -626,7 +625,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
                 self.amplitude.set_value(20*np.log10(clp.project['output']['amplitude']))
         self.amplitude.units_update_callback = update_amplitude_units
             
-        # pre padding - s/sample dropdown
+        # pre padding - seconds/samples dropdown
         self.pre_sweep = CLParamNum('Pre Sweep', clp.project['output']['pre_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
         layout.addWidget(self.pre_sweep)
         def update_pre_sweep(new_value):
@@ -647,7 +646,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
                 self.pre_sweep.set_numtype('int')
         self.pre_sweep.units_update_callback = update_pre_sweep_units
         
-        # post padding - s/sample dropdown
+        # post padding - seconds/samples dropdown
         self.post_sweep = CLParamNum('Post Sweep', clp.project['output']['post_sweep'], ['Sec', 'Samples'], 0, clp.MAX_ZERO_PAD, 'float')
         layout.addWidget(self.post_sweep)
         def update_post_sweep(new_value):
@@ -679,7 +678,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
                 chirp_tab.input_params.device_input.update_auto_length(True)
         self.include_silence.update_callback = update_include_silence
         
-        # total length text box (non-interactive) - s/sample dropdown
+        # total length text box (non-interactive) - seconds/samples dropdown
         def calc_output_length(unit='samples'):
             sig_length = round(clp.project['output']['pre_sweep']*clp.project['output']['sample_rate'])
             sig_length += round(clp.project['chirp_length']*clp.project['output']['sample_rate'])
@@ -698,7 +697,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
                 self.output_length.set_value(round(calc_output_length('seconds'),2))
             else:
                 self.output_length.set_value(calc_output_length('samples'))
-        chirp_tab.update_output_length = update_output_length
+        chirp_tab.chirp_params.stimulus_updated.connect(update_output_length)
         def update_output_length_units(index):
             update_output_length()
         self.output_length.units_update_callback = update_output_length_units
@@ -846,7 +845,7 @@ class InputParameters(QCollapsible):
                 self.input_frame.layout().replaceWidget(self.device_input, self.file_input)
                 self.file_input.show()
 
-            chirp_tab.io_changed.emit() # todo: probably could/should be removed. See update_output_mode comments
+            chirp_tab.io_changed.emit()
             if not undo_paused:
                 undo_stack.paused = False
                 undo_stack.push(undo_input_mode, (index+1)%2, undo_input_mode, index)
@@ -1111,7 +1110,7 @@ class DeviceInput(QFrame):
         self.auto_length = CLParamCheckBox('auto')
         self.auto_length.setChecked(clp.project['input']['use_output_length'])
         def update_auto_length(checked):
-            clp.project['input']['use_output_length'] = checked
+            clp.project['input']['use_output_length'] = bool(checked)
             self.capture_length.spin_box.setEnabled(not checked)
             if checked:
                 clp.project['input']['capture_length'] = calc_output_length('seconds')
@@ -1127,8 +1126,12 @@ class DeviceInput(QFrame):
                 return sig_length / clp.project['output']['sample_rate']
             else:
                 return sig_length
+
+        def stimulus_updated(): # todo: this is a little awkward. Can probably be one line, but merging directly with update_auto_length gives unexpected values for checked
+            update_auto_length(clp.project['input']['use_output_length'])
+        chirp_tab.chirp_params.stimulus_updated.connect(stimulus_updated)
         
-        # total length spinbox - s/sample dropdown
+        # total length spinbox - seconds/samples dropdown
         self.capture_length = CLParamNum('Capture length', round(clp.project['input']['capture_length'],2), ['Sec','Samples'], 0, 2*(clp.MAX_CHIRP_LENGTH+2*clp.MAX_ZERO_PAD), 'float')
         layout.addWidget(self.capture_length)
         self.capture_length.layout.addWidget(self.auto_length)
