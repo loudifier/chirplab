@@ -15,7 +15,9 @@ if sys.platform == 'win32':
     # WASAPI is the base audio API on Windows. All audio on Windows goes through WASAPI (except for stuff like ASIO that specifically bypasses WASAPI). Channels, sammple rates, and formats are RAW, no resampling. Latency can be competitive with ASIO (but it depends on a lot of factors)
     # DirectSound and WDM are older APIs. DirectSound provides high level resampling and other convenience features, primarily for DirectX games. I believe it still has unique use-cases for games and media apps, but none which are particularly relevant to audio measurements. WDM used to provide direct access to devices for low latency. Now DirectSound and WDM go through WASAPI for backwards compatibility with older software targeting those APIs
     # ASIO is a proprietary protocol from Steinberg, which has been open sourced under the GPL. It completely bypasses WASAPI and the standard Windows APIs, and generally provides more control and lower latency for pro audio interfaces.
-    HOST_APIS = ['MME', 'Windows WASAPI', 'ASIO']
+    HOST_APIS = ['MME', 'Windows WASAPI']
+    if any([hostapi['devices'][0] for hostapi in sd.query_hostapis() if hostapi['name']=='ASIO']):
+        HOST_APIS += ['ASIO']
 elif 'linux' in sys.platform:
     # ALSA is the base auio API for most Linux distros, similar to WASAPI but with feature bloat over the years. Instead use JACK if at all possible
     # JACK is an audio processing server in the traditional Linux modular server-client model. It started as a compatibility layer to overcome some of the limitations of ALSA and has grown to be the de facto standard audio interface for serious audio in Linux. PipeAudio is theoretically backwards compatible with JACK, but documentation and examples are hard to find
