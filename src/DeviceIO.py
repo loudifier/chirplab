@@ -16,7 +16,7 @@ if sys.platform == 'win32':
     # DirectSound and WDM are older APIs. DirectSound provides high level resampling and other convenience features, primarily for DirectX games. I believe it still has unique use-cases for games and media apps, but none which are particularly relevant to audio measurements. WDM used to provide direct access to devices for low latency. Now DirectSound and WDM go through WASAPI for backwards compatibility with older software targeting those APIs
     # ASIO is a proprietary protocol from Steinberg, which has been open sourced under the GPL. It completely bypasses WASAPI and the standard Windows APIs, and generally provides more control and lower latency for pro audio interfaces.
     HOST_APIS = ['MME', 'Windows WASAPI']
-    if any([hostapi['devices'][0] for hostapi in sd.query_hostapis() if hostapi['name']=='ASIO']):
+    if any([hostapi['devices'] for hostapi in sd.query_hostapis() if hostapi['name']=='ASIO']):
         HOST_APIS += ['ASIO']
 elif 'linux' in sys.platform:
     # ALSA is the base auio API for most Linux distros, similar to WASAPI but with feature bloat over the years. Instead use JACK if at all possible
