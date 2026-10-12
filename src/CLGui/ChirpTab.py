@@ -456,26 +456,28 @@ class FileOutput(QFrame):
         def update_num_channels(new_value):
             clp.project['output']['num_channels'] = new_value
             
-            # determine output channel before rebuilding channel dropdown list
             if clp.project['output']['channel']=='all' or clp.project['output']['channel']>clp.project['output']['num_channels']:
-                channel_index = 0
-            else:
-                channel_index = clp.project['output']['channel']
-            
-            # rebuild channel dropdown list (updates trigger callback, which resets output channel to 0/'all')
-            self.channel.dropdown.blockSignals(True)
-            self.channel.dropdown.clear()
-            self.channel.dropdown.addItem('all')
-            self.channel.dropdown.addItems([str(chan) for chan in range(1, clp.project['output']['num_channels']+1)])
-            self.channel.dropdown.blockSignals(False)
-            
-            # set correct output channel
-            self.channel.dropdown.setCurrentIndex(channel_index)            
+                clp.project['output']['channel']='all' # todo: pretty sure undo_redo needs to be overriden to include channel dropdown index changing
+
+            rebuild_channel_dropdown()
         self.num_channels.update_callback = update_num_channels
         
         # output channel dropdown
         self.channel = CLParamDropdown('Output Channel', ['all'])
-        self.channel.dropdown.addItems([str(chan) for chan in range(1, clp.project['output']['num_channels']+1)])
+        def rebuild_channel_dropdown():
+            if clp.project['output']['channel'] == 'all':
+                channel_index = 0
+            else:
+                channel_index = clp.project['output']['channel']
+
+            self.channel.dropdown.blockSignals(True)
+            self.channel.dropdown.clear()
+            self.channel.dropdown.addItem('all')
+            self.channel.dropdown.addItems([str(chan) for chan in range(1, clp.project['output']['num_channels']+1)])
+            self.channel.dropdown.setCurrentIndex(channel_index)
+            self.channel.dropdown.blockSignals(False)
+        rebuild_channel_dropdown()
+
         layout.addWidget(self.channel)
         def update_channel(index=-1, channel=None):
             if index==-1:

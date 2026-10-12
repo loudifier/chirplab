@@ -103,7 +103,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
     - [ ] Fix plotting when there is only 1 output point, handle corner cases where points are duplicated, not sorted, etc.
 - [ ] Performance optimization to improve batch file processing
     - [ ] Compilation, caching, etc to improve Python startup and processing time. Numba seems like the lowest-friction option to try first. Nuitka also looks interesting.
-    - [ ] Delay GUI imports until needed to keep CLI from having to import Qt libraries
+    - [x] Delay GUI imports until needed to keep CLI from having to import Qt libraries
     - [ ] Look into alternatives to or just rolling simplified versions of stuff from Pandas? CSV export is dead simple, there is probably a lighter weight option for XLS(X), and there may be a faster (if slightly more complex) way to implement DataFrame.rolling() with NumPy. Double check import time, installation size, execution speed first, may not be worth the effort
     - [ ] pyFFTW exists
 - [ ] Pilot tone. Required by some commercial audio software for open-loop measurements, need to investigate to determine what measurements actually require precise timing that can't be determined by cross correlation

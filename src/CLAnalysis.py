@@ -74,7 +74,7 @@ def generate_output_stimulus(num_channels):
 
 def generate_stimulus_file(out_path):
     # generate a stimulus file to play on the DUT using the project output parameters
-    stimulus = generate_output_stimulus()
+    stimulus = generate_output_stimulus(clp.project['output']['num_channels'])
 
     try:
         write_audio_file(stimulus, out_path, clp.project['output']['sample_rate'], clp.project['output']['bit_depth'])
