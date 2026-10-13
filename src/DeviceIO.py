@@ -124,50 +124,41 @@ def play(out_signal, sample_rate, device_name, api_name, active_callback=None, f
     play_position = 0
     def play_callback(outdata, frames, time, status):
         nonlocal play_position
+        nonlocal stream
 
-        if (play_position + frames) < len(out_signal):
-            outdata[:] = out_signal[play_position:play_position + frames, :]
-            play_position += frames
-
+        if play_position < len(out_signal):
+        
+            if (play_position + frames) < len(out_signal):
+                outdata[:] = out_signal[play_position:play_position + frames, :]
+            else:
+                outdata[:] = np.vstack((out_signal[play_position:], np.zeros((frames - (len(out_signal) - play_position), num_channels)).astype(np.float32)))
+                
             if active_callback is not None:
                 active_callback()
 
         else:
-            outdata[:] = np.vstack((out_signal[play_position:], np.zeros((frames - (len(out_signal) - play_position), num_channels)).astype(np.float32)))
+            outdata[:] = np.zeros((frames, num_channels), dtype=np.float32)
+            
+            if play_position > len(out_signal) + 2*frames: # make sure at least one full frame of silence has been played before completely closing stream
+                if finished_callback is not None:
+                    finished_callback(stream)
 
-            raise sd.CallbackStop()
-        
+                raise sd.CallbackAbort()
 
-    stream = sd.OutputStream(samplerate=sample_rate, device=device_index, channels=num_channels, callback=play_callback, finished_callback=finished_callback)
+        play_position += frames
+
+    stream = sd.OutputStream(samplerate=sample_rate, device=device_index, channels=num_channels, callback=play_callback)
     stream.start()
 
 def record(record_length_samples, sample_rate, device_name, api_name, active_callback=None, finished_callback=None, frame_size=None):
-    num_channels = get_num_input_channels(device_name, api_name)
-    
-    record_frames = np.zeros((record_length_samples, num_channels))
-    record_position = 0
-
     def record_callback(record_data):
-        nonlocal record_position
+        if active_callback is not None:
+            active_callback(record_data)
 
-        frame_size = len(record_data)
+        if stream.total_input_samples > (record_length_samples + len(record_data)): # stream.stop() can cut end off recording, let the input stream capture at least one full frame past the record length
+            stream.stop() # stream sends full recording to finished_callback
 
-        if (record_position + frame_size) < record_length_samples:
-            record_frames[record_position:record_position + frame_size] = record_data
-            record_position += frame_size
-            
-            if active_callback is not None:
-                active_callback(record_data) # send each frame, then send full recording at the end
-        
-        else:
-            record_frames[record_position:] = record_data[:record_length_samples - record_position]
-
-            stream.stop()
-
-            if finished_callback is not None:
-                finished_callback(record_frames)
-
-    stream = InputStream(sample_rate, device_name, api_name, record_callback, start=True, frame_size=frame_size)
+    stream = InputStream(sample_rate, device_name, api_name, record_callback, start=True, frame_size=frame_size, record_length_samples=record_length_samples, finished_callback=finished_callback)
 
 class InputStream:
     # signal/slot mechanism to transfer device input data from audio thread to Qt thread
@@ -177,9 +168,11 @@ class InputStream:
             super().__init__()
             self.frame_received.connect(receive_callback)
 
-    def __init__(self, sample_rate, device_name, api_name, active_callback=None, finished_callback=None, start=False, frame_size=None):
+    def __init__(self, sample_rate, device_name, api_name, active_callback=None, finished_callback=None, start=False, frame_size=None, record_length_samples=0):
         self.active_callback = active_callback
         self.finished_callback = finished_callback
+
+        self.total_input_samples = 0
 
         device_index = device_name_to_index(device_name, api_name)
         num_channels = get_num_input_channels(device_name, api_name)
@@ -191,8 +184,18 @@ class InputStream:
 
         self.stream_receiver = self.StreamReceiver(receive_frame)
 
+        self.record_indata = np.zeros((record_length_samples,num_channels)) # recording inside audio thread is more reliable than transferring frames to Qt thread
+
         def stream_callback(indata, frames, time, status):
-            self.stream_receiver.frame_received.emit(indata)
+            if record_length_samples:
+                if self.total_input_samples < record_length_samples:
+                    if self.total_input_samples + frames < record_length_samples:
+                        self.record_indata[self.total_input_samples:self.total_input_samples+frames] = indata
+                    else:
+                        self.record_indata[self.total_input_samples:] = indata[:record_length_samples-self.total_input_samples]
+
+            self.total_input_samples += frames
+            self.stream_receiver.frame_received.emit(indata) # send frame to Qt thread
             
         self.stream = sd.InputStream(samplerate=sample_rate, device=device_index, channels=num_channels, callback=stream_callback, blocksize=frame_size)
         if start:
@@ -205,5 +208,4 @@ class InputStream:
         self.stream.stop()
 
         if self.finished_callback is not None:
-            self.finished_callback()
-
+            self.finished_callback(self.record_indata)

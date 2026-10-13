@@ -64,6 +64,8 @@ With the decreasing number of audio devices that provide realtime audio passthro
 <br/>
 
 ## Project Status
+**Sound card input and output is buggy with some hardware. If it doesn't work correctly for you, the most reliable workaround is to generate a stimulus file from Chirplab, play and record with Audacity or your favorite DAW, and export the response to WAV format for file input mode in Chirplab.**
+
 Chirplab v0.5 is in a basic usable state, supporting file and sound card input and output with real units calibration and a set of standard audio measurements, with additional features and measurement types in development. See the [roadmap](ROADMAP.md) for a high level list of currently implemented and planned features. Contributions are welcome.
 
 If you have a specific feature request not on the roadmap, find a bug, have an audio file or signal that does not play nicely with Chirplab, etc. please [raise an issue](https://github.com/loudifier/chirplab/issues).
