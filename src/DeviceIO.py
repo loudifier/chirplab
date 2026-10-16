@@ -32,12 +32,6 @@ def refresh_device_list():
     sd._terminate()
     sd._initialize()
 
-def win2utf8(win_str): # todo: this is an issue with PyAudio, check if sounddevice already handles it
-    # convert mangled text incorrectly decoded as Windows-1252 to utf-8
-    # handles '®' symbol in device names, probably also '™' and similar symbols
-    # https://www.i18nqa.com/debug/utf8-debug.html
-    return(bytearray(win_str, 'cp1252').decode('utf-8'))
-
 def api_name_to_index(name):
     api_names = get_api_names()
     return api_names.index(name)
@@ -54,7 +48,7 @@ def get_device_names(input_or_output='', api=''):
             continue # skip device if input is specified and device does not have any input channels
         if input_or_output=='output' and not device['max_output_channels']:
             continue # skip device if input is specified and device does not have any input channels
-        devices.append(win2utf8(device['name']))
+        devices.append(device['name'])
     return devices
 
 def device_name_to_index(device_name, api_name=''): # API needs to be specified because it is very likely for a device to have the same name for multiple APIs
@@ -65,20 +59,20 @@ def device_name_to_index(device_name, api_name=''): # API needs to be specified 
     num_devices = len(sd.query_devices())
     for i in range(num_devices):
         device = sd.query_devices(i)
-        if device['hostapi']==api_index and win2utf8(device['name'])==device_name:
+        if device['hostapi']==api_index and device['name']==device_name:
             return i
         
 def get_default_input_device(api_name=''):
     if not api_name:
-        return(win2utf8(sd.query_devices(sd.default.device[0])['name']))
+        return(sd.query_devices(sd.default.device[0])['name'])
     device_index = sd.query_hostapis(api_name_to_index(api_name))['default_input_device']
-    return(win2utf8(sd.query_devices(device_index)['name']))
+    return(sd.query_devices(device_index)['name'])
 
 def get_default_output_device(api_name=''):
     if not api_name:
-        return(win2utf8(sd.query_devices(sd.default.device[1])['name']))
+        return(sd.query_devices(sd.default.device[1])['name'])
     device_index = sd.query_hostapis(api_name_to_index(api_name))['default_output_device']
-    return(win2utf8(sd.query_devices(device_index)['name']))
+    return(sd.query_devices(device_index)['name'])
 
 def is_sample_rate_valid(sample_rate, device_name, api_name):
     device_index = device_name_to_index(device_name, api_name)
