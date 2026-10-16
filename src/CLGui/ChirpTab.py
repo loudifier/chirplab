@@ -544,13 +544,24 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         # button to refresh device list, double check that current selection is valid, etc
         self.refresh = QPushButton('Refresh Device List')
         layout.addWidget(self.refresh)
-        def refresh_devices():
-            DeviceIO.refresh_device_list()
-            undo_stack.paused = True
-            update_api(self.api.dropdown.currentIndex())
-            undo_stack.paused = False
-            # todo: also refresh input devices
+        def refresh_devices(_, reset_deviceio=True):
+            if reset_deviceio:
+                DeviceIO.refresh_device_list()
+            undo_stack.paused = True # todo: pretty sure this can break things if the API list changes. Need to do some work to figure out how to resolve when history diverges from external physical state
+            if self.api.dropdown.currentIndex() >= len(DeviceIO.HOST_APIS):
+                api_index = 0
+            else:
+                api_index = self.api.dropdown.currentIndex()
+            self.api.dropdown.blockSignals(True)
+            self.api.dropdown.clear()
+            self.api.dropdown.addItems(DeviceIO.HOST_APIS)
+            self.api.dropdown.setCurrentIndex(api_index)
+            self.api.dropdown.blockSignals(False)
+            if reset_deviceio and clp.project['input']['mode'] == 'device':
+                chirp_tab.input_params.device_input.refresh_devices(False, False)
+
         self.refresh.clicked.connect(refresh_devices)
+        self.refresh_devices = refresh_devices
 
         # Host API dropdown
         self.api = CLParamDropdown('Host API', DeviceIO.HOST_APIS)
@@ -1042,13 +1053,26 @@ class DeviceInput(QFrame):
         # button to refresh device list, double check that current selection is valid, etc
         self.refresh = QPushButton('Refresh Device List')
         layout.addWidget(self.refresh)
-        def refresh_devices():
-            DeviceIO.refresh_device_list()
-            undo_stack.paused = True
-            update_api(self.api.dropdown.currentIndex())
+        def refresh_devices(_, reset_deviceio=True):
+            if reset_deviceio:
+                DeviceIO.refresh_device_list()
+            undo_stack.paused = True # todo: pretty sure this can break things if the API list changes. Need to do some work to figure out how to resolve when history diverges from external physical state
+            if self.api.dropdown.currentIndex() >= len(DeviceIO.HOST_APIS):
+                api_index = 0
+            else:
+                api_index = self.api.dropdown.currentIndex()
+            self.api.dropdown.blockSignals(True)
+            self.api.dropdown.clear()
+            self.api.dropdown.addItems(DeviceIO.HOST_APIS)
+            self.api.dropdown.setCurrentIndex(api_index)
+            self.api.dropdown.blockSignals(False)
+            update_api(api_index)
             undo_stack.paused = False
-            # todo: also refresh output devices
+            if reset_deviceio and clp.project['output']['mode'] == 'device':
+                chirp_tab.output_params.device_output.refresh_devices(False, False)
+
         self.refresh.clicked.connect(refresh_devices)
+        self.refresh_devices = refresh_devices
 
         # Host API dropdown
         self.api = CLParamDropdown('Host API', DeviceIO.HOST_APIS)
