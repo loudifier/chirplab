@@ -557,6 +557,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             self.api.dropdown.addItems(DeviceIO.HOST_APIS)
             self.api.dropdown.setCurrentIndex(api_index)
             self.api.dropdown.blockSignals(False)
+            update_api(api_index)
             if reset_deviceio and clp.project['input']['mode'] == 'device':
                 chirp_tab.input_params.device_input.refresh_devices(False, False)
 
