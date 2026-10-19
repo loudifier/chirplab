@@ -120,9 +120,10 @@ def play(out_signal, sample_rate, device_name, api_name, active_callback=None, f
     out_signal = out_signal.astype(np.float32)
 
     play_position = 0
+    finished = False
     def play_callback(outdata, frames, time, status):
         nonlocal play_position
-        nonlocal stream
+        nonlocal finished
 
         if play_position < len(out_signal):
         
@@ -137,16 +138,21 @@ def play(out_signal, sample_rate, device_name, api_name, active_callback=None, f
         else:
             outdata[:] = np.zeros((frames, num_channels), dtype=np.float32)
             
-            if play_position > len(out_signal) + 2*frames: # make sure at least one full frame of silence has been played before completely closing stream
-                if finished_callback is not None:
-                    finished_callback(stream)
-
-                raise sd.CallbackAbort()
+            if not finished and play_position > len(out_signal) + 2*frames: # make sure at least one full frame of silence has been played before completely closing stream
+                finished = True
 
         play_position += frames
 
     stream = sd.OutputStream(samplerate=sample_rate, device=device_index, channels=num_channels, callback=play_callback)
     stream.start()
+
+    while not finished:
+        pass
+    stream.stop()
+    stream.close()
+
+    if finished_callback is not None:
+        finished_callback()
 
 def record(record_length_samples, sample_rate, device_name, api_name, active_callback=None, finished_callback=None, frame_size=None):
     def record_callback(record_data):
@@ -204,6 +210,7 @@ class InputStream:
 
     def stop(self):
         self.stream.stop()
+        self.stream.close()
 
         if self.finished_callback is not None:
             self.finished_callback(self.record_indata)

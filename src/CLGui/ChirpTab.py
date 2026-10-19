@@ -793,11 +793,11 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         self.play_start_time = time()
         def play_stimulus():
             stimulus = generate_output_stimulus(DeviceIO.get_num_output_channels(clp.project['output']['device'], clp.project['output']['api']))
-            DeviceIO.play(stimulus, clp.project['output']['sample_rate'], clp.project['output']['device'], clp.project['output']['api'], active_callback=while_playing, finished_callback=when_play_finished)
-            self.play_start_time = time()
             chirp_tab.output_params.setEnabled(False)
             if clp.project['input']['mode'] == 'device':
                 chirp_tab.input_params.setEnabled(False)
+            self.play_start_time = time()
+            DeviceIO.play(stimulus, clp.project['output']['sample_rate'], clp.project['output']['device'], clp.project['output']['api'], active_callback=while_playing, finished_callback=when_play_finished)
         self.play.clicked.connect(play_stimulus)
         self.play_stimulus = play_stimulus
         def while_playing():
@@ -1254,9 +1254,9 @@ class DeviceInput(QFrame):
         layout.addWidget(self.capture_button)
         self.capture_start_time = time()
         def capture():
+            chirp_tab.input_params.setEnabled(False)
             DeviceIO.record(round(clp.project['input']['capture_length']*clp.project['input']['sample_rate']), clp.project['input']['sample_rate'], clp.project['input']['device'], clp.project['input']['api'], active_callback=while_capturing, finished_callback=when_capture_finished)
             self.capture_start_time = time()
-            chirp_tab.input_params.setEnabled(False)
             if clp.project['output']['mode'] == 'device':
                 chirp_tab.output_params.device_output.play_stimulus()
         self.capture_button.clicked.connect(capture)

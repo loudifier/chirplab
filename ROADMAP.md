@@ -92,6 +92,7 @@ Features in each subheading are ordered roughly in order of prioritization. This
 
 ## General features
 - [x] Real units calibration - some sort of 'Pa per FS' and 'Volts per FS' conversion factors so output units can be expressed in real units
+    - [ ] Device input works, but DeviceIO input streaming is kind of broken and measurement length is limited by plotting performance
     - [x] Automatic calibration using a reference tone
     - [x] General unit conversion function in CLAnalysis to convert raw measurement outputs in FS to common units
     - [ ] Calibration interface could be improved to make it more clear how to set calibration values from known sensitivity
