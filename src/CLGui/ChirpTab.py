@@ -800,9 +800,9 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
             DeviceIO.play(stimulus, clp.project['output']['sample_rate'], clp.project['output']['device'], clp.project['output']['api'], active_callback=while_playing, finished_callback=when_play_finished)
         self.play.clicked.connect(play_stimulus)
         self.play_stimulus = play_stimulus
-        def while_playing():
+        def while_playing(_):
             self.play.setText('Playing: ' + str(round(time()-self.play_start_time, 2)) + ' / ' + self.output_length.value)
-        def when_play_finished():
+        def when_play_finished(_):
             self.play.setText('Play Stimulus')
             chirp_tab.output_params.setEnabled(True)
             if clp.project['input']['mode'] == 'device':
@@ -1261,7 +1261,7 @@ class DeviceInput(QFrame):
                 chirp_tab.output_params.device_output.play_stimulus()
         self.capture_button.clicked.connect(capture)
         self.capture = capture
-        def while_capturing(_=None):
+        def while_capturing(*_):
             self.capture_button.setText('Capturing: ' + str(round(time()-self.capture_start_time, 2)) + ' / ' + str(self.capture_length.value))
         
         def when_capture_finished(captured_response):

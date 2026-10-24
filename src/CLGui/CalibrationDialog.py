@@ -108,7 +108,7 @@ class CalibrationDialog(QDialog):
             self.measure_samples = []
             self.filt = Biquad() # initialize in bypass mode
 
-            def stream_callback(input_samples):
+            def stream_callback(input_samples, _first_sample_index):
                 self.target_length = round(length.value * 1.2 * clp.project['input']['sample_rate'])
 
                 if input_samples.ndim > 1:
