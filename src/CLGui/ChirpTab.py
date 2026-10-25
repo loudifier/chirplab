@@ -309,7 +309,7 @@ class FileOutput(QFrame):
         layout = QVBoxLayout(self)
 
         # amplitude - dB/Fs dropdown
-        self.amplitude = CLParamNum('Amplitude', clp.project['output']['amplitude'], ['Fs', 'dBFS'], 0, 1.0, 'float')
+        self.amplitude = CLParamNum('Amplitude', clp.project['output']['amplitude'], ['FS', 'dBFS'], 0, 1.0, 'float')
         self.amplitude.spin_box.setDecimals(5)
         layout.addWidget(self.amplitude)
         def update_amplitude(new_value):
@@ -617,7 +617,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
         self.device.update_callback = update_device
 
         # amplitude - dB/Fs dropdown
-        self.amplitude = CLParamNum('Amplitude', clp.project['output']['amplitude'], ['Fs', 'dBFS'], 0, 1.0, 'float')
+        self.amplitude = CLParamNum('Amplitude', clp.project['output']['amplitude'], ['FS', 'dBFS'], 0, 1.0, 'float')
         self.amplitude.spin_box.setDecimals(5)
         layout.addWidget(self.amplitude)
         def update_amplitude(new_value):
