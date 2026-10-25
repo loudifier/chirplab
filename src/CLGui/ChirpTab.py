@@ -1269,7 +1269,7 @@ class DeviceInput(QFrame):
             self.capture_button.setText('Capturing: ' + str(round(time()-self.capture_start_time, 2)) + ' / ' + str(self.capture_length.value))
         
         def when_capture_finished(captured_response):
-            set_capture_button_text()
+            update_capture_button_text()
 
             chirp_tab.input_params.setEnabled(True) # todo: handle corner cases where capture length is significantly shorter than stimulus length
             if clp.project['output']['mode'] == 'device':
