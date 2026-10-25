@@ -272,17 +272,13 @@ class OutputParameters(QCollapsible):
                 self.device_output.sync(self.file_output)
                 self.output_frame.layout().replaceWidget(self.file_output, self.device_output)
                 self.device_output.show()
-                if clp.project['input']['mode'] == 'device':
-                    chirp_tab.input_params.device_input.capture_button.setText('Play and Capture')
             else:
                 clp.project['output']['mode'] = 'file'
                 self.device_output.hide()
                 self.file_output.sync(self.device_output)
                 self.output_frame.layout().replaceWidget(self.device_output, self.file_output)
                 self.file_output.show()
-                if clp.project['input']['mode'] == 'device':
-                    chirp_tab.input_params.device_input.capture_button.setText('Capture Response')
-            chirp_tab.io_changed.emit() # main window listens for io_changed, updates analyze/generate button text
+            chirp_tab.io_changed.emit() # main window listens for io_changed, updates analyze/generate menu text
             if not undo_paused:
                 undo_stack.paused = False
                 undo_stack.push(undo_output_mode, (index+1)%2, undo_output_mode, index)
@@ -1249,14 +1245,17 @@ class DeviceInput(QFrame):
         self.channel.update_callback = update_channel
         update_channel(channel=clp.project['input']['channel'])
 
-        # capture button - todo: is "record" or "acquire" more intuitive?
+        # capture button - todo: is "record" or "acquire" more intuitive than "capture"?
         # todo: gray out and change text if current selected device seems to be invalid
-        if clp.project['output']['mode'] == 'device':
-            button_text = 'Play and Capture'
-        else:
-            button_text = 'Capture Response'
-        self.capture_button = QPushButton(button_text)
+        self.capture_button = QPushButton('Capture Response')
         layout.addWidget(self.capture_button)
+        def update_capture_button_text():
+            if clp.project['output']['mode'] == 'device':
+                self.capture_button.setText('Play and Capture')
+            else:
+                self.capture_button.setText('Capture Response')
+        update_capture_button_text()
+        chirp_tab.io_changed.connect(update_capture_button_text)
         self.capture_start_time = time()
         def capture():
             chirp_tab.input_params.setEnabled(False)
@@ -1270,10 +1269,7 @@ class DeviceInput(QFrame):
             self.capture_button.setText('Capturing: ' + str(round(time()-self.capture_start_time, 2)) + ' / ' + str(self.capture_length.value))
         
         def when_capture_finished(captured_response):
-            if clp.project['output']['mode'] == 'device':
-                self.capture_button.setText('Play and Capture')
-            else:
-                self.capture_button.setText('Capture Response')
+            set_capture_button_text()
 
             chirp_tab.input_params.setEnabled(True) # todo: handle corner cases where capture length is significantly shorter than stimulus length
             if clp.project['output']['mode'] == 'device':
