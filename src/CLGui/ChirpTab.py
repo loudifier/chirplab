@@ -251,6 +251,8 @@ class ChirpParameters(QCollapsible):
 
 
 class OutputParameters(QCollapsible):
+    params_changed = Signal()
+
     def __init__(self, chirp_tab):
         super().__init__('Output')
 
@@ -406,6 +408,7 @@ class FileOutput(QFrame):
                 self.output_length.set_value(round(calc_output_length('seconds'),2))
             else:
                 self.output_length.set_value(calc_output_length('samples'))
+            chirp_tab.output_params.params_changed.emit()
         chirp_tab.chirp_params.stimulus_updated.connect(update_output_length)
         def update_output_length_units(index):
             update_output_length()
@@ -711,6 +714,7 @@ class DeviceOutput(QFrame): # much of this code is duplicated from FileOutput, b
                 self.output_length.set_value(round(calc_output_length('seconds'),2))
             else:
                 self.output_length.set_value(calc_output_length('samples'))
+            chirp_tab.output_params.params_changed.emit()
         chirp_tab.chirp_params.stimulus_updated.connect(update_output_length)
         def update_output_length_units(index):
             update_output_length()
@@ -1157,6 +1161,7 @@ class DeviceInput(QFrame):
         def stimulus_updated(): # todo: this is a little awkward. Can probably be one line, but merging directly with update_auto_length gives unexpected values for checked
             update_auto_length(clp.project['input']['use_output_length'])
         chirp_tab.chirp_params.stimulus_updated.connect(stimulus_updated)
+        chirp_tab.output_params.params_changed.connect(stimulus_updated)
         
         # total length spinbox - seconds/samples dropdown
         self.capture_length = CLParamNum('Capture length', round(clp.project['input']['capture_length'],2), ['Sec','Samples'], 0, 2*(clp.MAX_CHIRP_LENGTH+2*clp.MAX_ZERO_PAD), 'float')
